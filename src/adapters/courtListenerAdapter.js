@@ -1,206 +1,142 @@
-"use strict";
-/**
- * Luminari Ingest Engine — CourtListener Adapter
- * Fetches case law opinions from the CourtListener REST API v3.
- *
- * Base URL   : https://www.courtlistener.com/api/rest/v3
- * Auth       : Authorization: Token {COURT_LISTENER_TOKEN}
- * Rate limit : 5000/hour (authenticated)
- * Endpoints  :
- *   GET /opinions/?cluster__docket__court__jurisdiction={jurisdiction}&format=json&page={page}
- *   GET /clusters/?docket__court__jurisdiction={jurisdiction}&page={page}
- */
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.fetchOpinions = fetchOpinions;
-exports.fetchClusters = fetchClusters;
-exports.normalizeToCase = normalizeToCase;
-exports.runIngestCourtListener = runIngestCourtListener;
-const axios_1 = __importDefault(require("axios"));
-const hash_1 = require("../utils/hash");
-const rawWriter_1 = require("../utils/rawWriter");
-const ingestLogger_1 = require("../utils/ingestLogger");
-const BASE_URL = 'https://www.courtlistener.com/api/rest/v3';
-const RAW_TABLE = 'raw_records';
-const CASE_LAW_TABLE = 'case_law';
-const PAGE_SIZE = 20;
-// ─── API Client Factory ───────────────────────────────────────────────────────
-function buildClient(token) {
-    return axios_1.default.create({
-        baseURL: BASE_URL,
-        headers: {
-            Authorization: `Token ${token}`,
-            Accept: 'application/json',
-        },
-        timeout: 30000,
-    });
+import axios from 'axios';
+import dotenv from 'dotenv';
+import { postSignalsToAtlas, sourceUrlFrom, toIsoTimestamp } from './ingestClient.js';
+
+dotenv.config();
+
+const COURTLISTENER_API_BASE_URL = process.env.COURTLISTENER_API_BASE_URL || 'https://www.courtlistener.com/api/rest/v3';
+const COURTLISTENER_API_KEY = process.env.COURTLISTENER_API_KEY || process.env.COURT_LISTENER_TOKEN;
+
+function authHeaders(token = COURTLISTENER_API_KEY) {
+  return token ? { Authorization: `Token ${token}`, Accept: 'application/json' } : { Accept: 'application/json' };
 }
-// ─── API Calls ────────────────────────────────────────────────────────────────
-/**
- * Fetches one page of opinions for the given court jurisdiction.
- *
- * CourtListener uses state postal abbreviations for jurisdiction:
- *   e.g. 'wa' → Washington state courts
- *        'f'  → Federal courts
- */
-async function fetchOpinions(jurisdiction, token, page = 1) {
-    const client = buildClient(token);
-    const params = {
-        cluster__docket__court__jurisdiction: jurisdiction,
-        format: 'json',
-        page,
-        page_size: PAGE_SIZE,
-    };
-    const response = await client.get('/opinions/', { params });
-    return {
-        results: response.data.results ?? [],
-        next: response.data.next ?? null,
-    };
+
+function opinionSourceUrl(opinion) {
+  const clusterId = opinion.cluster_id || opinion.cluster?.id;
+  return sourceUrlFrom(
+    opinion.absolute_url ? `https://www.courtlistener.com${opinion.absolute_url}` : null,
+    opinion.cluster?.absolute_url ? `https://www.courtlistener.com${opinion.cluster.absolute_url}` : null,
+    clusterId ? `https://www.courtlistener.com/opinion/${clusterId}/` : null,
+    opinion.download_url,
+  );
 }
-/**
- * Fetches opinion clusters (groups related opinions by case).
- */
-async function fetchClusters(jurisdiction, token, page = 1) {
-    const client = buildClient(token);
-    const params = {
-        docket__court__jurisdiction: jurisdiction,
-        format: 'json',
-        page,
-        page_size: PAGE_SIZE,
-    };
-    const response = await client.get('/clusters/', { params });
-    return {
-        results: response.data.results ?? [],
-        next: response.data.next ?? null,
-    };
+
+function jurisdictionFromOpinion(opinion, fallback = 'us_federal') {
+  return (
+    opinion.cluster?.docket?.court_id ||
+    opinion.cluster?.docket?.court?.id ||
+    opinion.court_id ||
+    opinion.jurisdiction ||
+    fallback
+  );
 }
-// ─── Normalizer ───────────────────────────────────────────────────────────────
-/**
- * Maps a CourtListener opinion object to the `case_law` table schema.
- */
-function normalizeToCase(opinion, jurisdiction, ingestJobId) {
-    // Extract cluster info if embedded
-    const cluster = opinion.cluster_id ?? opinion.cluster ?? null;
-    // Parse dates
-    const dateFiled = opinion.date_created
-        ? opinion.date_created.substring(0, 10)
-        : null;
-    // Build a citation string from the absolute_url
-    const sourceUrl = opinion.absolute_url
-        ? `https://www.courtlistener.com${opinion.absolute_url}`
-        : opinion.download_url ?? '';
-    // Extract plain text (try multiple fields)
-    const opinionText = opinion.plain_text ??
-        opinion.html_with_citations ??
-        opinion.html ??
-        opinion.html_lawbox ??
-        '';
-    return {
-        jurisdiction: jurisdiction.toLowerCase(),
-        case_name: opinion.case_name ?? opinion.caseName ?? '',
-        court: opinion.court_id ?? opinion.court ?? '',
-        date_filed: dateFiled,
-        citation: opinion.citation_string ?? opinion.citations ?? '',
-        opinion_text: opinionText.substring(0, 50000), // guard extremely large text
-        author_str: opinion.author_str ?? '',
-        per_curiam: opinion.per_curiam ?? false,
-        opinion_type: opinion.type ?? 'unknown',
-        cluster_id: typeof cluster === 'string' ? cluster : String(cluster ?? ''),
-        source_url: sourceUrl,
-        source_system: 'courtlistener',
-        ingest_job_id: ingestJobId,
-        updated_at: new Date().toISOString(),
-    };
+
+export function normalizeCourtListenerOpinion(opinion, { jurisdiction = 'us_federal', signalType = 'new_court_opinion' } = {}) {
+  const sourceUrl = opinionSourceUrl(opinion);
+  const region = jurisdictionFromOpinion(opinion, jurisdiction);
+  const courtName = opinion.cluster?.docket?.court?.full_name || opinion.cluster?.docket?.court || opinion.court || null;
+  const title = opinion.cluster?.case_name || opinion.case_name || opinion.name || 'CourtListener opinion';
+
+  return {
+    signal_type: signalType,
+    timestamp: toIsoTimestamp(opinion.date_created, opinion.cluster?.date_filed, opinion.date_filed),
+    spacetime: {
+      region,
+      jurisdiction: region,
+      court: courtName,
+      date_filed: opinion.cluster?.date_filed || opinion.date_filed || null,
+    },
+    provenance: {
+      channel: 'court_listener',
+      source_system: 'court_listener',
+      confidence: 1.0,
+      source_url: sourceUrl,
+    },
+    payload: {
+      external_id: opinion.id,
+      title,
+      court: courtName,
+      docket_number: opinion.cluster?.docket?.docket_number || opinion.docket_number || null,
+      cluster_id: opinion.cluster_id || opinion.cluster?.id || null,
+      source_url: sourceUrl,
+      raw: opinion,
+    },
+  };
 }
-// ─── Full Ingest Job ──────────────────────────────────────────────────────────
-/**
- * Runs a full CourtListener ingest for the given jurisdiction.
- *
- * Workflow per opinion:
- *  1. computeHash → writeRawRecord (dedup)
- *  2. normalizeToCase → upsert into `case_law` keyed on (jurisdiction, source_url)
- */
-async function runIngestCourtListener(supabase, token, jurisdiction) {
-    const jobId = await (0, ingestLogger_1.createIngestJob)(supabase, `CourtListener ${jurisdiction.toUpperCase()} Case Law`, 'courtlistener', 'case_law', jurisdiction, { jurisdiction, pageSize: PAGE_SIZE });
-    const result = {
-        jobId,
-        recordsFetched: 0,
-        recordsUpserted: 0,
-        recordsSkipped: 0,
-        errors: [],
-    };
-    try {
-        let page = 1;
-        let hasMore = true;
-        while (hasMore) {
-            let opinions;
-            let next;
-            try {
-                const response = await fetchOpinions(jurisdiction, token, page);
-                opinions = response.results;
-                next = response.next;
-            }
-            catch (fetchErr) {
-                const msg = `CourtListener page ${page} fetch error: ${fetchErr.message}`;
-                result.errors.push(msg);
-                console.error(msg);
-                break;
-            }
-            if (opinions.length === 0) {
-                break;
-            }
-            result.recordsFetched += opinions.length;
-            for (const opinion of opinions) {
-                try {
-                    const hash = (0, hash_1.computeHash)(opinion);
-                    const rawRecord = {
-                        sourceSystem: 'courtlistener',
-                        jurisdiction,
-                        payloadJson: opinion,
-                        payloadHash: hash,
-                        fetchedAt: new Date().toISOString(),
-                        sourceUrl: opinion.absolute_url
-                            ? `https://www.courtlistener.com${opinion.absolute_url}`
-                            : '',
-                        ingestJobId: jobId,
-                    };
-                    const { isNew } = await (0, rawWriter_1.writeRawRecord)(supabase, RAW_TABLE, rawRecord);
-                    if (!isNew) {
-                        result.recordsSkipped++;
-                        continue;
-                    }
-                    const normalized = normalizeToCase(opinion, jurisdiction, jobId);
-                    // Upsert on (jurisdiction, source_url)
-                    const { error: upsertError } = await supabase
-                        .from(CASE_LAW_TABLE)
-                        .upsert([{ ...normalized, payload_hash: hash }], { onConflict: 'jurisdiction,source_url', ignoreDuplicates: false });
-                    if (upsertError) {
-                        throw new Error(upsertError.message);
-                    }
-                    result.recordsUpserted++;
-                }
-                catch (opErr) {
-                    const msg = `Opinion ${opinion.id ?? 'unknown'} error: ${opErr.message}`;
-                    result.errors.push(msg);
-                    console.error(msg);
-                }
-            }
-            hasMore = next !== null;
-            page++;
-        }
-        const status = result.errors.length === 0
-            ? 'completed'
-            : result.recordsUpserted > 0
-                ? 'partial'
-                : 'failed';
-        await (0, ingestLogger_1.finalizeIngestJob)(supabase, jobId, result, status);
-    }
-    catch (err) {
-        result.errors.push(`Fatal: ${err.message}`);
-        await (0, ingestLogger_1.finalizeIngestJob)(supabase, jobId, result, 'failed');
-    }
-    return result;
+
+export function normalizeToCase(opinion, jurisdiction = 'us_federal') {
+  return normalizeCourtListenerOpinion(opinion, { jurisdiction, signalType: 'court_activity' });
 }
-//# sourceMappingURL=courtListenerAdapter.js.map
+
+export async function fetchOpinions(jurisdiction = 'us_federal', token = COURTLISTENER_API_KEY, page = 1, pageSize = 20) {
+  const params = { format: 'json', page, page_size: pageSize, ordering: '-date_created' };
+  if (jurisdiction && jurisdiction !== 'us_federal') params.cluster__docket__court__jurisdiction = jurisdiction;
+
+  const response = await axios.get(`${COURTLISTENER_API_BASE_URL}/opinions/`, {
+    params,
+    headers: authHeaders(token),
+    timeout: 20000,
+  });
+
+  return {
+    results: response.data?.results || [],
+    next: response.data?.next || null,
+  };
+}
+
+export async function fetchClusters(jurisdiction = 'us_federal', token = COURTLISTENER_API_KEY, page = 1, pageSize = 20) {
+  const params = { format: 'json', page, page_size: pageSize };
+  if (jurisdiction && jurisdiction !== 'us_federal') params.docket__court__jurisdiction = jurisdiction;
+
+  const response = await axios.get(`${COURTLISTENER_API_BASE_URL}/clusters/`, {
+    params,
+    headers: authHeaders(token),
+    timeout: 20000,
+  });
+
+  return {
+    results: response.data?.results || [],
+    next: response.data?.next || null,
+  };
+}
+
+export async function ingestCourtListenerSignals({ opinions, jurisdiction = 'us_federal', signalType = 'new_court_opinion', apiBaseUrl } = {}) {
+  const sourceOpinions = opinions || (await fetchOpinions(jurisdiction)).results;
+  const signals = sourceOpinions.map((opinion) => normalizeCourtListenerOpinion(opinion, { jurisdiction, signalType }));
+  return postSignalsToAtlas({
+    sourceId: 'court_listener',
+    jurisdictionId: 'us_federal',
+    moduleHint: 'judicial',
+    signals,
+    apiBaseUrl,
+  });
+}
+
+export async function runIngestCourtListener(_supabase = null, token = COURTLISTENER_API_KEY, jurisdiction = 'us_federal') {
+  const { results } = await fetchOpinions(jurisdiction, token);
+  return ingestCourtListenerSignals({ opinions: results, jurisdiction });
+}
+
+function sampleOpinions() {
+  return [
+    {
+      id: 'courtlistener-sample-1',
+      cluster_id: 'sample-cluster-1',
+      date_created: new Date().toISOString(),
+      cluster: {
+        id: 'sample-cluster-1',
+        case_name: 'Sample v. Atlas',
+        date_filed: new Date().toISOString().slice(0, 10),
+        docket: { docket_number: '24-ATLAS', court_id: 'ca9', court: { full_name: 'United States Court of Appeals for the Ninth Circuit' } },
+      },
+      absolute_url: '/opinion/sample-cluster-1/sample-v-atlas/',
+    },
+  ];
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  const useSample = process.argv.includes('--sample');
+  const opinions = useSample ? sampleOpinions() : (await fetchOpinions()).results;
+  const result = await ingestCourtListenerSignals({ opinions });
+  console.log(JSON.stringify({ ok: true, source: 'court_listener', mode: useSample ? 'sample' : 'live', result }, null, 2));
+}

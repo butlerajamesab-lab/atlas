@@ -1,272 +1,180 @@
-"use strict";
-/**
- * Luminari Ingest Engine — ProPublica Nonprofit Explorer Adapter
- * Fetches nonprofit organizations and IRS 990 filings.
- *
- * Base URL  : https://projects.propublica.org/nonprofits/api/v2
- * Auth      : None required
- * Endpoints :
- *   GET /search.json?q={query}&state[id]={state}&page={page}
- *   GET /organizations/{ein}.json
- */
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.searchNonprofits = searchNonprofits;
-exports.fetchOrgDetail = fetchOrgDetail;
-exports.normalizeToNonprofit = normalizeToNonprofit;
-exports.normalizeToFiling = normalizeToFiling;
-exports.runIngestProPublica = runIngestProPublica;
-const axios_1 = __importDefault(require("axios"));
-const hash_1 = require("../utils/hash");
-const rawWriter_1 = require("../utils/rawWriter");
-const ingestLogger_1 = require("../utils/ingestLogger");
-const BASE_URL = 'https://projects.propublica.org/nonprofits/api/v2';
-const RAW_TABLE = 'raw_records';
-const NONPROFIT_TABLE = 'nonprofit_orgs';
-const FILING_TABLE = 'nonprofit_filings';
-// ─── API Client Factory ───────────────────────────────────────────────────────
-function buildClient() {
-    return axios_1.default.create({
-        baseURL: BASE_URL,
-        headers: { Accept: 'application/json' },
-        timeout: 30000,
-    });
+import axios from 'axios';
+import dotenv from 'dotenv';
+import { asArray, postSignalsToAtlas, sourceUrlFrom, toIsoTimestamp } from './ingestClient.js';
+
+dotenv.config();
+
+const PROPUBLICA_NONPROFIT_API_BASE_URL = process.env.PROPUBLICA_NONPROFIT_API_BASE_URL || 'https://projects.propublica.org/nonprofits/api/v2';
+
+function nonprofitSourceUrl(orgOrFiling) {
+  const ein = String(orgOrFiling.ein || orgOrFiling.organization?.ein || '').replace(/-/g, '');
+  return sourceUrlFrom(
+    orgOrFiling.pdf_url,
+    orgOrFiling.source_url,
+    orgOrFiling.url,
+    ein ? `https://projects.propublica.org/nonprofits/organizations/${ein}` : null,
+  );
 }
-// ─── API Calls ────────────────────────────────────────────────────────────────
-/**
- * Searches nonprofits by state with optional keyword query.
- */
-async function searchNonprofits(state, page = 0, query = '') {
-    const client = buildClient();
-    const params = {
-        'state[id]': state.toUpperCase(),
-        page,
-    };
-    if (query) {
-        params['q'] = query;
+
+function stateFromRecord(record, fallback = 'us_federal') {
+  return record.state || record.organization?.state || record.jurisdiction || fallback;
+}
+
+export function normalizeProPublicaOrganization(org, { jurisdiction = 'us_federal' } = {}) {
+  const region = stateFromRecord(org, jurisdiction);
+  const sourceUrl = nonprofitSourceUrl(org);
+
+  return {
+    signal_type: 'nonprofit_registry_record',
+    timestamp: toIsoTimestamp(org.updated, org.ruling_date, org.created_at),
+    spacetime: {
+      region,
+      jurisdiction: region,
+      city: org.city || null,
+      state: org.state || null,
+    },
+    provenance: {
+      channel: 'pro_publica',
+      source_system: 'pro_publica_nonprofit_explorer',
+      confidence: 1.0,
+      source_url: sourceUrl,
+    },
+    payload: {
+      external_id: org.ein,
+      ein: org.ein,
+      name: org.name || org.strein || null,
+      ntee_code: org.ntee_code || null,
+      subsection_code: org.subsection_code || null,
+      revenue_amount: org.revenue_amount ?? null,
+      income_amount: org.income_amount ?? null,
+      asset_amount: org.asset_amount ?? null,
+      source_url: sourceUrl,
+      raw: org,
+    },
+  };
+}
+
+export function normalizeProPublicaFiling(filing, { organization = {}, jurisdiction = 'us_federal' } = {}) {
+  const record = { ...filing, organization };
+  const region = stateFromRecord(record, jurisdiction);
+  const sourceUrl = nonprofitSourceUrl(record);
+
+  return {
+    signal_type: 'nonprofit_990_filing',
+    timestamp: toIsoTimestamp(filing.updated, filing.tax_period),
+    spacetime: {
+      region,
+      jurisdiction: region,
+      tax_period: filing.tax_period || null,
+    },
+    provenance: {
+      channel: 'pro_publica',
+      source_system: 'pro_publica_nonprofit_explorer',
+      confidence: 1.0,
+      source_url: sourceUrl,
+    },
+    payload: {
+      external_id: filing.sub_id || `${organization.ein || 'unknown'}-${filing.tax_period || 'unknown'}`,
+      ein: organization.ein || filing.ein || null,
+      organization_name: organization.name || null,
+      tax_period: filing.tax_period || null,
+      form_type: filing.formtype || filing.form_type || null,
+      total_revenue: filing.totrevenue ?? null,
+      total_assets: filing.totassetsend ?? null,
+      pdf_url: filing.pdf_url || null,
+      source_url: sourceUrl,
+      raw: filing,
+    },
+  };
+}
+
+export function normalizeToNonprofit(org, jurisdiction = 'us_federal') {
+  return normalizeProPublicaOrganization(org, { jurisdiction });
+}
+
+export function normalizeToFiling(filing, organization = {}, jurisdiction = 'us_federal') {
+  return normalizeProPublicaFiling(filing, { organization, jurisdiction });
+}
+
+export async function searchNonprofits(state = 'WA', page = 0, query = '') {
+  const params = { 'state[id]': state.toUpperCase(), page };
+  if (query) params.q = query;
+
+  const response = await axios.get(`${PROPUBLICA_NONPROFIT_API_BASE_URL}/search.json`, {
+    params,
+    timeout: 20000,
+  });
+
+  return {
+    organizations: response.data?.organizations || [],
+    num_pages: response.data?.num_pages || 1,
+  };
+}
+
+export async function fetchOrgDetail(ein) {
+  const cleanEin = String(ein).replace(/-/g, '');
+  const response = await axios.get(`${PROPUBLICA_NONPROFIT_API_BASE_URL}/organizations/${cleanEin}.json`, { timeout: 20000 });
+  return {
+    organization: response.data?.organization || {},
+    filings_with_data: response.data?.filings_with_data || [],
+  };
+}
+
+export async function ingestProPublicaSignals({ organizations = [], filings = [], jurisdiction = 'us_federal', apiBaseUrl } = {}) {
+  const orgSignals = organizations.map((organization) => normalizeProPublicaOrganization(organization, { jurisdiction }));
+  const filingSignals = filings.flatMap((entry) => {
+    if (entry?.filings_with_data) {
+      return entry.filings_with_data.map((filing) => normalizeProPublicaFiling(filing, { organization: entry.organization || {}, jurisdiction }));
     }
-    const response = await client.get('/search.json', { params });
-    return {
-        organizations: response.data.organizations ?? [],
-        num_pages: response.data.num_pages ?? 1,
-    };
+    return normalizeProPublicaFiling(entry, { organization: entry.organization || {}, jurisdiction });
+  });
+
+  return postSignalsToAtlas({
+    sourceId: 'pro_publica',
+    jurisdictionId: 'us_federal',
+    moduleHint: 'congressional',
+    signals: [...orgSignals, ...filingSignals],
+    apiBaseUrl,
+  });
 }
-/**
- * Fetches full organization detail and all 990 filings for the given EIN.
- */
-async function fetchOrgDetail(ein) {
-    const client = buildClient();
-    // Normalize EIN: remove dashes
-    const cleanEin = ein.replace(/-/g, '');
-    const response = await client.get(`/organizations/${cleanEin}.json`);
-    return {
-        organization: response.data.organization ?? {},
-        filings_with_data: response.data.filings_with_data ?? [],
-    };
+
+export async function runIngestProPublica(_supabase = null, state = 'WA') {
+  const { organizations } = await searchNonprofits(state);
+  const details = [];
+  for (const organization of organizations.slice(0, 10)) {
+    const ein = organization.ein;
+    if (ein) details.push(await fetchOrgDetail(ein));
+  }
+  return ingestProPublicaSignals({ organizations, filings: details, jurisdiction: state.toUpperCase() });
 }
-// ─── Normalizers ─────────────────────────────────────────────────────────────
-/**
- * Maps a ProPublica org object to the `nonprofit_orgs` table schema.
- */
-function normalizeToNonprofit(org, ingestJobId) {
-    // Normalize EIN to XX-XXXXXXX format
-    const rawEin = String(org.ein ?? '').replace(/-/g, '');
-    const ein = rawEin.length === 9
-        ? `${rawEin.substring(0, 2)}-${rawEin.substring(2)}`
-        : rawEin;
-    return {
-        ein,
-        name: org.name ?? org.strein ?? '',
-        ntee_code: org.ntee_code ?? '',
-        subsection_code: org.subsection_code ?? '',
-        classification_codes: org.classification_codes ?? '',
-        city: org.city ?? '',
-        state: org.state ?? '',
-        zipcode: org.zipcode ?? '',
-        income_amount: org.income_amount ?? null,
-        revenue_amount: org.revenue_amount ?? null,
-        asset_amount: org.asset_amount ?? null,
-        filing_requirement: org.filing_requirement ?? '',
-        pf_filing_requirement: org.pf_filing_requirement ?? '',
-        accounting_period: org.accounting_period ?? '',
-        deductibility: org.deductibility ?? null,
-        foundation: org.foundation ?? null,
-        organization_type: org.organization ?? '',
-        ruling_date: org.ruling_date ?? null,
-        exempt_status: org.exempt_status ?? '',
-        source_url: `https://projects.propublica.org/nonprofits/organizations/${String(org.ein ?? '').replace(/-/g, '')}`,
-        source_system: 'propublica',
-        ingest_job_id: ingestJobId,
-        updated_at: new Date().toISOString(),
-    };
+
+function sampleRecords() {
+  const organization = {
+    ein: '123456789',
+    name: 'Sample Atlas Public Benefit Organization',
+    city: 'Seattle',
+    state: 'WA',
+    ntee_code: 'I20',
+    revenue_amount: 1000000,
+    updated: new Date().toISOString(),
+  };
+  const filing = {
+    sub_id: 'sample-990-1',
+    tax_period: '202412',
+    formtype: '990',
+    totrevenue: 1000000,
+    totassetsend: 500000,
+    pdf_url: 'https://projects.propublica.org/nonprofits/download-filing?path=sample-990.pdf',
+    organization,
+  };
+  return { organization, filing };
 }
-/**
- * Maps a ProPublica 990 filing to the `nonprofit_filings` table schema.
- */
-function normalizeToFiling(filing, nonprofitId, ingestJobId) {
-    return {
-        nonprofit_id: nonprofitId,
-        tax_period: filing.tax_period ?? '',
-        payer_name: filing.payer_name ?? '',
-        form_type: filing.formtype ?? filing.form_type ?? '',
-        sub_id: String(filing.sub_id ?? ''),
-        updated: filing.updated ?? null,
-        totrevenue: filing.totrevenue ?? null,
-        totfuncexpns: filing.totfuncexpns ?? null,
-        totassetsend: filing.totassetsend ?? null,
-        totliabend: filing.totliabend ?? null,
-        totnetassetsend: filing.totnetassetsend ?? null,
-        compnsatncurrofcr: filing.compnsatncurrofcr ?? null,
-        noncontrirevnue: filing.noncontrirevnue ?? null,
-        profndraising: filing.profndraising ?? null,
-        investmntinc: filing.investmntinc ?? null,
-        grsrcptsrelated170: filing.grsrcptsrelated170 ?? null,
-        totcntrbgfts: filing.totcntrbgfts ?? null,
-        pdf_url: filing.pdf_url ?? '',
-        source_system: 'propublica',
-        ingest_job_id: ingestJobId,
-        updated_at: new Date().toISOString(),
-    };
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  const useSample = process.argv.includes('--sample');
+  const { organization, filing } = sampleRecords();
+  const result = useSample
+    ? await ingestProPublicaSignals({ organizations: [organization], filings: [filing], jurisdiction: 'WA' })
+    : await runIngestProPublica(null, 'WA');
+  console.log(JSON.stringify({ ok: true, source: 'pro_publica', mode: useSample ? 'sample' : 'live', result }, null, 2));
 }
-// ─── Full Ingest Job ──────────────────────────────────────────────────────────
-/**
- * Runs a full ProPublica ingest for all nonprofits in the given state.
- *
- * Workflow:
- *  1. Search for all orgs in the state (paginated)
- *  2. For each org: fetch detail → computeHash → writeRawRecord → upsert nonprofit
- *  3. For each filing: computeHash → writeRawRecord → upsert filing
- */
-async function runIngestProPublica(supabase, state) {
-    const jobId = await (0, ingestLogger_1.createIngestJob)(supabase, `ProPublica Nonprofits ${state.toUpperCase()}`, 'propublica', 'nonprofits', state.toLowerCase(), { state });
-    const result = {
-        jobId,
-        recordsFetched: 0,
-        recordsUpserted: 0,
-        recordsSkipped: 0,
-        errors: [],
-    };
-    try {
-        let page = 0;
-        let maxPages = 1;
-        // Iterate search pages
-        do {
-            let orgs;
-            try {
-                const searchResult = await searchNonprofits(state, page);
-                orgs = searchResult.organizations;
-                maxPages = searchResult.num_pages;
-            }
-            catch (searchErr) {
-                const msg = `Search page ${page} error: ${searchErr.message}`;
-                result.errors.push(msg);
-                console.error(msg);
-                break;
-            }
-            if (orgs.length === 0)
-                break;
-            for (const orgSummary of orgs) {
-                try {
-                    result.recordsFetched++;
-                    const ein = String(orgSummary.ein ?? '').replace(/-/g, '');
-                    if (!ein) {
-                        result.recordsSkipped++;
-                        continue;
-                    }
-                    // Fetch full detail
-                    let orgDetail;
-                    let filings = [];
-                    try {
-                        const detail = await fetchOrgDetail(ein);
-                        orgDetail = detail.organization;
-                        filings = detail.filings_with_data;
-                    }
-                    catch (detailErr) {
-                        // Fall back to summary if detail fetch fails
-                        orgDetail = orgSummary;
-                        result.errors.push(`EIN ${ein} detail fetch failed: ${detailErr.message}`);
-                    }
-                    const orgHash = (0, hash_1.computeHash)(orgDetail);
-                    const orgRawRecord = {
-                        sourceSystem: 'propublica',
-                        jurisdiction: state.toLowerCase(),
-                        payloadJson: orgDetail,
-                        payloadHash: orgHash,
-                        fetchedAt: new Date().toISOString(),
-                        sourceUrl: `https://projects.propublica.org/nonprofits/organizations/${ein}`,
-                        ingestJobId: jobId,
-                    };
-                    const { isNew: isOrgNew } = await (0, rawWriter_1.writeRawRecord)(supabase, RAW_TABLE, orgRawRecord);
-                    if (!isOrgNew) {
-                        result.recordsSkipped++;
-                        continue;
-                    }
-                    const normalizedOrg = normalizeToNonprofit(orgDetail, jobId);
-                    // Upsert nonprofit keyed on EIN
-                    const { data: upsertedOrg, error: orgUpsertErr } = await supabase
-                        .from(NONPROFIT_TABLE)
-                        .upsert([{ ...normalizedOrg, payload_hash: orgHash }], {
-                        onConflict: 'ein',
-                        ignoreDuplicates: false,
-                    })
-                        .select('id')
-                        .single();
-                    if (orgUpsertErr)
-                        throw new Error(orgUpsertErr.message);
-                    result.recordsUpserted++;
-                    const nonprofitId = upsertedOrg.id;
-                    // Ingest each filing
-                    for (const filing of filings) {
-                        try {
-                            const filingHash = (0, hash_1.computeHash)(filing);
-                            const filingRaw = {
-                                sourceSystem: 'propublica',
-                                jurisdiction: state.toLowerCase(),
-                                payloadJson: filing,
-                                payloadHash: filingHash,
-                                fetchedAt: new Date().toISOString(),
-                                sourceUrl: filing.pdf_url ?? '',
-                                ingestJobId: jobId,
-                            };
-                            const { isNew: isFilingNew } = await (0, rawWriter_1.writeRawRecord)(supabase, RAW_TABLE, filingRaw);
-                            if (!isFilingNew)
-                                continue;
-                            const normalizedFiling = normalizeToFiling(filing, nonprofitId, jobId);
-                            await supabase
-                                .from(FILING_TABLE)
-                                .upsert([{ ...normalizedFiling, payload_hash: filingHash }], {
-                                onConflict: 'nonprofit_id,tax_period,form_type',
-                                ignoreDuplicates: false,
-                            });
-                            result.recordsUpserted++;
-                            result.recordsFetched++;
-                        }
-                        catch (filingErr) {
-                            result.errors.push(`Filing ${filing.sub_id ?? 'unknown'} error: ${filingErr.message}`);
-                        }
-                    }
-                }
-                catch (orgErr) {
-                    const msg = `Org ${orgSummary.ein ?? 'unknown'} error: ${orgErr.message}`;
-                    result.errors.push(msg);
-                    console.error(msg);
-                }
-            }
-            page++;
-        } while (page < maxPages);
-        const status = result.errors.length === 0
-            ? 'completed'
-            : result.recordsUpserted > 0
-                ? 'partial'
-                : 'failed';
-        await (0, ingestLogger_1.finalizeIngestJob)(supabase, jobId, result, status);
-    }
-    catch (err) {
-        result.errors.push(`Fatal: ${err.message}`);
-        await (0, ingestLogger_1.finalizeIngestJob)(supabase, jobId, result, 'failed');
-    }
-    return result;
-}
-//# sourceMappingURL=proPublicaAdapter.js.map

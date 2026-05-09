@@ -12,17 +12,18 @@ export function normalizeOpenStatesBill(bill) {
   const confidence = bill.latest_action_date ? 0.84 : 0.72;
 
   return {
-    signal_type: 'open_states.bill',
+    signal_type: 'legislative_activity',
     timestamp: new Date(updatedAt).toISOString(),
     spacetime: {
+      region: jurisdiction,
       jurisdiction,
       session: bill.session || null,
       chamber: bill.from_organization?.classification || null,
     },
     provenance: {
-      channel: 'external',
+      channel: 'open_states',
       source_system: 'open_states',
-      confidence,
+      confidence: 1.0,
       source_url: bill.openstates_url || bill.sources?.[0]?.url || null,
     },
     payload: {

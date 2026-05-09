@@ -3,6 +3,7 @@ import { customAlphabet } from 'nanoid';
 import { supabase } from '../lib/supabaseClient.js';
 import { assertInvestigationTrigger } from '../lib/validators.js';
 import { evaluateStreamHealth, luminariStreamHealthManifest } from '../services/streamHealthInvestigation.js';
+import { triggerBridgeForPattern } from '../services/bridgeHook.js';
 import { requireStream, toPublicSignalEvent } from '../services/streamStore.js';
 
 const nanoid = customAlphabet('0123456789abcdefghijklmnopqrstuvwxyz', 14);
@@ -58,13 +59,18 @@ export function investigationsRouter({ apiError }) {
       });
 
       const patternsWithJob = patterns.map((pattern) => ({ ...pattern, job_id: job.job_id }));
+      const bridgeResults = [];
       if (patternsWithJob.length) {
         const { error: patternError } = await supabase.from('prime_patterns').insert(patternsWithJob);
         if (patternError) throw patternError;
+
+        for (const pattern of patternsWithJob) {
+          bridgeResults.push(await triggerBridgeForPattern(pattern, job.job_id, trigger.stream_id));
+        }
       }
 
       const completedAt = new Date().toISOString();
-      const result = { alert, emitted_patterns: patternsWithJob.length };
+      const result = { alert, emitted_patterns: patternsWithJob.length, bridge_results: bridgeResults };
       const { data: completedJob, error: updateError } = await supabase
         .from('investigative_jobs')
         .update({ status: 'completed', completed_at: completedAt, result })

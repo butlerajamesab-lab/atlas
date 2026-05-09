@@ -1,223 +1,127 @@
-"use strict";
-/**
- * Luminari Ingest Engine — Grants.gov Adapter
- * Fetches federal grant opportunities from the Grants.gov API v1.
- *
- * Base URL  : https://api.grants.gov/v1/api
- * Auth      : None required for public search
- * Endpoints :
- *   POST /search2          — paginated keyword search
- *   POST /fetchOpportunity — single opportunity detail by number
- */
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.searchOpportunities = searchOpportunities;
-exports.fetchOpportunityDetail = fetchOpportunityDetail;
-exports.normalizeToGrant = normalizeToGrant;
-exports.runIngestGrantsGov = runIngestGrantsGov;
-const axios_1 = __importDefault(require("axios"));
-const hash_1 = require("../utils/hash");
-const rawWriter_1 = require("../utils/rawWriter");
-const ingestLogger_1 = require("../utils/ingestLogger");
-const BASE_URL = 'https://api.grants.gov/v1/api';
-const RAW_TABLE = 'raw_records';
-const GRANT_TABLE = 'grant_opportunities';
-const DEFAULT_ROWS = 25;
-// ─── API Client Factory ───────────────────────────────────────────────────────
-function buildClient() {
-    return axios_1.default.create({
-        baseURL: BASE_URL,
-        headers: {
-            'Content-Type': 'application/json',
-            Accept: 'application/json',
-        },
-        timeout: 30000,
-    });
+import axios from 'axios';
+import dotenv from 'dotenv';
+import { asArray, postSignalsToAtlas, sourceUrlFrom, toIsoTimestamp } from './ingestClient.js';
+
+dotenv.config();
+
+const GRANTS_GOV_API_BASE_URL = process.env.GRANTS_GOV_API_BASE_URL || 'https://api.grants.gov/v1/api';
+
+function opportunitySourceUrl(opportunity) {
+  return sourceUrlFrom(
+    opportunity.source_url,
+    opportunity.url,
+    opportunity.synopsisUrl,
+    opportunity.synopsis_url,
+    opportunity.oppNumber ? `https://www.grants.gov/search-results-detail/${opportunity.oppNumber}` : null,
+    opportunity.opportunityNumber ? `https://www.grants.gov/search-results-detail/${opportunity.opportunityNumber}` : null,
+    opportunity.id ? `https://www.grants.gov/search-results-detail/${opportunity.id}` : null,
+    opportunity.opportunityId ? `https://www.grants.gov/search-results-detail/${opportunity.opportunityId}` : null,
+  );
 }
-// ─── API Calls ────────────────────────────────────────────────────────────────
-/**
- * Searches grant opportunities with an optional keyword.
- * Uses the search2 endpoint which supports richer filtering.
- */
-async function searchOpportunities(keyword = '', startRecord = 1, rows = DEFAULT_ROWS) {
-    const client = buildClient();
-    const body = {
-        keyword,
-        rows,
-        startRecord,
-        oppStatuses: 'posted',
-    };
-    const response = await client.post('/search2', body);
-    return {
-        oppHits: response.data.oppHits ?? [],
-        hitCount: response.data.hitCount ?? 0,
-    };
+
+function agencyFromOpportunity(opportunity) {
+  return opportunity.agencyCode || opportunity.owningAgencyCode || opportunity.agency_code || opportunity.agency || opportunity.agencyName || opportunity.agency_name || 'grants_gov';
 }
-/**
- * Fetches full detail for a single opportunity by its opportunity number.
- */
-async function fetchOpportunityDetail(opportunityNumber) {
-    const client = buildClient();
-    const body = { opportunityNumber };
-    const response = await client.post('/fetchOpportunity', body);
-    return response.data.opportunity ?? response.data ?? {};
+
+export function normalizeGrantsGovOpportunity(opportunity, { jurisdiction = 'us_federal' } = {}) {
+  const sourceUrl = opportunitySourceUrl(opportunity);
+  const agency = agencyFromOpportunity(opportunity);
+  const closeDate = opportunity.closeDate || opportunity.close_date || opportunity.archiveDate || null;
+
+  return {
+    signal_type: 'grant_opportunity',
+    timestamp: toIsoTimestamp(opportunity.postedDate, opportunity.posted_date, opportunity.postDate, opportunity.openDate, opportunity.lastUpdatedDate, opportunity.last_updated_date),
+    spacetime: {
+      region: jurisdiction,
+      jurisdiction,
+      agency,
+      close_date: closeDate,
+    },
+    provenance: {
+      channel: 'grants_gov',
+      source_system: 'grants_gov',
+      confidence: 1.0,
+      source_url: sourceUrl,
+    },
+    payload: {
+      external_id: opportunity.id || opportunity.opportunityId || opportunity.opportunity_id,
+      opportunity_number: opportunity.oppNumber || opportunity.opportunityNumber || opportunity.opportunity_number || null,
+      title: opportunity.title || opportunity.opportunityTitle || opportunity.opportunity_title || null,
+      agency,
+      category: opportunity.fundingInstrumentType || opportunity.funding_instrument_type || opportunity.oppCategory || null,
+      eligibility: asArray(opportunity.eligibility || opportunity.eligibleApplicants || opportunity.eligible_applicants),
+      close_date: closeDate,
+      source_url: sourceUrl,
+      raw: opportunity,
+    },
+  };
 }
-// ─── Normalizer ───────────────────────────────────────────────────────────────
-/**
- * Maps a Grants.gov opportunity object to the `grant_opportunities` table schema.
- */
-function normalizeToGrant(opp, ingestJobId) {
-    // Parse monetary values safely
-    const parseAmount = (val) => {
-        if (val === null || val === undefined || val === '')
-            return null;
-        const n = Number(val);
-        return isNaN(n) ? null : n;
-    };
-    // Parse date strings
-    const parseDate = (val) => {
-        if (!val)
-            return null;
-        const s = String(val);
-        // Grants.gov dates can be MM/DD/YYYY or YYYY-MM-DD
-        if (s.includes('/')) {
-            const parts = s.split('/');
-            if (parts.length === 3) {
-                return `${parts[2]}-${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}`;
-            }
-        }
-        return s.length >= 10 ? s.substring(0, 10) : null;
-    };
-    const oppNumber = opp.oppNumber ?? opp.opportunityNumber ?? '';
-    const sourceUrl = oppNumber
-        ? `https://www.grants.gov/search-results-detail/${oppNumber}`
-        : '';
-    return {
-        opportunity_number: oppNumber,
-        opportunity_id: String(opp.id ?? opp.opportunityId ?? ''),
-        title: opp.title ?? opp.opportunityTitle ?? '',
-        agency_code: opp.agencyCode ?? opp.owningAgencyCode ?? '',
-        agency_name: opp.agencyName ?? opp.agencyContactName ?? '',
-        cfda_number: opp.cfdaNumber ?? opp.cfdaList ?? '',
-        opportunity_category: opp.oppCategory ?? opp.opportunityCategory ?? '',
-        funding_instrument_type: opp.fundingInstrumentType ?? '',
-        eligible_applicants: opp.eligibleApplicants ?? '',
-        synopsis: (opp.synopsis ?? opp.description ?? '').substring(0, 10000),
-        award_floor: parseAmount(opp.awardFloor),
-        award_ceiling: parseAmount(opp.awardCeiling),
-        expected_number_of_awards: parseAmount(opp.expectedNumberOfAwards),
-        estimated_total_funding: parseAmount(opp.estimatedTotalProgramFunding),
-        open_date: parseDate(opp.openDate ?? opp.postDate),
-        close_date: parseDate(opp.closeDate ?? opp.archiveDate),
-        status: opp.oppStatus ?? opp.opportunityStatus ?? 'posted',
-        source_url: sourceUrl,
-        source_system: 'grants_gov',
-        ingest_job_id: ingestJobId,
-        updated_at: new Date().toISOString(),
-    };
+
+export function normalizeToGrant(opportunity, jurisdiction = 'us_federal') {
+  return normalizeGrantsGovOpportunity(opportunity, { jurisdiction });
 }
-// ─── Full Ingest Job ──────────────────────────────────────────────────────────
-/**
- * Runs a full Grants.gov ingest with an optional keyword filter.
- *
- * Workflow:
- *  1. Paginate through search2 results
- *  2. For each opportunity hit: computeHash → writeRawRecord → fetchDetail → normalizeToGrant → upsert
- */
-async function runIngestGrantsGov(supabase, keyword = '') {
-    const jobId = await (0, ingestLogger_1.createIngestJob)(supabase, `Grants.gov Opportunities${keyword ? ` [${keyword}]` : ''}`, 'grants_gov', 'grants', 'federal', { keyword, rows: DEFAULT_ROWS });
-    const result = {
-        jobId,
-        recordsFetched: 0,
-        recordsUpserted: 0,
-        recordsSkipped: 0,
-        errors: [],
-    };
-    try {
-        let startRecord = 1;
-        let totalHits = Infinity;
-        while (startRecord <= totalHits) {
-            let oppHits;
-            let hitCount;
-            try {
-                const searchResult = await searchOpportunities(keyword, startRecord, DEFAULT_ROWS);
-                oppHits = searchResult.oppHits;
-                hitCount = searchResult.hitCount;
-                totalHits = hitCount;
-            }
-            catch (fetchErr) {
-                const msg = `Grants.gov search error (startRecord=${startRecord}): ${fetchErr.message}`;
-                result.errors.push(msg);
-                console.error(msg);
-                break;
-            }
-            if (oppHits.length === 0)
-                break;
-            result.recordsFetched += oppHits.length;
-            for (const opp of oppHits) {
-                try {
-                    // Compute hash on the summary record first
-                    const summaryHash = (0, hash_1.computeHash)(opp);
-                    const rawRecord = {
-                        sourceSystem: 'grants_gov',
-                        jurisdiction: 'federal',
-                        payloadJson: opp,
-                        payloadHash: summaryHash,
-                        fetchedAt: new Date().toISOString(),
-                        sourceUrl: opp.oppNumber
-                            ? `https://www.grants.gov/search-results-detail/${opp.oppNumber}`
-                            : '',
-                        ingestJobId: jobId,
-                    };
-                    const { isNew } = await (0, rawWriter_1.writeRawRecord)(supabase, RAW_TABLE, rawRecord);
-                    if (!isNew) {
-                        result.recordsSkipped++;
-                        continue;
-                    }
-                    // Fetch detail for richer data
-                    let detail = opp;
-                    const oppNumber = opp.oppNumber ?? opp.opportunityNumber;
-                    if (oppNumber) {
-                        try {
-                            detail = await fetchOpportunityDetail(oppNumber);
-                        }
-                        catch (detailErr) {
-                            // Use summary if detail fails
-                            result.errors.push(`Detail fetch for ${oppNumber} failed: ${detailErr.message}`);
-                        }
-                    }
-                    const normalized = normalizeToGrant(detail, jobId);
-                    const { error: upsertErr } = await supabase
-                        .from(GRANT_TABLE)
-                        .upsert([{ ...normalized, payload_hash: summaryHash }], {
-                        onConflict: 'opportunity_number',
-                        ignoreDuplicates: false,
-                    });
-                    if (upsertErr)
-                        throw new Error(upsertErr.message);
-                    result.recordsUpserted++;
-                }
-                catch (oppErr) {
-                    const msg = `Opportunity ${opp.oppNumber ?? 'unknown'} error: ${oppErr.message}`;
-                    result.errors.push(msg);
-                    console.error(msg);
-                }
-            }
-            startRecord += DEFAULT_ROWS;
-        }
-        const status = result.errors.length === 0
-            ? 'completed'
-            : result.recordsUpserted > 0
-                ? 'partial'
-                : 'failed';
-        await (0, ingestLogger_1.finalizeIngestJob)(supabase, jobId, result, status);
-    }
-    catch (err) {
-        result.errors.push(`Fatal: ${err.message}`);
-        await (0, ingestLogger_1.finalizeIngestJob)(supabase, jobId, result, 'failed');
-    }
-    return result;
+
+export async function searchOpportunities(keyword = '', startRecord = 1, rows = 25) {
+  const response = await axios.post(
+    `${GRANTS_GOV_API_BASE_URL}/search2`,
+    {
+      keyword,
+      rows,
+      startRecord,
+      oppStatuses: 'posted',
+    },
+    { timeout: 20000 },
+  );
+
+  return {
+    oppHits: response.data?.data?.oppHits || response.data?.oppHits || [],
+    hitCount: response.data?.data?.hitCount || response.data?.hitCount || 0,
+  };
 }
-//# sourceMappingURL=grantsGovAdapter.js.map
+
+export async function fetchOpportunityDetail(opportunityNumber) {
+  const response = await axios.post(
+    `${GRANTS_GOV_API_BASE_URL}/fetchOpportunity`,
+    { opportunityNumber },
+    { timeout: 20000 },
+  );
+  return response.data?.data?.opportunity || response.data?.opportunity || response.data?.data || response.data;
+}
+
+export async function ingestGrantsGovSignals({ opportunities, jurisdiction = 'us_federal', apiBaseUrl } = {}) {
+  const sourceOpportunities = opportunities || (await searchOpportunities()).oppHits;
+  const signals = sourceOpportunities.map((opportunity) => normalizeGrantsGovOpportunity(opportunity, { jurisdiction }));
+  return postSignalsToAtlas({
+    sourceId: 'grants_gov',
+    jurisdictionId: 'us_federal',
+    moduleHint: 'grants',
+    signals,
+    apiBaseUrl,
+  });
+}
+
+export async function runIngestGrantsGov(_supabase = null, keyword = '') {
+  const { oppHits } = await searchOpportunities(keyword);
+  return ingestGrantsGovSignals({ opportunities: oppHits });
+}
+
+function sampleOpportunities() {
+  return [
+    {
+      id: 'grants-gov-sample-1',
+      oppNumber: 'ATLAS-2026-001',
+      title: 'Sample public accountability grant opportunity',
+      agencyCode: 'DOJ',
+      postedDate: new Date().toISOString().slice(0, 10),
+      closeDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+      synopsisUrl: 'https://www.grants.gov/search-results-detail/ATLAS-2026-001',
+    },
+  ];
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  const useSample = process.argv.includes('--sample');
+  const opportunities = useSample ? sampleOpportunities() : (await searchOpportunities()).oppHits;
+  const result = await ingestGrantsGovSignals({ opportunities });
+  console.log(JSON.stringify({ ok: true, source: 'grants_gov', mode: useSample ? 'sample' : 'live', result }, null, 2));
+}

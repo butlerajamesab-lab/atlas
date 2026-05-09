@@ -30,10 +30,11 @@
       "properties": {
         "channel": {
           "type": "string",
-          "enum": ["internal", "external", "partner"]
+          "enum": ["internal", "external", "partner", "court_listener", "open_states", "grants_gov", "pro_publica", "cfpb", "eeoc", "dol_whd", "osha"]
         },
         "confidence": { "type": "number" },
-        "source_system": { "type": ["string", "null"] }
+        "source_system": { "type": ["string", "null"] },
+        "source_url": { "type": ["string", "null"] }
       }
     },
     "payload": {

@@ -13,7 +13,7 @@ The implementation intentionally keeps secrets out of version control. Runtime c
 | `src/services/` | Shared Atlas service logic, including `luminari_stream_health_v1` and stream persistence helpers. |
 | `src/adapters/` | Provided adapter code plus the integrated OpenStates API source wrapper that sends signals through Atlas ingest. |
 | `src/lib/` | Supabase client and JSON-schema validation helpers. |
-| `src/schema/` | Atlas schema inventory, current data-state export, JSON schemas, and the streaming table migration. |
+| `src/schema/` | Atlas schema inventory, current data-state export, JSON schemas, the streaming table migration, and the Lighthouse bridge RPC migration. |
 | `scripts/` | Operational scripts for schema application, state export, stream registration, and e2e verification. |
 | `test-results/` | Captured verification artifacts from the Atlas integration run. |
 
@@ -51,7 +51,7 @@ The public tables currently include the pre-existing Atlas data structures and t
 
 ## Streaming schema
 
-The streaming migration is in `src/schema/001_streaming_tables.sql`. It creates the five required streaming tables with RLS enabled, service-role write policies, authenticated read policies for stream tables where appropriate, updated-at triggers, and indexes for cursor/event and pattern queries.
+The streaming migration is in `src/schema/001_streaming_tables.sql`. It creates the five required streaming tables with RLS enabled, service-role write policies, authenticated read policies for stream tables where appropriate, updated-at triggers, and indexes for cursor/event and pattern queries. The deterministic Lighthouse bridge wrapper is in `src/schema/002_lighthouse_bridge_rpc.sql`; it exposes `public.trigger_lighthouse_bridge_for_prime_pattern_v1(...)` as a security-definer RPC so the Atlas service can enqueue verified patterns into the non-exposed `atlas` schema without exposing that schema through PostgREST.
 
 | Table | Primary purpose |
 |---|---|
@@ -75,22 +75,23 @@ The unified Express app exposes the required streaming API as Atlas endpoints. T
 
 ## Adapters and connectors
 
-The provided adapter source files are integrated under `src/adapters/`. The new OpenStates source wrapper, `src/adapters/openStatesApiSource.js`, demonstrates the unified ingestion path by normalizing adapter records and submitting them to `/v1/ingest/signals`.
+The provided adapter source files are integrated under `src/adapters/`. All JavaScript external-source adapters now use the shared `src/adapters/ingestClient.js` helper and submit normalized official records to `POST /v1/ingest/signals` rather than writing directly to raw tables. Each record becomes a `signal_event` with agency provenance, official-record confidence, jurisdiction-derived spacetime, and a source URL back to the originating filing, complaint, opinion, bill, grant, or congressional record.
 
 | Adapter or connector | Location | Current integration role |
 |---|---|---|
-| CourtListener | `src/adapters/courtListenerAdapter.js` | Existing adapter code included for Atlas legal/court data ingestion. |
-| OpenStates | `src/adapters/openStatesAdapter.js` | Existing adapter code included for legislative data ingestion. |
-| OpenStates API source wrapper | `src/adapters/openStatesApiSource.js` | Integrated wrapper that feeds normalized signals directly into Atlas ingest. |
-| Grants.gov | `src/adapters/grantsGovAdapter.js` | Existing adapter code included for grants data ingestion. |
-| ProPublica | `src/adapters/proPublicaAdapter.js` | Existing adapter code included for civic/congressional data ingestion. |
+| CourtListener | `src/adapters/courtListenerAdapter.js` | Emits `court_opinion` signal events through unified ingest. |
+| OpenStates | `src/adapters/openStatesAdapter.js` | Emits `legislative_activity` signal events through unified ingest. |
+| OpenStates API source wrapper | `src/adapters/openStatesApiSource.js` | Emits normalized OpenStates API records through unified ingest with official-record provenance. |
+| Grants.gov | `src/adapters/grantsGovAdapter.js` | Emits `grant_opportunity` signal events through unified ingest. |
+| ProPublica | `src/adapters/proPublicaAdapter.js` | Emits `congressional_activity` signal events through unified ingest. |
+| Official agency records | `src/adapters/officialAgencyRecordsAdapter.js` | Emits CFPB, EEOC, DOL-WHD, and OSHA records as official government `signal_event` streams with `provenance.confidence = 1.0`. |
 | Socrata | `src/adapters/socrata-adapter.ts` | Existing TypeScript adapter code included for Socrata-style civic datasets. |
 | Dataset connector service | `src/services/dataset-connector-service.ts` | Existing Atlas connector service included with the unified service source tree. |
 | Dataset connector router | `src/routes/dataset-connector-router.ts` | Existing router included with the unified service source tree. |
 
 ## Registered streams
 
-The `scripts/register-streams.mjs` script registers the four required streams in Atlas Supabase.
+The `scripts/register-streams.mjs` script registers the adapter-backed streams in Atlas Supabase, including the official complaint, filing, violation, and incident streams used for systemic-pattern detection.
 
 | Stream ID | Source adapter | Module hint | Jurisdiction ID | Throughput profile | Safety profile |
 |---|---|---|---|---|---|
@@ -98,12 +99,16 @@ The `scripts/register-streams.mjs` script registers the four required streams in
 | `open_states` | OpenStates | `legislative` | `us_states` | `steady` | `standard_review` |
 | `grants_gov` | Grants.gov | `funding` | `us_federal` | `batch` | `standard_review` |
 | `pro_publica` | ProPublica | `civic` | `us_federal` | `steady` | `standard_review` |
+| `cfpb_complaints` | CFPB | `consumer_finance` | `us_federal` | `steady` | `standard_review` |
+| `eeoc_filings` | EEOC | `civil_rights` | `us_federal` | `steady` | `high_review` |
+| `dol_whd_violations` | DOL-WHD | `labor` | `us_federal` | `steady` | `high_review` |
+| `osha_incidents` | OSHA | `workplace_safety` | `us_federal` | `burst` | `high_review` |
 
 ## Investigation service
 
 Atlas includes one manifest-pattern investigation function: `luminari_stream_health_v1`. It accepts `signal_event` inputs and emits `stream_health_alert` and `prime_pattern` outputs. The implementation lives at `src/services/streamHealthInvestigation.js`.
 
-The function checks **stream staleness**, **signal frequency**, and **confidence-score distribution**. During the verification cycle, it emitted one `stream_health_alert` prime pattern for the `open_states` stream after ingesting test signals with mixed confidence values.
+The function checks **stream staleness**, **signal frequency**, and **confidence-score distribution**. During the verification cycle, it emitted one `stream_health_alert` prime pattern for the `open_states` stream after ingesting test signals with mixed confidence values. When investigations emit prime patterns, `src/routes/investigations.js` now immediately calls `src/services/bridgeHook.js`. The hook deterministically gates on confidence, records provenance flags that no AI extraction, fuzzy matching, or synthetic signals were used, and then calls the public bridge RPC to enqueue verified patterns for Lighthouse.
 
 ## Local setup
 
@@ -136,21 +141,23 @@ curl http://localhost:8787/health
 
 | Command | Purpose |
 |---|---|
-| `pnpm run apply:streaming-schema` | Apply `src/schema/001_streaming_tables.sql` to Atlas Supabase through the Management API. |
-| `pnpm run register:streams` | Upsert the four required streams into Atlas Supabase. |
-| `pnpm run test:e2e` | Run ingest → cursor → read → investigation → pattern verification against the local Atlas app. |
-| `pnpm run export:atlas-state` | Regenerate Atlas schema/data-state inventory artifacts. |
+| `pnpm run schema:apply` | Apply `src/schema/001_streaming_tables.sql` to Atlas Supabase through the Management API. |
+| `pnpm run schema:apply:bridge` | Apply the public security-definer Lighthouse bridge RPC required by the deterministic bridge hook. |
+| `pnpm run seed:streams` | Upsert the adapter and official-agency streams into Atlas Supabase. |
+| `pnpm run test:cycle` | Run ingest → cursor → read → investigation → pattern verification against the local Atlas app. |
+| `pnpm run schema:export` | Regenerate Atlas schema/data-state inventory artifacts. |
 | `pnpm run adapter:openstates:sample` | Send sample OpenStates signals through the unified Atlas ingest endpoint. |
 
 ## Verification results
 
-The unified service was tested locally against Atlas Supabase, not Lighthouse. The verification artifacts are committed under `test-results/`.
+The unified service was tested locally against Atlas Supabase. The ingest → cursor → read → investigation regression passes with the updated bridge hook in place. Direct Lighthouse bridge execution requires `src/schema/002_lighthouse_bridge_rpc.sql` to be applied to the Supabase project because the `atlas` schema is intentionally not exposed through REST; without that migration, Supabase correctly rejects direct `atlas` schema access. The verification artifacts are committed under `test-results/`.
 
 | Artifact | Result |
 |---|---|
 | `test-results/apply-streaming-schema.json` | Atlas streaming schema application succeeded for project `bjdjjgnkhxblnpdrjqtw`. |
-| `test-results/register-streams.json` | Four streams were registered: `court_listener`, `open_states`, `grants_gov`, and `pro_publica`. |
-| `test-results/e2e-cycle.json` | Full cycle passed with 2 ingested signals, 2 events read back, 1 completed investigation job, and 1 queried prime pattern. |
+| `test-results/register-streams.json` | Adapter and official-agency streams were registered: `court_listener`, `open_states`, `grants_gov`, `pro_publica`, `cfpb_complaints`, `eeoc_filings`, `dol_whd_violations`, and `osha_incidents`. |
+| `test-results/e2e-cycle.json` | Full cycle passed after the bridge hook update with 2 newly ingested signals, 20 events read back, 1 completed investigation job, and 1 queried prime pattern. |
+| `scripts/test-official-bridge-cycle.mjs` | Focused official-record bridge verification script for CFPB/EEOC-style records after the bridge RPC migration is applied. |
 | `test-results/openstates-sample-ingest.txt` | Integrated OpenStates sample wrapper ingested 2 sample signals through Atlas ingest. |
 | `test-results/final-state-export.json` | Final Atlas state export completed with 15 public tables, 7 public functions, 17 policies, and 2 triggers. |
 
