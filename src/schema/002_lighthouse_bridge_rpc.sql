@@ -15,12 +15,12 @@ AS $function$
 DECLARE
   inserted_signal_id bigint;
   queued_item jsonb := NULL;
-  audit_log_id uuid;
-  bridge_id text := COALESCE(p_audit_context->>'bridge_id', 'atlas-to-lighthouse');
-  source_table text := COALESCE(p_signal->>'source_table', 'prime_patterns');
-  source_record_id text := p_signal->>'source_record_id';
-  target_table text := COALESCE(p_audit_context->>'target_table', 'lighthouse_bridge_queue');
-  dedup_key text := p_signal->>'signal_dedup_key';
+  audit_log_id bigint;
+  v_bridge_id text := COALESCE(p_audit_context->>'bridge_id', 'atlas-to-lighthouse');
+  v_source_table text := COALESCE(p_signal->>'source_table', 'prime_patterns');
+  v_source_record_id text := p_signal->>'source_record_id';
+  v_target_table text := COALESCE(p_audit_context->>'target_table', 'lighthouse_bridge_queue');
+  v_dedup_key text := p_signal->>'signal_dedup_key';
   queue_process_result jsonb := NULL;
   existing_log jsonb := NULL;
   started_at timestamptz := clock_timestamp();
@@ -29,7 +29,7 @@ BEGIN
     RAISE EXCEPTION 'p_signal must be a JSON object';
   END IF;
 
-  IF COALESCE(source_record_id, '') = '' THEN
+  IF COALESCE(v_source_record_id, '') = '' THEN
     RAISE EXCEPTION 'p_signal.source_record_id is required';
   END IF;
 
@@ -41,11 +41,11 @@ BEGIN
   INTO existing_log
   FROM (
     SELECT log_id, synced_at
-    FROM atlas.bridge_sync_log
-    WHERE bridge_sync_log.bridge_id = trigger_lighthouse_bridge_for_prime_pattern_v1.bridge_id
-      AND bridge_sync_log.source_table = trigger_lighthouse_bridge_for_prime_pattern_v1.source_table
-      AND bridge_sync_log.source_record_id = trigger_lighthouse_bridge_for_prime_pattern_v1.source_record_id
-      AND bridge_sync_log.status = 'sent'
+    FROM atlas.bridge_sync_log bsl
+    WHERE bsl.bridge_id = v_bridge_id
+      AND bsl.source_table = v_source_table
+      AND bsl.source_record_id = v_source_record_id
+      AND bsl.status = 'sent'
     ORDER BY synced_at DESC NULLS LAST
     LIMIT 1
   ) t;
@@ -55,7 +55,7 @@ BEGIN
       'bridged', false,
       'skipped', true,
       'reason', 'already_bridged',
-      'pattern_id', source_record_id,
+      'pattern_id', v_source_record_id,
       'log_id', existing_log->>'log_id',
       'synced_at', existing_log->>'synced_at'
     );
@@ -94,8 +94,8 @@ BEGIN
     NULLIF(p_signal->>'geography_key', ''),
     COALESCE(NULLIF(p_signal->>'severity_score', '')::numeric, NULLIF(p_signal->>'confidence_score', '')::numeric, 0.0),
     COALESCE(p_signal->'metadata_json', '{}'::jsonb),
-    source_table,
-    source_record_id,
+    v_source_table,
+    v_source_record_id,
     COALESCE(NULLIF(p_signal->>'detected_at', '')::timestamptz, now()),
     NULLIF(p_signal->>'source_connector_id', '')::uuid,
     NULLIF(p_signal->>'raw_record_id', '')::uuid,
@@ -112,7 +112,7 @@ BEGIN
     p_signal->>'rule_id',
     COALESCE(NULLIF(p_signal->>'rule_version', ''), 'v1'),
     COALESCE(p_signal->'provenance_metadata', '{}'::jsonb),
-    dedup_key,
+    v_dedup_key,
     COALESCE(NULLIF(p_signal->>'record_origin', ''), 'streaming_investigation'),
     COALESCE(NULLIF(p_signal->>'verification_status', ''), 'verified'),
     COALESCE(NULLIF(p_signal->>'exclude_from_production', '')::boolean, false),
@@ -162,18 +162,18 @@ BEGIN
     error_message,
     duration_ms
   ) VALUES (
-    bridge_id,
+    v_bridge_id,
     'prime_pattern_bridge',
-    source_table,
-    source_record_id,
-    target_table,
+    v_source_table,
+    v_source_record_id,
+    v_target_table,
     queued_item->>'queue_id',
     'sent',
     jsonb_build_object(
       'audit_context', p_audit_context,
       'civic_map_signal_id', inserted_signal_id,
       'lighthouse_bridge_queue_id', queued_item->>'queue_id',
-      'signal_dedup_key', dedup_key
+      'signal_dedup_key', v_dedup_key
     ),
     jsonb_build_object(
       'queue_lookup', queued_item,
@@ -186,7 +186,7 @@ BEGIN
 
   RETURN jsonb_build_object(
     'bridged', true,
-    'pattern_id', source_record_id,
+    'pattern_id', v_source_record_id,
     'signal_id', inserted_signal_id,
     'queue_id', queued_item->>'queue_id',
     'log_id', audit_log_id,
