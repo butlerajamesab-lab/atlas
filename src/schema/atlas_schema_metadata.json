@@ -1,0 +1,2316 @@
+{
+  "views": [
+    {
+      "view": "benefits_wa",
+      "schema": "public",
+      "definition": " SELECT office_id AS id,\n    office_name AS name,\n    program_type AS program_name,\n    address_raw AS address,\n    city,\n    state,\n    latitude,\n    longitude,\n    phone,\n    hours,\n    created_at\n   FROM atlas.benefits_offices;"
+    },
+    {
+      "view": "civic_map_signals",
+      "schema": "public",
+      "definition": " SELECT (signal_id)::text AS id,\n    signal_type,\n    (metadata_json ->> 'city'::text) AS location,\n    geography_key,\n    severity_score AS score,\n        CASE\n            WHEN (severity_score >= 0.8) THEN 'High'::text\n            WHEN (severity_score >= 0.5) THEN 'Medium'::text\n            ELSE 'Low'::text\n        END AS severity,\n    NULL::numeric AS latitude,\n    NULL::numeric AS longitude,\n    NULL::text AS case_id,\n    (metadata_json ->> 'description'::text) AS description,\n    metadata_json,\n    source_table,\n    source_record_id,\n    detected_at,\n    created_at\n   FROM atlas.civic_map_signals;"
+    },
+    {
+      "view": "entity_registry",
+      "schema": "public",
+      "definition": " SELECT entity_id AS id,\n    primary_name AS name,\n    entity_type,\n    canonical_address AS address,\n    canonical_phone AS phone,\n    first_seen_jurisdiction AS city,\n    NULL::numeric AS latitude,\n    NULL::numeric AS longitude,\n    is_active,\n    created_at\n   FROM atlas.entity_registry;"
+    },
+    {
+      "view": "food_banks",
+      "schema": "public",
+      "definition": " SELECT pantry_id AS id,\n    pantry_name AS name,\n    address_raw AS address,\n    city,\n    state,\n    latitude,\n    longitude,\n    phone,\n    hours,\n    created_at\n   FROM atlas.food_banks;"
+    },
+    {
+      "view": "nonprofits_wa",
+      "schema": "public",
+      "definition": " SELECT ein AS id,\n    organization_name AS name,\n    organization_name,\n    address_raw AS address,\n    city,\n    state,\n    NULL::numeric AS latitude,\n    NULL::numeric AS longitude,\n    phone,\n    created_at\n   FROM atlas.nonprofit_registry;"
+    },
+    {
+      "view": "v_atlas_data_freshness",
+      "schema": "public",
+      "definition": " SELECT 'statutes'::text AS table_name,\n    count(*) AS total_records,\n    max(statutes.updated_at) AS last_update,\n    min(statutes.updated_at) AS oldest_record,\n    count(*) FILTER (WHERE (statutes.updated_at > (now() - '24:00:00'::interval))) AS records_last_24h,\n    count(*) FILTER (WHERE (statutes.updated_at > (now() - '7 days'::interval))) AS records_last_7d\n   FROM statutes\nUNION ALL\n SELECT 'case_law'::text AS table_name,\n    count(*) AS total_records,\n    max(case_law.updated_at) AS last_update,\n    min(case_law.updated_at) AS oldest_record,\n    count(*) FILTER (WHERE (case_law.updated_at > (now() - '24:00:00'::interval))) AS records_last_24h,\n    count(*) FILTER (WHERE (case_law.updated_at > (now() - '7 days'::interval))) AS records_last_7d\n   FROM case_law\nUNION ALL\n SELECT 'entity_registry'::text AS table_name,\n    count(*) AS total_records,\n    max(entity_registry.created_at) AS last_update,\n    min(entity_registry.created_at) AS oldest_record,\n    count(*) FILTER (WHERE (entity_registry.created_at > (now() - '24:00:00'::interval))) AS records_last_24h,\n    count(*) FILTER (WHERE (entity_registry.created_at > (now() - '7 days'::interval))) AS records_last_7d\n   FROM entity_registry\nUNION ALL\n SELECT 'civic_map_signals'::text AS table_name,\n    count(*) AS total_records,\n    max(civic_map_signals.detected_at) AS last_update,\n    min(civic_map_signals.detected_at) AS oldest_record,\n    count(*) FILTER (WHERE (civic_map_signals.detected_at > (now() - '24:00:00'::interval))) AS records_last_24h,\n    count(*) FILTER (WHERE (civic_map_signals.detected_at > (now() - '7 days'::interval))) AS records_last_7d\n   FROM civic_map_signals;"
+    },
+    {
+      "view": "v_atlas_error_summary",
+      "schema": "public",
+      "definition": " SELECT c.name AS connector,\n    j.status,\n    j.records_failed,\n    (j.error_log ->> 'fatal'::text) AS fatal_error,\n    j.started_at,\n    j.completed_at\n   FROM (ingest_jobs j\n     JOIN connector_registry c ON ((j.connector_id = c.id)))\n  WHERE ((j.started_at > (now() - '24:00:00'::interval)) AND (((j.status)::text = 'failed'::text) OR ((j.status)::text = 'partial'::text) OR (j.records_failed > 0)))\n  ORDER BY j.started_at DESC;"
+    },
+    {
+      "view": "v_atlas_health_dashboard",
+      "schema": "public",
+      "definition": " SELECT c.name AS connector_name,\n    s.name AS schema_name,\n    s.target_table,\n    c.auth_type,\n        CASE\n            WHEN ((c.auth_config ->> 'env_var'::text) IS NOT NULL) THEN (c.auth_config ->> 'env_var'::text)\n            ELSE NULL::text\n        END AS required_secret,\n    c.active,\n    c.last_run_at,\n    c.next_run_at,\n    j.status AS last_job_status,\n    j.records_fetched AS last_fetched,\n    j.records_inserted AS last_inserted,\n    j.records_failed AS last_failed,\n    j.completed_at AS last_completed,\n        CASE\n            WHEN (NOT c.active) THEN 'disabled'::text\n            WHEN (c.last_run_at IS NULL) THEN 'never_run'::text\n            WHEN ((j.status)::text = 'failed'::text) THEN 'failed'::text\n            WHEN ((j.status)::text = 'partial'::text) THEN 'partial_failure'::text\n            WHEN (j.completed_at < (now() - '7 days'::interval)) THEN 'stale'::text\n            WHEN (j.records_failed > 0) THEN 'degraded'::text\n            ELSE 'healthy'::text\n        END AS health_status,\n    (EXTRACT(epoch FROM (now() - c.last_run_at)) / (3600)::numeric) AS hours_since_last_run\n   FROM ((connector_registry c\n     LEFT JOIN schema_registry s ON ((c.schema_id = s.id)))\n     LEFT JOIN LATERAL ( SELECT ingest_jobs.id,\n            ingest_jobs.connector_id,\n            ingest_jobs.schema_id,\n            ingest_jobs.status,\n            ingest_jobs.started_at,\n            ingest_jobs.completed_at,\n            ingest_jobs.records_fetched,\n            ingest_jobs.records_inserted,\n            ingest_jobs.records_updated,\n            ingest_jobs.records_failed,\n            ingest_jobs.records_deduplicated,\n            ingest_jobs.next_cursor,\n            ingest_jobs.error_log,\n            ingest_jobs.metadata\n           FROM ingest_jobs\n          WHERE (ingest_jobs.connector_id = c.id)\n          ORDER BY ingest_jobs.started_at DESC\n         LIMIT 1) j ON (true))\n  ORDER BY c.name;"
+    },
+    {
+      "view": "v_atlas_jurisdiction_coverage",
+      "schema": "public",
+      "definition": " SELECT j.geo_name AS jurisdiction,\n    j.geo_type AS type,\n    j.state_fips,\n    count(DISTINCT s.id) AS statutes_count,\n    count(DISTINCT cl.id) AS case_law_count,\n    count(DISTINCT r.id) AS resources_count,\n        CASE\n            WHEN ((count(DISTINCT s.id) > 0) AND (count(DISTINCT cl.id) > 0)) THEN 'full'::text\n            WHEN ((count(DISTINCT s.id) > 0) OR (count(DISTINCT cl.id) > 0)) THEN 'partial'::text\n            ELSE 'none'::text\n        END AS coverage_status\n   FROM (((jurisdictions j\n     LEFT JOIN statutes s ON ((s.jurisdiction_id = j.id)))\n     LEFT JOIN case_law cl ON ((cl.jurisdiction_id = j.id)))\n     LEFT JOIN civic_map_resources r ON ((r.state = j.state_fips)))\n  GROUP BY j.id, j.geo_name, j.geo_type, j.state_fips\n  ORDER BY j.geo_type, j.geo_name;"
+    },
+    {
+      "view": "v_atlas_processing_queue",
+      "schema": "public",
+      "definition": " SELECT c.name AS connector,\n    rr.process_status,\n    count(*) AS record_count,\n    min(rr.fetch_timestamp) AS oldest_record,\n    max(rr.fetch_timestamp) AS newest_record\n   FROM (raw_records rr\n     JOIN connector_registry c ON ((rr.connector_id = c.id)))\n  GROUP BY c.name, rr.process_status\n  ORDER BY c.name, rr.process_status;"
+    },
+    {
+      "view": "v_atlas_secrets_checklist",
+      "schema": "public",
+      "definition": " SELECT DISTINCT (auth_config ->> 'env_var'::text) AS secret_name,\n    name AS source_name,\n    auth_type,\n        CASE\n            WHEN (active AND (last_run_at IS NOT NULL)) THEN 'live'::text\n            WHEN (active AND (last_run_at IS NULL)) THEN 'configured'::text\n            WHEN (NOT active) THEN 'not_started'::text\n            ELSE NULL::text\n        END AS status,\n    api_base_url AS base_url\n   FROM connector_registry c\n  WHERE ((auth_config ->> 'env_var'::text) IS NOT NULL)\n  ORDER BY (auth_config ->> 'env_var'::text);"
+    },
+    {
+      "view": "v_atlas_source_inventory",
+      "schema": "public",
+      "definition": " SELECT c.id AS connector_id,\n    c.name AS source_name,\n    s.name AS schema_name,\n    s.target_table,\n    c.adapter_class,\n    c.auth_type,\n    (c.auth_config ->> 'env_var'::text) AS required_secret_name,\n    c.api_base_url AS base_url,\n    c.rate_limit_rpm,\n    c.pagination_type,\n    c.schedule_cron AS refresh_cadence,\n    c.jurisdiction_filter,\n        CASE\n            WHEN (c.active AND (c.last_run_at IS NOT NULL)) THEN 'live'::text\n            WHEN (c.active AND (c.last_run_at IS NULL)) THEN 'configured'::text\n            WHEN (NOT c.active) THEN 'not_started'::text\n            ELSE NULL::text\n        END AS connector_status,\n    c.active AS is_active,\n    (s.validation_rules ->> 'required'::text) AS required_fields,\n    (s.field_mappings ->> 'external_id'::text) AS external_id_field\n   FROM (connector_registry c\n     LEFT JOIN schema_registry s ON ((c.schema_id = s.id)))\n  ORDER BY\n        CASE c.auth_type\n            WHEN 'api_key'::text THEN 1\n            WHEN 'bearer'::text THEN 2\n            WHEN 'oauth'::text THEN 3\n            WHEN 'none'::text THEN 4\n            ELSE NULL::integer\n        END, c.name;"
+    },
+    {
+      "view": "v_blockers",
+      "schema": "public",
+      "definition": " SELECT food_banks.pantry_id AS id,\n    food_banks.pantry_name AS name,\n    'food_bank'::text AS record_type,\n        CASE\n            WHEN ((food_banks.hours IS NULL) OR ((food_banks.hours)::text = ''::text)) THEN 'Missing hours'::text\n            ELSE NULL::text\n        END AS blocker_1,\n        CASE\n            WHEN ((food_banks.phone IS NULL) OR ((food_banks.phone)::text = ''::text)) THEN 'Missing phone'::text\n            ELSE NULL::text\n        END AS blocker_2,\n        CASE\n            WHEN ((food_banks.address_raw IS NULL) OR ((food_banks.address_raw)::text = ''::text)) THEN 'Missing address'::text\n            ELSE NULL::text\n        END AS blocker_3,\n        CASE\n            WHEN ((food_banks.latitude IS NULL) OR (food_banks.longitude IS NULL)) THEN 'Missing coordinates'::text\n            ELSE NULL::text\n        END AS blocker_4\n   FROM atlas.food_banks\nUNION ALL\n SELECT benefits_offices.office_id AS id,\n    COALESCE(benefits_offices.office_name, benefits_offices.program_type) AS name,\n    'benefits'::text AS record_type,\n    NULL::text AS blocker_1,\n        CASE\n            WHEN ((benefits_offices.phone IS NULL) OR ((benefits_offices.phone)::text = ''::text)) THEN 'Missing phone'::text\n            ELSE NULL::text\n        END AS blocker_2,\n        CASE\n            WHEN ((benefits_offices.address_raw IS NULL) OR ((benefits_offices.address_raw)::text = ''::text)) THEN 'Missing address'::text\n            ELSE NULL::text\n        END AS blocker_3,\n        CASE\n            WHEN ((benefits_offices.latitude IS NULL) OR (benefits_offices.longitude IS NULL)) THEN 'Missing coordinates'::text\n            ELSE NULL::text\n        END AS blocker_4\n   FROM atlas.benefits_offices\nUNION ALL\n SELECT nonprofit_registry.ein AS id,\n    nonprofit_registry.organization_name AS name,\n    'nonprofit'::text AS record_type,\n    NULL::text AS blocker_1,\n        CASE\n            WHEN ((nonprofit_registry.phone IS NULL) OR ((nonprofit_registry.phone)::text = ''::text)) THEN 'Missing phone'::text\n            ELSE NULL::text\n        END AS blocker_2,\n        CASE\n            WHEN ((nonprofit_registry.address_raw IS NULL) OR ((nonprofit_registry.address_raw)::text = ''::text)) THEN 'Missing address'::text\n            ELSE NULL::text\n        END AS blocker_3,\n    'Missing coordinates'::text AS blocker_4\n   FROM atlas.nonprofit_registry;"
+    },
+    {
+      "view": "v_bridge_operational_status",
+      "schema": "public",
+      "definition": " SELECT total_queue_rows,\n    pending_count,\n    processing_count,\n    retrying_count,\n    completed_count,\n    failed_count,\n    oldest_pending_or_retrying_at,\n    last_completed_at,\n    last_processed_at\n   FROM atlas.v_bridge_operational_status;"
+    },
+    {
+      "view": "v_case_detail",
+      "schema": "public",
+      "definition": " SELECT source_table AS case_id,\n    count(*) AS signal_count,\n    avg(severity_score) AS avg_score,\n    max(\n        CASE\n            WHEN (severity_score >= 0.8) THEN 'High'::text\n            WHEN (severity_score >= 0.5) THEN 'Medium'::text\n            ELSE 'Low'::text\n        END) AS max_severity,\n    min(created_at) AS first_detected,\n    max(created_at) AS last_detected,\n    array_agg(DISTINCT COALESCE((metadata_json ->> 'city'::text), 'Unknown'::text)) AS locations\n   FROM atlas.civic_map_signals\n  GROUP BY source_table;"
+    },
+    {
+      "view": "v_civic_map_signals_production",
+      "schema": "public",
+      "definition": " SELECT signal_id,\n    signal_type,\n    geography_key,\n    severity_score,\n    metadata_json,\n    source_table,\n    source_record_id,\n    detected_at,\n    created_at,\n    source_connector_id,\n    raw_record_id,\n    statute_id,\n    entity_ids,\n    jurisdiction_raw_value,\n    jurisdiction_id,\n    source_url,\n    confidence_score,\n    severity,\n    signal_status,\n    evidence_payload,\n    generation_method,\n    rule_id,\n    rule_version,\n    provenance_metadata,\n    signal_dedup_key,\n    record_origin,\n    verification_status,\n    exclude_from_production,\n    quarantine_reason\n   FROM atlas.civic_map_signals\n  WHERE ((generation_method = 'deterministic_rule'::text) AND (verification_status = 'verified'::text) AND (exclude_from_production = false) AND (source_connector_id IS NOT NULL) AND (raw_record_id IS NOT NULL) AND (statute_id IS NOT NULL) AND (source_url IS NOT NULL));"
+    },
+    {
+      "view": "v_civicmap_pins",
+      "schema": "public",
+      "definition": " SELECT food_banks.pantry_id AS id,\n    food_banks.pantry_name AS name,\n    food_banks.address_raw AS address,\n    food_banks.city,\n    food_banks.state,\n    food_banks.latitude,\n    food_banks.longitude,\n    food_banks.phone,\n    food_banks.hours,\n    'food_bank'::text AS pin_type,\n    NULL::text AS severity,\n    NULL::text AS signal_type,\n    food_banks.created_at\n   FROM atlas.food_banks\n  WHERE ((food_banks.latitude IS NOT NULL) AND (food_banks.longitude IS NOT NULL))\nUNION ALL\n SELECT benefits_offices.office_id AS id,\n    COALESCE(benefits_offices.office_name, benefits_offices.program_type, 'Benefit Program'::character varying) AS name,\n    benefits_offices.address_raw AS address,\n    benefits_offices.city,\n    benefits_offices.state,\n    benefits_offices.latitude,\n    benefits_offices.longitude,\n    benefits_offices.phone,\n    benefits_offices.hours,\n    'benefits'::text AS pin_type,\n    NULL::text AS severity,\n    NULL::text AS signal_type,\n    benefits_offices.created_at\n   FROM atlas.benefits_offices\n  WHERE ((benefits_offices.latitude IS NOT NULL) AND (benefits_offices.longitude IS NOT NULL))\nUNION ALL\n SELECT nonprofit_registry.ein AS id,\n    COALESCE(nonprofit_registry.organization_name, 'Nonprofit'::character varying) AS name,\n    nonprofit_registry.address_raw AS address,\n    nonprofit_registry.city,\n    nonprofit_registry.state,\n    NULL::numeric AS latitude,\n    NULL::numeric AS longitude,\n    nonprofit_registry.phone,\n    NULL::text AS hours,\n    'nonprofit'::text AS pin_type,\n    NULL::text AS severity,\n    NULL::text AS signal_type,\n    nonprofit_registry.created_at\n   FROM atlas.nonprofit_registry\nUNION ALL\n SELECT (civic_map_signals.signal_id)::text AS id,\n    COALESCE((civic_map_signals.metadata_json ->> 'city'::text), 'Gap Cluster'::text) AS name,\n    NULL::text AS address,\n    (civic_map_signals.metadata_json ->> 'city'::text) AS city,\n    NULL::text AS state,\n    NULL::numeric AS latitude,\n    NULL::numeric AS longitude,\n    NULL::text AS phone,\n    NULL::text AS hours,\n    'signal'::text AS pin_type,\n        CASE\n            WHEN (civic_map_signals.severity_score >= 0.8) THEN 'High'::text\n            WHEN (civic_map_signals.severity_score >= 0.5) THEN 'Medium'::text\n            ELSE 'Low'::text\n        END AS severity,\n    civic_map_signals.signal_type,\n    civic_map_signals.created_at\n   FROM atlas.civic_map_signals;"
+    },
+    {
+      "view": "v_judicial_map_signals_production",
+      "schema": "public",
+      "definition": " SELECT signal_id,\n    signal_type,\n    geography_key,\n    severity_score,\n    metadata_json,\n    source_table,\n    source_record_id,\n    detected_at,\n    created_at,\n    source_connector_id,\n    raw_record_id,\n    (source_record_id)::uuid AS case_law_id,\n    entity_ids,\n    jurisdiction_raw_value,\n    jurisdiction_id,\n    source_url,\n    confidence_score,\n    severity,\n    signal_status,\n    evidence_payload,\n    generation_method,\n    rule_id,\n    rule_version,\n    provenance_metadata,\n    signal_dedup_key,\n    record_origin,\n    verification_status,\n    exclude_from_production,\n    quarantine_reason\n   FROM atlas.civic_map_signals\n  WHERE ((generation_method = 'deterministic_rule'::text) AND (verification_status = 'verified'::text) AND (exclude_from_production = false) AND (source_connector_id = '41bd1e84-021c-448c-9683-13c35955eefc'::uuid) AND (raw_record_id IS NOT NULL) AND ((source_table)::text = 'case_law'::text) AND (source_record_id IS NOT NULL) AND (source_url IS NOT NULL) AND (signal_status = 'active'::text) AND (record_origin = 'live_api'::text));"
+    }
+  ],
+  "tables": [
+    {
+      "table": "agency_metrics",
+      "schema": "public",
+      "columns": [
+        {
+          "udt_name": "uuid",
+          "data_type": "uuid",
+          "column_name": "id",
+          "is_nullable": "NO",
+          "column_default": "gen_random_uuid()",
+          "ordinal_position": 1
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "entity_id",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 2
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "agency_name",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 3
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "agency_type",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 4
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "jurisdiction",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 5
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "metric_type",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 6
+        },
+        {
+          "udt_name": "numeric",
+          "data_type": "numeric",
+          "column_name": "metric_value",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 7
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "period",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 8
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "source",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 9
+        },
+        {
+          "udt_name": "timestamptz",
+          "data_type": "timestamp with time zone",
+          "column_name": "created_at",
+          "is_nullable": "NO",
+          "column_default": "now()",
+          "ordinal_position": 10
+        },
+        {
+          "udt_name": "timestamptz",
+          "data_type": "timestamp with time zone",
+          "column_name": "updated_at",
+          "is_nullable": "NO",
+          "column_default": "now()",
+          "ordinal_position": 11
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "rls_enabled": true
+    },
+    {
+      "table": "case_law",
+      "schema": "public",
+      "columns": [
+        {
+          "udt_name": "uuid",
+          "data_type": "uuid",
+          "column_name": "id",
+          "is_nullable": "NO",
+          "column_default": "uuid_generate_v4()",
+          "ordinal_position": 1
+        },
+        {
+          "udt_name": "uuid",
+          "data_type": "uuid",
+          "column_name": "jurisdiction_id",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 2
+        },
+        {
+          "udt_name": "varchar",
+          "data_type": "character varying",
+          "column_name": "external_id",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 3
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "case_name",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 4
+        },
+        {
+          "udt_name": "varchar",
+          "data_type": "character varying",
+          "column_name": "court",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 5
+        },
+        {
+          "udt_name": "varchar",
+          "data_type": "character varying",
+          "column_name": "court_id",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 6
+        },
+        {
+          "udt_name": "date",
+          "data_type": "date",
+          "column_name": "decision_date",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 7
+        },
+        {
+          "udt_name": "varchar",
+          "data_type": "character varying",
+          "column_name": "citation",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 8
+        },
+        {
+          "udt_name": "varchar",
+          "data_type": "character varying",
+          "column_name": "docket_number",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 9
+        },
+        {
+          "udt_name": "varchar",
+          "data_type": "character varying",
+          "column_name": "case_type",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 10
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 11
+        },
+        {
+          "udt_name": "varchar",
+          "data_type": "character varying",
+          "column_name": "status",
+          "is_nullable": "YES",
+          "column_default": "'published'::character varying",
+          "ordinal_position": 12
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "source_url",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 13
+        },
+        {
+          "udt_name": "jsonb",
+          "data_type": "jsonb",
+          "column_name": "metadata",
+          "is_nullable": "YES",
+          "column_default": "'{}'::jsonb",
+          "ordinal_position": 14
+        },
+        {
+          "udt_name": "timestamptz",
+          "data_type": "timestamp with time zone",
+          "column_name": "created_at",
+          "is_nullable": "YES",
+          "column_default": "now()",
+          "ordinal_position": 15
+        },
+        {
+          "udt_name": "timestamptz",
+          "data_type": "timestamp with time zone",
+          "column_name": "updated_at",
+          "is_nullable": "YES",
+          "column_default": "now()",
+          "ordinal_position": 16
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "rls_enabled": true
+    },
+    {
+      "table": "civic_map_resources",
+      "schema": "public",
+      "columns": [
+        {
+          "udt_name": "uuid",
+          "data_type": "uuid",
+          "column_name": "id",
+          "is_nullable": "NO",
+          "column_default": "gen_random_uuid()",
+          "ordinal_position": 1
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "name",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 2
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "resource_type",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 3
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "address",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 4
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "city",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 5
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "state",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 6
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "phone",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 7
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "url",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 8
+        },
+        {
+          "udt_name": "numeric",
+          "data_type": "numeric",
+          "column_name": "lat",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 9
+        },
+        {
+          "udt_name": "numeric",
+          "data_type": "numeric",
+          "column_name": "lon",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 10
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "source_table",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 11
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "source_id",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 12
+        },
+        {
+          "udt_name": "jsonb",
+          "data_type": "jsonb",
+          "column_name": "extra_json",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 13
+        },
+        {
+          "udt_name": "timestamptz",
+          "data_type": "timestamp with time zone",
+          "column_name": "created_at",
+          "is_nullable": "NO",
+          "column_default": "now()",
+          "ordinal_position": 14
+        },
+        {
+          "udt_name": "timestamptz",
+          "data_type": "timestamp with time zone",
+          "column_name": "updated_at",
+          "is_nullable": "NO",
+          "column_default": "now()",
+          "ordinal_position": 15
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "rls_enabled": true
+    },
+    {
+      "table": "connector_registry",
+      "schema": "public",
+      "columns": [
+        {
+          "udt_name": "uuid",
+          "data_type": "uuid",
+          "column_name": "id",
+          "is_nullable": "NO",
+          "column_default": "uuid_generate_v4()",
+          "ordinal_position": 1
+        },
+        {
+          "udt_name": "varchar",
+          "data_type": "character varying",
+          "column_name": "name",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 2
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "api_base_url",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 3
+        },
+        {
+          "udt_name": "varchar",
+          "data_type": "character varying",
+          "column_name": "adapter_class",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 4
+        },
+        {
+          "udt_name": "varchar",
+          "data_type": "character varying",
+          "column_name": "auth_type",
+          "is_nullable": "YES",
+          "column_default": "'none'::character varying",
+          "ordinal_position": 5
+        },
+        {
+          "udt_name": "jsonb",
+          "data_type": "jsonb",
+          "column_name": "auth_config",
+          "is_nullable": "YES",
+          "column_default": "'{}'::jsonb",
+          "ordinal_position": 6
+        },
+        {
+          "udt_name": "int4",
+          "data_type": "integer",
+          "column_name": "rate_limit_rpm",
+          "is_nullable": "YES",
+          "column_default": "60",
+          "ordinal_position": 7
+        },
+        {
+          "udt_name": "varchar",
+          "data_type": "character varying",
+          "column_name": "pagination_type",
+          "is_nullable": "YES",
+          "column_default": "'cursor'::character varying",
+          "ordinal_position": 8
+        },
+        {
+          "udt_name": "jsonb",
+          "data_type": "jsonb",
+          "column_name": "pagination_config",
+          "is_nullable": "YES",
+          "column_default": "'{}'::jsonb",
+          "ordinal_position": 9
+        },
+        {
+          "udt_name": "varchar",
+          "data_type": "character varying",
+          "column_name": "schedule_cron",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 10
+        },
+        {
+          "udt_name": "jsonb",
+          "data_type": "jsonb",
+          "column_name": "jurisdiction_filter",
+          "is_nullable": "YES",
+          "column_default": "'{}'::jsonb",
+          "ordinal_position": 11
+        },
+        {
+          "udt_name": "uuid",
+          "data_type": "uuid",
+          "column_name": "schema_id",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 12
+        },
+        {
+          "udt_name": "bool",
+          "data_type": "boolean",
+          "column_name": "active",
+          "is_nullable": "YES",
+          "column_default": "true",
+          "ordinal_position": 13
+        },
+        {
+          "udt_name": "timestamptz",
+          "data_type": "timestamp with time zone",
+          "column_name": "last_run_at",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 14
+        },
+        {
+          "udt_name": "timestamptz",
+          "data_type": "timestamp with time zone",
+          "column_name": "next_run_at",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 15
+        },
+        {
+          "udt_name": "timestamptz",
+          "data_type": "timestamp with time zone",
+          "column_name": "created_at",
+          "is_nullable": "YES",
+          "column_default": "now()",
+          "ordinal_position": 16
+        },
+        {
+          "udt_name": "timestamptz",
+          "data_type": "timestamp with time zone",
+          "column_name": "updated_at",
+          "is_nullable": "YES",
+          "column_default": "now()",
+          "ordinal_position": 17
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "rls_enabled": true
+    },
+    {
+      "table": "cursors",
+      "schema": "public",
+      "columns": [
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "cursor_id",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 1
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "stream_id",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 2
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "name",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 3
+        },
+        {
+          "udt_name": "int8",
+          "data_type": "bigint",
+          "column_name": "current_offset",
+          "is_nullable": "NO",
+          "column_default": "0",
+          "ordinal_position": 4
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "created_by",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 5
+        },
+        {
+          "udt_name": "timestamptz",
+          "data_type": "timestamp with time zone",
+          "column_name": "created_at",
+          "is_nullable": "NO",
+          "column_default": "now()",
+          "ordinal_position": 6
+        },
+        {
+          "udt_name": "timestamptz",
+          "data_type": "timestamp with time zone",
+          "column_name": "updated_at",
+          "is_nullable": "NO",
+          "column_default": "now()",
+          "ordinal_position": 7
+        }
+      ],
+      "primary_key": [
+        "cursor_id"
+      ],
+      "rls_enabled": true
+    },
+    {
+      "table": "ingest_jobs",
+      "schema": "public",
+      "columns": [
+        {
+          "udt_name": "uuid",
+          "data_type": "uuid",
+          "column_name": "id",
+          "is_nullable": "NO",
+          "column_default": "uuid_generate_v4()",
+          "ordinal_position": 1
+        },
+        {
+          "udt_name": "uuid",
+          "data_type": "uuid",
+          "column_name": "connector_id",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 2
+        },
+        {
+          "udt_name": "uuid",
+          "data_type": "uuid",
+          "column_name": "schema_id",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 3
+        },
+        {
+          "udt_name": "varchar",
+          "data_type": "character varying",
+          "column_name": "status",
+          "is_nullable": "YES",
+          "column_default": "'pending'::character varying",
+          "ordinal_position": 4
+        },
+        {
+          "udt_name": "timestamptz",
+          "data_type": "timestamp with time zone",
+          "column_name": "started_at",
+          "is_nullable": "YES",
+          "column_default": "now()",
+          "ordinal_position": 5
+        },
+        {
+          "udt_name": "timestamptz",
+          "data_type": "timestamp with time zone",
+          "column_name": "completed_at",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 6
+        },
+        {
+          "udt_name": "int4",
+          "data_type": "integer",
+          "column_name": "records_fetched",
+          "is_nullable": "YES",
+          "column_default": "0",
+          "ordinal_position": 7
+        },
+        {
+          "udt_name": "int4",
+          "data_type": "integer",
+          "column_name": "records_inserted",
+          "is_nullable": "YES",
+          "column_default": "0",
+          "ordinal_position": 8
+        },
+        {
+          "udt_name": "int4",
+          "data_type": "integer",
+          "column_name": "records_updated",
+          "is_nullable": "YES",
+          "column_default": "0",
+          "ordinal_position": 9
+        },
+        {
+          "udt_name": "int4",
+          "data_type": "integer",
+          "column_name": "records_failed",
+          "is_nullable": "YES",
+          "column_default": "0",
+          "ordinal_position": 10
+        },
+        {
+          "udt_name": "int4",
+          "data_type": "integer",
+          "column_name": "records_deduplicated",
+          "is_nullable": "YES",
+          "column_default": "0",
+          "ordinal_position": 11
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "next_cursor",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 12
+        },
+        {
+          "udt_name": "jsonb",
+          "data_type": "jsonb",
+          "column_name": "error_log",
+          "is_nullable": "YES",
+          "column_default": "'{}'::jsonb",
+          "ordinal_position": 13
+        },
+        {
+          "udt_name": "jsonb",
+          "data_type": "jsonb",
+          "column_name": "metadata",
+          "is_nullable": "YES",
+          "column_default": "'{}'::jsonb",
+          "ordinal_position": 14
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "rls_enabled": true
+    },
+    {
+      "table": "investigative_jobs",
+      "schema": "public",
+      "columns": [
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "job_id",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 1
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "job_type",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 2
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "stream_id",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 3
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "cursor_id",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 4
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "status",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 5
+        },
+        {
+          "udt_name": "jsonb",
+          "data_type": "jsonb",
+          "column_name": "params",
+          "is_nullable": "NO",
+          "column_default": "'{}'::jsonb",
+          "ordinal_position": 6
+        },
+        {
+          "udt_name": "jsonb",
+          "data_type": "jsonb",
+          "column_name": "result",
+          "is_nullable": "NO",
+          "column_default": "'{}'::jsonb",
+          "ordinal_position": 7
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "error",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 8
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "function_id",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 9
+        },
+        {
+          "udt_name": "timestamptz",
+          "data_type": "timestamp with time zone",
+          "column_name": "created_at",
+          "is_nullable": "NO",
+          "column_default": "now()",
+          "ordinal_position": 10
+        },
+        {
+          "udt_name": "timestamptz",
+          "data_type": "timestamp with time zone",
+          "column_name": "completed_at",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 11
+        }
+      ],
+      "primary_key": [
+        "job_id"
+      ],
+      "rls_enabled": true
+    },
+    {
+      "table": "jurisdictions",
+      "schema": "public",
+      "columns": [
+        {
+          "udt_name": "uuid",
+          "data_type": "uuid",
+          "column_name": "id",
+          "is_nullable": "NO",
+          "column_default": "gen_random_uuid()",
+          "ordinal_position": 1
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "geo_id",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 2
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "geo_type",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 3
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "geo_name",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 4
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "state_fips",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 5
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "county_fips",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 6
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "parent_id",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 7
+        },
+        {
+          "udt_name": "numeric",
+          "data_type": "numeric",
+          "column_name": "lat",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 8
+        },
+        {
+          "udt_name": "numeric",
+          "data_type": "numeric",
+          "column_name": "lon",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 9
+        },
+        {
+          "udt_name": "timestamptz",
+          "data_type": "timestamp with time zone",
+          "column_name": "created_at",
+          "is_nullable": "NO",
+          "column_default": "now()",
+          "ordinal_position": 10
+        },
+        {
+          "udt_name": "timestamptz",
+          "data_type": "timestamp with time zone",
+          "column_name": "updated_at",
+          "is_nullable": "NO",
+          "column_default": "now()",
+          "ordinal_position": 11
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "rls_enabled": true
+    },
+    {
+      "table": "prime_patterns",
+      "schema": "public",
+      "columns": [
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "pattern_id",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 1
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "pattern_type",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 2
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "module",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 3
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "jurisdiction",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 4
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "stream_id",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 5
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "job_id",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 6
+        },
+        {
+          "udt_name": "numeric",
+          "data_type": "numeric",
+          "column_name": "confidence",
+          "is_nullable": "NO",
+          "column_default": "0",
+          "ordinal_position": 7
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "severity",
+          "is_nullable": "NO",
+          "column_default": "'info'::text",
+          "ordinal_position": 8
+        },
+        {
+          "udt_name": "timestamptz",
+          "data_type": "timestamp with time zone",
+          "column_name": "detected_at",
+          "is_nullable": "NO",
+          "column_default": "now()",
+          "ordinal_position": 9
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "summary",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 10
+        },
+        {
+          "udt_name": "jsonb",
+          "data_type": "jsonb",
+          "column_name": "evidence",
+          "is_nullable": "NO",
+          "column_default": "'{}'::jsonb",
+          "ordinal_position": 11
+        },
+        {
+          "udt_name": "jsonb",
+          "data_type": "jsonb",
+          "column_name": "payload",
+          "is_nullable": "NO",
+          "column_default": "'{}'::jsonb",
+          "ordinal_position": 12
+        },
+        {
+          "udt_name": "timestamptz",
+          "data_type": "timestamp with time zone",
+          "column_name": "created_at",
+          "is_nullable": "NO",
+          "column_default": "now()",
+          "ordinal_position": 13
+        }
+      ],
+      "primary_key": [
+        "pattern_id"
+      ],
+      "rls_enabled": true
+    },
+    {
+      "table": "raw_records",
+      "schema": "public",
+      "columns": [
+        {
+          "udt_name": "uuid",
+          "data_type": "uuid",
+          "column_name": "id",
+          "is_nullable": "NO",
+          "column_default": "uuid_generate_v4()",
+          "ordinal_position": 1
+        },
+        {
+          "udt_name": "uuid",
+          "data_type": "uuid",
+          "column_name": "connector_id",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 2
+        },
+        {
+          "udt_name": "varchar",
+          "data_type": "character varying",
+          "column_name": "external_id",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 3
+        },
+        {
+          "udt_name": "jsonb",
+          "data_type": "jsonb",
+          "column_name": "raw_payload",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 4
+        },
+        {
+          "udt_name": "varchar",
+          "data_type": "character varying",
+          "column_name": "sha256_hash",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 5
+        },
+        {
+          "udt_name": "timestamptz",
+          "data_type": "timestamp with time zone",
+          "column_name": "fetch_timestamp",
+          "is_nullable": "YES",
+          "column_default": "now()",
+          "ordinal_position": 6
+        },
+        {
+          "udt_name": "varchar",
+          "data_type": "character varying",
+          "column_name": "process_status",
+          "is_nullable": "YES",
+          "column_default": "'pending'::character varying",
+          "ordinal_position": 7
+        },
+        {
+          "udt_name": "timestamptz",
+          "data_type": "timestamp with time zone",
+          "column_name": "processed_at",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 8
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "error_message",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 9
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "rls_enabled": true
+    },
+    {
+      "table": "schema_registry",
+      "schema": "public",
+      "columns": [
+        {
+          "udt_name": "uuid",
+          "data_type": "uuid",
+          "column_name": "id",
+          "is_nullable": "NO",
+          "column_default": "uuid_generate_v4()",
+          "ordinal_position": 1
+        },
+        {
+          "udt_name": "varchar",
+          "data_type": "character varying",
+          "column_name": "name",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 2
+        },
+        {
+          "udt_name": "varchar",
+          "data_type": "character varying",
+          "column_name": "version",
+          "is_nullable": "YES",
+          "column_default": "'1.0'::character varying",
+          "ordinal_position": 3
+        },
+        {
+          "udt_name": "varchar",
+          "data_type": "character varying",
+          "column_name": "target_table",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 4
+        },
+        {
+          "udt_name": "varchar",
+          "data_type": "character varying",
+          "column_name": "source_type",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 5
+        },
+        {
+          "udt_name": "jsonb",
+          "data_type": "jsonb",
+          "column_name": "field_mappings",
+          "is_nullable": "NO",
+          "column_default": "'{}'::jsonb",
+          "ordinal_position": 6
+        },
+        {
+          "udt_name": "jsonb",
+          "data_type": "jsonb",
+          "column_name": "validation_rules",
+          "is_nullable": "YES",
+          "column_default": "'{}'::jsonb",
+          "ordinal_position": 7
+        },
+        {
+          "udt_name": "jsonb",
+          "data_type": "jsonb",
+          "column_name": "transform_logic",
+          "is_nullable": "YES",
+          "column_default": "'{}'::jsonb",
+          "ordinal_position": 8
+        },
+        {
+          "udt_name": "jsonb",
+          "data_type": "jsonb",
+          "column_name": "entity_extraction_config",
+          "is_nullable": "YES",
+          "column_default": "'{}'::jsonb",
+          "ordinal_position": 9
+        },
+        {
+          "udt_name": "jsonb",
+          "data_type": "jsonb",
+          "column_name": "signal_generation_config",
+          "is_nullable": "YES",
+          "column_default": "'{}'::jsonb",
+          "ordinal_position": 10
+        },
+        {
+          "udt_name": "bool",
+          "data_type": "boolean",
+          "column_name": "active",
+          "is_nullable": "YES",
+          "column_default": "true",
+          "ordinal_position": 11
+        },
+        {
+          "udt_name": "timestamptz",
+          "data_type": "timestamp with time zone",
+          "column_name": "created_at",
+          "is_nullable": "YES",
+          "column_default": "now()",
+          "ordinal_position": 12
+        },
+        {
+          "udt_name": "timestamptz",
+          "data_type": "timestamp with time zone",
+          "column_name": "updated_at",
+          "is_nullable": "YES",
+          "column_default": "now()",
+          "ordinal_position": 13
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "rls_enabled": true
+    },
+    {
+      "table": "signal_definitions",
+      "schema": "public",
+      "columns": [
+        {
+          "udt_name": "uuid",
+          "data_type": "uuid",
+          "column_name": "id",
+          "is_nullable": "NO",
+          "column_default": "gen_random_uuid()",
+          "ordinal_position": 1
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "rule_id",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 2
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "rule_name",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 3
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "domain",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 4
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "severity_default",
+          "is_nullable": "NO",
+          "column_default": "'medium'::text",
+          "ordinal_position": 5
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "description",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 6
+        },
+        {
+          "udt_name": "bool",
+          "data_type": "boolean",
+          "column_name": "enabled",
+          "is_nullable": "NO",
+          "column_default": "true",
+          "ordinal_position": 7
+        },
+        {
+          "udt_name": "timestamptz",
+          "data_type": "timestamp with time zone",
+          "column_name": "created_at",
+          "is_nullable": "NO",
+          "column_default": "now()",
+          "ordinal_position": 8
+        },
+        {
+          "udt_name": "timestamptz",
+          "data_type": "timestamp with time zone",
+          "column_name": "updated_at",
+          "is_nullable": "NO",
+          "column_default": "now()",
+          "ordinal_position": 9
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "rls_enabled": true
+    },
+    {
+      "table": "signal_events",
+      "schema": "public",
+      "columns": [
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "stream_id",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 1
+        },
+        {
+          "udt_name": "int8",
+          "data_type": "bigint",
+          "column_name": "offset",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 2
+        },
+        {
+          "udt_name": "timestamptz",
+          "data_type": "timestamp with time zone",
+          "column_name": "timestamp",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 3
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "signal_type",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 4
+        },
+        {
+          "udt_name": "jsonb",
+          "data_type": "jsonb",
+          "column_name": "spacetime",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 5
+        },
+        {
+          "udt_name": "jsonb",
+          "data_type": "jsonb",
+          "column_name": "provenance",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 6
+        },
+        {
+          "udt_name": "jsonb",
+          "data_type": "jsonb",
+          "column_name": "payload",
+          "is_nullable": "NO",
+          "column_default": "'{}'::jsonb",
+          "ordinal_position": 7
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "source_id",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 8
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "jurisdiction_id",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 9
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "module_hint",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 10
+        },
+        {
+          "udt_name": "timestamptz",
+          "data_type": "timestamp with time zone",
+          "column_name": "ingested_at",
+          "is_nullable": "NO",
+          "column_default": "now()",
+          "ordinal_position": 11
+        }
+      ],
+      "primary_key": [
+        "stream_id",
+        "offset"
+      ],
+      "rls_enabled": true
+    },
+    {
+      "table": "statutes",
+      "schema": "public",
+      "columns": [
+        {
+          "udt_name": "uuid",
+          "data_type": "uuid",
+          "column_name": "id",
+          "is_nullable": "NO",
+          "column_default": "uuid_generate_v4()",
+          "ordinal_position": 1
+        },
+        {
+          "udt_name": "uuid",
+          "data_type": "uuid",
+          "column_name": "jurisdiction_id",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 2
+        },
+        {
+          "udt_name": "varchar",
+          "data_type": "character varying",
+          "column_name": "external_id",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 3
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "title",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 4
+        },
+        {
+          "udt_name": "varchar",
+          "data_type": "character varying",
+          "column_name": "citation",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 5
+        },
+        {
+          "udt_name": "varchar",
+          "data_type": "character varying",
+          "column_name": "identifier",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 6
+        },
+        {
+          "udt_name": "varchar",
+          "data_type": "character varying",
+          "column_name": "classification",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 7
+        },
+        {
+          "udt_name": "jsonb",
+          "data_type": "jsonb",
+          "column_name": "subject",
+          "is_nullable": "YES",
+          "column_default": "'[]'::jsonb",
+          "ordinal_position": 8
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 9
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "summary",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 10
+        },
+        {
+          "udt_name": "date",
+          "data_type": "date",
+          "column_name": "effective_date",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 11
+        },
+        {
+          "udt_name": "varchar",
+          "data_type": "character varying",
+          "column_name": "status",
+          "is_nullable": "YES",
+          "column_default": "'active'::character varying",
+          "ordinal_position": 12
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "source_url",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 13
+        },
+        {
+          "udt_name": "jsonb",
+          "data_type": "jsonb",
+          "column_name": "metadata",
+          "is_nullable": "YES",
+          "column_default": "'{}'::jsonb",
+          "ordinal_position": 14
+        },
+        {
+          "udt_name": "timestamptz",
+          "data_type": "timestamp with time zone",
+          "column_name": "created_at",
+          "is_nullable": "YES",
+          "column_default": "now()",
+          "ordinal_position": 15
+        },
+        {
+          "udt_name": "timestamptz",
+          "data_type": "timestamp with time zone",
+          "column_name": "updated_at",
+          "is_nullable": "YES",
+          "column_default": "now()",
+          "ordinal_position": 16
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "jurisdiction",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 17
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "rls_enabled": true
+    },
+    {
+      "table": "streams",
+      "schema": "public",
+      "columns": [
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "stream_id",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 1
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "source_id",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 2
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "jurisdiction_id",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 3
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "module_hint",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 4
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "throughput_profile",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 5
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "safety_profile",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 6
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "governance_contract_id",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 7
+        },
+        {
+          "udt_name": "text",
+          "data_type": "text",
+          "column_name": "status",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 8
+        },
+        {
+          "udt_name": "timestamptz",
+          "data_type": "timestamp with time zone",
+          "column_name": "created_at",
+          "is_nullable": "NO",
+          "column_default": "now()",
+          "ordinal_position": 9
+        },
+        {
+          "udt_name": "timestamptz",
+          "data_type": "timestamp with time zone",
+          "column_name": "updated_at",
+          "is_nullable": "NO",
+          "column_default": "now()",
+          "ordinal_position": 10
+        }
+      ],
+      "primary_key": [
+        "stream_id"
+      ],
+      "rls_enabled": true
+    }
+  ],
+  "indexes": [
+    {
+      "index": "agency_metrics_pkey",
+      "table": "agency_metrics",
+      "schema": "public",
+      "definition": "CREATE UNIQUE INDEX agency_metrics_pkey ON public.agency_metrics USING btree (id)"
+    },
+    {
+      "index": "idx_agency_metrics_agency_type",
+      "table": "agency_metrics",
+      "schema": "public",
+      "definition": "CREATE INDEX idx_agency_metrics_agency_type ON public.agency_metrics USING btree (agency_type)"
+    },
+    {
+      "index": "idx_agency_metrics_entity_id",
+      "table": "agency_metrics",
+      "schema": "public",
+      "definition": "CREATE INDEX idx_agency_metrics_entity_id ON public.agency_metrics USING btree (entity_id)"
+    },
+    {
+      "index": "idx_agency_metrics_jurisdiction",
+      "table": "agency_metrics",
+      "schema": "public",
+      "definition": "CREATE INDEX idx_agency_metrics_jurisdiction ON public.agency_metrics USING btree (jurisdiction)"
+    },
+    {
+      "index": "idx_agency_metrics_metric_type",
+      "table": "agency_metrics",
+      "schema": "public",
+      "definition": "CREATE INDEX idx_agency_metrics_metric_type ON public.agency_metrics USING btree (metric_type)"
+    },
+    {
+      "index": "case_law_jurisdiction_id_external_id_key",
+      "table": "case_law",
+      "schema": "public",
+      "definition": "CREATE UNIQUE INDEX case_law_jurisdiction_id_external_id_key ON public.case_law USING btree (jurisdiction_id, external_id)"
+    },
+    {
+      "index": "case_law_pkey",
+      "table": "case_law",
+      "schema": "public",
+      "definition": "CREATE UNIQUE INDEX case_law_pkey ON public.case_law USING btree (id)"
+    },
+    {
+      "index": "idx_case_law_court",
+      "table": "case_law",
+      "schema": "public",
+      "definition": "CREATE INDEX idx_case_law_court ON public.case_law USING btree (court)"
+    },
+    {
+      "index": "idx_case_law_date",
+      "table": "case_law",
+      "schema": "public",
+      "definition": "CREATE INDEX idx_case_law_date ON public.case_law USING btree (decision_date DESC)"
+    },
+    {
+      "index": "idx_case_law_jur",
+      "table": "case_law",
+      "schema": "public",
+      "definition": "CREATE INDEX idx_case_law_jur ON public.case_law USING btree (jurisdiction_id)"
+    },
+    {
+      "index": "civic_map_resources_pkey",
+      "table": "civic_map_resources",
+      "schema": "public",
+      "definition": "CREATE UNIQUE INDEX civic_map_resources_pkey ON public.civic_map_resources USING btree (id)"
+    },
+    {
+      "index": "idx_civic_map_resources_city",
+      "table": "civic_map_resources",
+      "schema": "public",
+      "definition": "CREATE INDEX idx_civic_map_resources_city ON public.civic_map_resources USING btree (city)"
+    },
+    {
+      "index": "idx_civic_map_resources_source",
+      "table": "civic_map_resources",
+      "schema": "public",
+      "definition": "CREATE INDEX idx_civic_map_resources_source ON public.civic_map_resources USING btree (source_table, source_id)"
+    },
+    {
+      "index": "idx_civic_map_resources_state",
+      "table": "civic_map_resources",
+      "schema": "public",
+      "definition": "CREATE INDEX idx_civic_map_resources_state ON public.civic_map_resources USING btree (state)"
+    },
+    {
+      "index": "idx_civic_map_resources_type",
+      "table": "civic_map_resources",
+      "schema": "public",
+      "definition": "CREATE INDEX idx_civic_map_resources_type ON public.civic_map_resources USING btree (resource_type)"
+    },
+    {
+      "index": "connector_registry_name_key",
+      "table": "connector_registry",
+      "schema": "public",
+      "definition": "CREATE UNIQUE INDEX connector_registry_name_key ON public.connector_registry USING btree (name)"
+    },
+    {
+      "index": "connector_registry_pkey",
+      "table": "connector_registry",
+      "schema": "public",
+      "definition": "CREATE UNIQUE INDEX connector_registry_pkey ON public.connector_registry USING btree (id)"
+    },
+    {
+      "index": "cursors_pkey",
+      "table": "cursors",
+      "schema": "public",
+      "definition": "CREATE UNIQUE INDEX cursors_pkey ON public.cursors USING btree (cursor_id)"
+    },
+    {
+      "index": "cursors_stream_id_name_key",
+      "table": "cursors",
+      "schema": "public",
+      "definition": "CREATE UNIQUE INDEX cursors_stream_id_name_key ON public.cursors USING btree (stream_id, name)"
+    },
+    {
+      "index": "idx_cursors_stream",
+      "table": "cursors",
+      "schema": "public",
+      "definition": "CREATE INDEX idx_cursors_stream ON public.cursors USING btree (stream_id)"
+    },
+    {
+      "index": "idx_jobs_connector",
+      "table": "ingest_jobs",
+      "schema": "public",
+      "definition": "CREATE INDEX idx_jobs_connector ON public.ingest_jobs USING btree (connector_id, started_at DESC)"
+    },
+    {
+      "index": "idx_jobs_status",
+      "table": "ingest_jobs",
+      "schema": "public",
+      "definition": "CREATE INDEX idx_jobs_status ON public.ingest_jobs USING btree (status)"
+    },
+    {
+      "index": "ingest_jobs_pkey",
+      "table": "ingest_jobs",
+      "schema": "public",
+      "definition": "CREATE UNIQUE INDEX ingest_jobs_pkey ON public.ingest_jobs USING btree (id)"
+    },
+    {
+      "index": "idx_investigative_jobs_stream_created",
+      "table": "investigative_jobs",
+      "schema": "public",
+      "definition": "CREATE INDEX idx_investigative_jobs_stream_created ON public.investigative_jobs USING btree (stream_id, created_at DESC)"
+    },
+    {
+      "index": "investigative_jobs_pkey",
+      "table": "investigative_jobs",
+      "schema": "public",
+      "definition": "CREATE UNIQUE INDEX investigative_jobs_pkey ON public.investigative_jobs USING btree (job_id)"
+    },
+    {
+      "index": "idx_jurisdictions_geo_type",
+      "table": "jurisdictions",
+      "schema": "public",
+      "definition": "CREATE INDEX idx_jurisdictions_geo_type ON public.jurisdictions USING btree (geo_type)"
+    },
+    {
+      "index": "idx_jurisdictions_state_fips",
+      "table": "jurisdictions",
+      "schema": "public",
+      "definition": "CREATE INDEX idx_jurisdictions_state_fips ON public.jurisdictions USING btree (state_fips)"
+    },
+    {
+      "index": "jurisdictions_geo_id_key",
+      "table": "jurisdictions",
+      "schema": "public",
+      "definition": "CREATE UNIQUE INDEX jurisdictions_geo_id_key ON public.jurisdictions USING btree (geo_id)"
+    },
+    {
+      "index": "jurisdictions_pkey",
+      "table": "jurisdictions",
+      "schema": "public",
+      "definition": "CREATE UNIQUE INDEX jurisdictions_pkey ON public.jurisdictions USING btree (id)"
+    },
+    {
+      "index": "idx_prime_patterns_filters",
+      "table": "prime_patterns",
+      "schema": "public",
+      "definition": "CREATE INDEX idx_prime_patterns_filters ON public.prime_patterns USING btree (module, jurisdiction, detected_at DESC)"
+    },
+    {
+      "index": "idx_prime_patterns_stream",
+      "table": "prime_patterns",
+      "schema": "public",
+      "definition": "CREATE INDEX idx_prime_patterns_stream ON public.prime_patterns USING btree (stream_id, detected_at DESC)"
+    },
+    {
+      "index": "prime_patterns_pkey",
+      "table": "prime_patterns",
+      "schema": "public",
+      "definition": "CREATE UNIQUE INDEX prime_patterns_pkey ON public.prime_patterns USING btree (pattern_id)"
+    },
+    {
+      "index": "idx_raw_connector_status",
+      "table": "raw_records",
+      "schema": "public",
+      "definition": "CREATE INDEX idx_raw_connector_status ON public.raw_records USING btree (connector_id, process_status)"
+    },
+    {
+      "index": "idx_raw_hash",
+      "table": "raw_records",
+      "schema": "public",
+      "definition": "CREATE INDEX idx_raw_hash ON public.raw_records USING btree (sha256_hash)"
+    },
+    {
+      "index": "raw_records_connector_id_sha256_hash_key",
+      "table": "raw_records",
+      "schema": "public",
+      "definition": "CREATE UNIQUE INDEX raw_records_connector_id_sha256_hash_key ON public.raw_records USING btree (connector_id, sha256_hash)"
+    },
+    {
+      "index": "raw_records_pkey",
+      "table": "raw_records",
+      "schema": "public",
+      "definition": "CREATE UNIQUE INDEX raw_records_pkey ON public.raw_records USING btree (id)"
+    },
+    {
+      "index": "schema_registry_name_version_key",
+      "table": "schema_registry",
+      "schema": "public",
+      "definition": "CREATE UNIQUE INDEX schema_registry_name_version_key ON public.schema_registry USING btree (name, version)"
+    },
+    {
+      "index": "schema_registry_pkey",
+      "table": "schema_registry",
+      "schema": "public",
+      "definition": "CREATE UNIQUE INDEX schema_registry_pkey ON public.schema_registry USING btree (id)"
+    },
+    {
+      "index": "idx_signal_definitions_domain",
+      "table": "signal_definitions",
+      "schema": "public",
+      "definition": "CREATE INDEX idx_signal_definitions_domain ON public.signal_definitions USING btree (domain)"
+    },
+    {
+      "index": "idx_signal_definitions_severity",
+      "table": "signal_definitions",
+      "schema": "public",
+      "definition": "CREATE INDEX idx_signal_definitions_severity ON public.signal_definitions USING btree (severity_default)"
+    },
+    {
+      "index": "signal_definitions_pkey",
+      "table": "signal_definitions",
+      "schema": "public",
+      "definition": "CREATE UNIQUE INDEX signal_definitions_pkey ON public.signal_definitions USING btree (id)"
+    },
+    {
+      "index": "signal_definitions_rule_id_key",
+      "table": "signal_definitions",
+      "schema": "public",
+      "definition": "CREATE UNIQUE INDEX signal_definitions_rule_id_key ON public.signal_definitions USING btree (rule_id)"
+    },
+    {
+      "index": "idx_signal_events_source",
+      "table": "signal_events",
+      "schema": "public",
+      "definition": "CREATE INDEX idx_signal_events_source ON public.signal_events USING btree (source_id, jurisdiction_id, module_hint)"
+    },
+    {
+      "index": "idx_signal_events_stream_offset",
+      "table": "signal_events",
+      "schema": "public",
+      "definition": "CREATE INDEX idx_signal_events_stream_offset ON public.signal_events USING btree (stream_id, \"offset\")"
+    },
+    {
+      "index": "idx_signal_events_stream_timestamp",
+      "table": "signal_events",
+      "schema": "public",
+      "definition": "CREATE INDEX idx_signal_events_stream_timestamp ON public.signal_events USING btree (stream_id, \"timestamp\")"
+    },
+    {
+      "index": "signal_events_pkey",
+      "table": "signal_events",
+      "schema": "public",
+      "definition": "CREATE UNIQUE INDEX signal_events_pkey ON public.signal_events USING btree (stream_id, \"offset\")"
+    },
+    {
+      "index": "idx_statutes_jur",
+      "table": "statutes",
+      "schema": "public",
+      "definition": "CREATE INDEX idx_statutes_jur ON public.statutes USING btree (jurisdiction_id)"
+    },
+    {
+      "index": "idx_statutes_status",
+      "table": "statutes",
+      "schema": "public",
+      "definition": "CREATE INDEX idx_statutes_status ON public.statutes USING btree (status, effective_date)"
+    },
+    {
+      "index": "idx_statutes_subject",
+      "table": "statutes",
+      "schema": "public",
+      "definition": "CREATE INDEX idx_statutes_subject ON public.statutes USING gin (subject)"
+    },
+    {
+      "index": "statutes_external_id_jurisdiction_unique",
+      "table": "statutes",
+      "schema": "public",
+      "definition": "CREATE UNIQUE INDEX statutes_external_id_jurisdiction_unique ON public.statutes USING btree (external_id, jurisdiction) WHERE ((external_id IS NOT NULL) AND (jurisdiction IS NOT NULL))"
+    },
+    {
+      "index": "statutes_jurisdiction_id_external_id_key",
+      "table": "statutes",
+      "schema": "public",
+      "definition": "CREATE UNIQUE INDEX statutes_jurisdiction_id_external_id_key ON public.statutes USING btree (jurisdiction_id, external_id)"
+    },
+    {
+      "index": "statutes_pkey",
+      "table": "statutes",
+      "schema": "public",
+      "definition": "CREATE UNIQUE INDEX statutes_pkey ON public.statutes USING btree (id)"
+    },
+    {
+      "index": "streams_pkey",
+      "table": "streams",
+      "schema": "public",
+      "definition": "CREATE UNIQUE INDEX streams_pkey ON public.streams USING btree (stream_id)"
+    }
+  ],
+  "policies": [
+    {
+      "cmd": "SELECT",
+      "qual": "true",
+      "roles": [
+        "anon"
+      ],
+      "tablename": "agency_metrics",
+      "permissive": "PERMISSIVE",
+      "policyname": "anon_read_agency_metrics",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "true",
+      "roles": [
+        "service_role"
+      ],
+      "tablename": "agency_metrics",
+      "permissive": "PERMISSIVE",
+      "policyname": "service_role_write_agency_metrics",
+      "schemaname": "public",
+      "with_check": "true"
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "true",
+      "roles": [
+        "public"
+      ],
+      "tablename": "case_law",
+      "permissive": "PERMISSIVE",
+      "policyname": "Public read case_law",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "true",
+      "roles": [
+        "anon"
+      ],
+      "tablename": "civic_map_resources",
+      "permissive": "PERMISSIVE",
+      "policyname": "anon_read_civic_map_resources",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "true",
+      "roles": [
+        "service_role"
+      ],
+      "tablename": "civic_map_resources",
+      "permissive": "PERMISSIVE",
+      "policyname": "service_role_write_civic_map_resources",
+      "schemaname": "public",
+      "with_check": "true"
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "true",
+      "roles": [
+        "public"
+      ],
+      "tablename": "connector_registry",
+      "permissive": "PERMISSIVE",
+      "policyname": "Public read connectors",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "(auth.role() = 'authenticated'::text)",
+      "roles": [
+        "public"
+      ],
+      "tablename": "ingest_jobs",
+      "permissive": "PERMISSIVE",
+      "policyname": "Auth read jobs",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "true",
+      "roles": [
+        "anon"
+      ],
+      "tablename": "jurisdictions",
+      "permissive": "PERMISSIVE",
+      "policyname": "anon_read_jurisdictions",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "true",
+      "roles": [
+        "service_role"
+      ],
+      "tablename": "jurisdictions",
+      "permissive": "PERMISSIVE",
+      "policyname": "service_role_write_jurisdictions",
+      "schemaname": "public",
+      "with_check": "true"
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "true",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "prime_patterns",
+      "permissive": "PERMISSIVE",
+      "policyname": "authenticated_read_prime_patterns",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "(auth.role() = 'authenticated'::text)",
+      "roles": [
+        "public"
+      ],
+      "tablename": "raw_records",
+      "permissive": "PERMISSIVE",
+      "policyname": "Auth read raw",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "true",
+      "roles": [
+        "public"
+      ],
+      "tablename": "schema_registry",
+      "permissive": "PERMISSIVE",
+      "policyname": "Public read schemas",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "true",
+      "roles": [
+        "anon"
+      ],
+      "tablename": "signal_definitions",
+      "permissive": "PERMISSIVE",
+      "policyname": "anon_read_signal_definitions",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "true",
+      "roles": [
+        "service_role"
+      ],
+      "tablename": "signal_definitions",
+      "permissive": "PERMISSIVE",
+      "policyname": "service_role_write_signal_definitions",
+      "schemaname": "public",
+      "with_check": "true"
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "true",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "signal_events",
+      "permissive": "PERMISSIVE",
+      "policyname": "authenticated_read_signal_events",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "true",
+      "roles": [
+        "public"
+      ],
+      "tablename": "statutes",
+      "permissive": "PERMISSIVE",
+      "policyname": "Public read statutes",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "true",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "streams",
+      "permissive": "PERMISSIVE",
+      "policyname": "authenticated_read_streams",
+      "schemaname": "public",
+      "with_check": null
+    }
+  ],
+  "triggers": [
+    {
+      "event": "UPDATE",
+      "table": "cursors",
+      "schema": "public",
+      "timing": "BEFORE",
+      "trigger": "set_cursors_updated_at",
+      "statement": "EXECUTE FUNCTION set_updated_at()"
+    },
+    {
+      "event": "UPDATE",
+      "table": "streams",
+      "schema": "public",
+      "timing": "BEFORE",
+      "trigger": "set_streams_updated_at",
+      "statement": "EXECUTE FUNCTION set_updated_at()"
+    }
+  ],
+  "functions": [
+    {
+      "schema": "public",
+      "function": "get_connector_status",
+      "definition": "CREATE OR REPLACE FUNCTION public.get_connector_status(connector_name text DEFAULT NULL::text)\n RETURNS TABLE(name text, active boolean, priority integer, last_run timestamp with time zone, next_run timestamp with time zone, health text, records_last_7d bigint)\n LANGUAGE plpgsql\nAS $function$\nBEGIN\n    RETURN QUERY\n    SELECT\n        c.name::TEXT,\n        c.active,\n        c.priority,\n        c.last_run_at,\n        c.next_run_at,\n        CASE\n            WHEN NOT c.active THEN 'disabled'\n            WHEN c.last_run_at IS NULL THEN 'never_run'\n            WHEN c.last_run_at < NOW() - INTERVAL '7 days' THEN 'stale'\n            ELSE 'healthy'\n        END::TEXT,\n        COALESCE(\n            (SELECT SUM(j.records_inserted) \n             FROM ingest_jobs j \n             WHERE j.connector_id = c.id \n               AND j.started_at > NOW() - INTERVAL '7 days'),\n            0::BIGINT\n        )\n    FROM connector_registry c\n    WHERE connector_name IS NULL OR c.name = connector_name\n    ORDER BY c.priority, c.name;\nEND;\n$function$\n",
+      "result_type": "TABLE(name text, active boolean, priority integer, last_run timestamp with time zone, next_run timestamp with time zone, health text, records_last_7d bigint)",
+      "identity_arguments": "connector_name text"
+    },
+    {
+      "schema": "public",
+      "function": "search_atlas_pins",
+      "definition": "CREATE OR REPLACE FUNCTION public.search_atlas_pins(search_query text)\n RETURNS TABLE(id text, name text, address text, city text, pin_type text, latitude numeric, longitude numeric)\n LANGUAGE sql\n STABLE SECURITY DEFINER\nAS $function$\n  SELECT pantry_id, pantry_name, address_raw, city, 'food_bank'::text, latitude, longitude\n  FROM atlas.food_banks\n  WHERE (pantry_name ILIKE '%' || search_query || '%' OR city ILIKE '%' || search_query || '%')\n    AND latitude IS NOT NULL AND longitude IS NOT NULL\n  \n  UNION ALL\n  \n  SELECT office_id, COALESCE(office_name, program_type), address_raw, city, 'benefits'::text, latitude, longitude\n  FROM atlas.benefits_offices\n  WHERE (COALESCE(office_name, program_type) ILIKE '%' || search_query || '%' OR city ILIKE '%' || search_query || '%')\n    AND latitude IS NOT NULL AND longitude IS NOT NULL\n  \n  UNION ALL\n  \n  SELECT ein, organization_name, address_raw, city, 'nonprofit'::text, NULL::numeric, NULL::numeric\n  FROM atlas.nonprofit_registry\n  WHERE (organization_name ILIKE '%' || search_query || '%' OR city ILIKE '%' || search_query || '%')\n  \n  LIMIT 50;\n$function$\n",
+      "result_type": "TABLE(id text, name text, address text, city text, pin_type text, latitude numeric, longitude numeric)",
+      "identity_arguments": "search_query text"
+    },
+    {
+      "schema": "public",
+      "function": "set_updated_at",
+      "definition": "CREATE OR REPLACE FUNCTION public.set_updated_at()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\nbegin\n  new.updated_at = now();\n  return new;\nend;\n$function$\n",
+      "result_type": "trigger",
+      "identity_arguments": ""
+    },
+    {
+      "schema": "public",
+      "function": "trigger_connector_run",
+      "definition": "CREATE OR REPLACE FUNCTION public.trigger_connector_run(connector_name text)\n RETURNS jsonb\n LANGUAGE plpgsql\nAS $function$\nDECLARE\n    result JSONB;\nBEGIN\n    SELECT jsonb_build_object(\n        'connector', connector_name,\n        'status', 'queued',\n        'message', 'Use HTTP POST to /functions/v1/atlas-engine with {\"connector\": \"' || connector_name || '\"}'\n    ) INTO result;\n    RETURN result;\nEND;\n$function$\n",
+      "result_type": "jsonb",
+      "identity_arguments": "connector_name text"
+    },
+    {
+      "schema": "public",
+      "function": "upsert_atlas_entity_registry",
+      "definition": "CREATE OR REPLACE FUNCTION public.upsert_atlas_entity_registry(_entities jsonb)\n RETURNS integer\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'atlas', 'public', 'pg_temp'\nAS $function$\nDECLARE\n  affected_rows integer := 0;\nBEGIN\n  IF _entities IS NULL OR jsonb_typeof(_entities) <> 'array' THEN\n    RAISE EXCEPTION 'upsert_atlas_entity_registry expects a JSON array';\n  END IF;\n\n  INSERT INTO atlas.entity_registry (\n    entity_id,\n    entity_type,\n    primary_name,\n    name_variants,\n    first_seen_jurisdiction,\n    jurisdiction_count,\n    source_systems,\n    source_population_id,\n    source_population_table,\n    is_active,\n    last_verified,\n    updated_at,\n    source_connector_id,\n    raw_record_id,\n    statute_id,\n    source_url,\n    extracted_at,\n    extraction_method,\n    source_field,\n    source_external_id,\n    metadata\n  )\n  SELECT\n    e.entity_id,\n    e.entity_type,\n    e.primary_name,\n    COALESCE(e.name_variants, '[]'::jsonb),\n    e.first_seen_jurisdiction,\n    COALESCE(e.jurisdiction_count, 0),\n    COALESCE(e.source_systems, '[]'::jsonb),\n    e.source_population_id,\n    e.source_population_table,\n    COALESCE(e.is_active, true),\n    e.last_verified,\n    COALESCE(e.updated_at, now()),\n    e.source_connector_id,\n    e.raw_record_id,\n    e.statute_id,\n    e.source_url,\n    e.extracted_at,\n    e.extraction_method,\n    e.source_field,\n    e.source_external_id,\n    e.metadata\n  FROM jsonb_to_recordset(_entities) AS e (\n    entity_id varchar,\n    entity_type varchar,\n    primary_name varchar,\n    name_variants jsonb,\n    first_seen_jurisdiction varchar,\n    jurisdiction_count integer,\n    source_systems jsonb,\n    source_population_id varchar,\n    source_population_table varchar,\n    is_active boolean,\n    last_verified timestamptz,\n    updated_at timestamptz,\n    source_connector_id uuid,\n    raw_record_id uuid,\n    statute_id uuid,\n    source_url text,\n    extracted_at timestamptz,\n    extraction_method text,\n    source_field text,\n    source_external_id text,\n    metadata jsonb\n  )\n  WHERE e.entity_id IS NOT NULL\n    AND e.entity_type IS NOT NULL\n    AND e.primary_name IS NOT NULL\n    AND e.extraction_method = 'deterministic_field_mapping'\n  ON CONFLICT (entity_id) DO UPDATE SET\n    entity_type = EXCLUDED.entity_type,\n    primary_name = EXCLUDED.primary_name,\n    name_variants = EXCLUDED.name_variants,\n    first_seen_jurisdiction = EXCLUDED.first_seen_jurisdiction,\n    jurisdiction_count = EXCLUDED.jurisdiction_count,\n    source_systems = EXCLUDED.source_systems,\n    source_population_id = EXCLUDED.source_population_id,\n    source_population_table = EXCLUDED.source_population_table,\n    is_active = EXCLUDED.is_active,\n    last_verified = EXCLUDED.last_verified,\n    updated_at = EXCLUDED.updated_at,\n    source_connector_id = EXCLUDED.source_connector_id,\n    raw_record_id = EXCLUDED.raw_record_id,\n    statute_id = EXCLUDED.statute_id,\n    source_url = EXCLUDED.source_url,\n    extracted_at = EXCLUDED.extracted_at,\n    extraction_method = EXCLUDED.extraction_method,\n    source_field = EXCLUDED.source_field,\n    source_external_id = EXCLUDED.source_external_id,\n    metadata = EXCLUDED.metadata;\n\n  GET DIAGNOSTICS affected_rows = ROW_COUNT;\n  RETURN affected_rows;\nEND;\n$function$\n",
+      "result_type": "integer",
+      "identity_arguments": "_entities jsonb"
+    },
+    {
+      "schema": "public",
+      "function": "upsert_openstates_civic_map_signals_v1",
+      "definition": "CREATE OR REPLACE FUNCTION public.upsert_openstates_civic_map_signals_v1(_signals jsonb)\n RETURNS TABLE(out_signal_id bigint, out_signal_type character varying, out_statute_id uuid, out_rule_id text, out_action text)\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'atlas', 'public', 'pg_temp'\nAS $function$\nDECLARE\n  item jsonb;\n  inserted_id bigint;\n  affected_rows integer;\n  signal_action text;\nBEGIN\n  IF _signals IS NULL OR jsonb_typeof(_signals) <> 'array' THEN\n    RAISE EXCEPTION '_signals must be a JSON array';\n  END IF;\n\n  FOR item IN SELECT value FROM jsonb_array_elements(_signals)\n  LOOP\n    IF COALESCE(item->>'generation_method', '') <> 'deterministic_rule' THEN\n      RAISE EXCEPTION 'Signal generation_method must be deterministic_rule';\n    END IF;\n\n    IF COALESCE(item->>'source_url', '') = '' THEN\n      RAISE EXCEPTION 'Signal source_url is required';\n    END IF;\n\n    IF COALESCE(item->>'raw_record_id', '') = '' THEN\n      RAISE EXCEPTION 'Signal raw_record_id is required';\n    END IF;\n\n    IF COALESCE(item->>'statute_id', '') = '' THEN\n      RAISE EXCEPTION 'Signal statute_id is required';\n    END IF;\n\n    IF COALESCE(item->>'source_connector_id', '') = '' THEN\n      RAISE EXCEPTION 'Signal source_connector_id is required';\n    END IF;\n\n    IF COALESCE(item->>'rule_id', '') = '' THEN\n      RAISE EXCEPTION 'Signal rule_id is required';\n    END IF;\n\n    IF COALESCE(item->>'signal_type', '') NOT IN (\n      'new_statute_or_bill',\n      'jurisdiction_legislative_activity',\n      'classification_activity'\n    ) THEN\n      RAISE EXCEPTION 'Signal type is not allowed for Open States Signal Generation v1: %', item->>'signal_type';\n    END IF;\n\n    INSERT INTO atlas.civic_map_signals (\n      signal_type,\n      geography_key,\n      severity_score,\n      metadata_json,\n      source_table,\n      source_record_id,\n      detected_at,\n      source_connector_id,\n      raw_record_id,\n      statute_id,\n      entity_ids,\n      jurisdiction_raw_value,\n      jurisdiction_id,\n      source_url,\n      confidence_score,\n      severity,\n      signal_status,\n      evidence_payload,\n      generation_method,\n      rule_id,\n      rule_version,\n      provenance_metadata,\n      signal_dedup_key\n    ) VALUES (\n      item->>'signal_type',\n      NULLIF(item->>'geography_key', ''),\n      COALESCE(NULLIF(item->>'severity_score', '')::numeric, NULLIF(item->>'confidence_score', '')::numeric, 0.0),\n      COALESCE(item->'metadata_json', '{}'::jsonb),\n      COALESCE(NULLIF(item->>'source_table', ''), 'statutes'),\n      item->>'statute_id',\n      COALESCE(NULLIF(item->>'detected_at', '')::timestamptz, now()),\n      (item->>'source_connector_id')::uuid,\n      (item->>'raw_record_id')::uuid,\n      (item->>'statute_id')::uuid,\n      COALESCE(ARRAY(SELECT jsonb_array_elements_text(COALESCE(item->'entity_ids', '[]'::jsonb))), ARRAY[]::text[]),\n      item->>'jurisdiction_raw_value',\n      NULLIF(item->>'jurisdiction_id', '')::uuid,\n      item->>'source_url',\n      COALESCE(NULLIF(item->>'confidence_score', '')::numeric, 1.0),\n      COALESCE(NULLIF(item->>'severity', ''), 'informational'),\n      COALESCE(NULLIF(item->>'signal_status', ''), 'active'),\n      COALESCE(item->'evidence_payload', '{}'::jsonb),\n      item->>'generation_method',\n      item->>'rule_id',\n      COALESCE(NULLIF(item->>'rule_version', ''), 'v1'),\n      COALESCE(item->'provenance_metadata', '{}'::jsonb),\n      item->>'signal_dedup_key'\n    )\n    ON CONFLICT (source_connector_id, signal_type, statute_id, rule_id)\n      WHERE generation_method = 'deterministic_rule'\n        AND source_connector_id IS NOT NULL\n        AND statute_id IS NOT NULL\n        AND rule_id IS NOT NULL\n    DO UPDATE SET\n      raw_record_id = EXCLUDED.raw_record_id,\n      entity_ids = EXCLUDED.entity_ids,\n      jurisdiction_raw_value = EXCLUDED.jurisdiction_raw_value,\n      jurisdiction_id = EXCLUDED.jurisdiction_id,\n      source_url = EXCLUDED.source_url,\n      confidence_score = EXCLUDED.confidence_score,\n      severity_score = EXCLUDED.severity_score,\n      severity = EXCLUDED.severity,\n      signal_status = EXCLUDED.signal_status,\n      evidence_payload = EXCLUDED.evidence_payload,\n      metadata_json = EXCLUDED.metadata_json,\n      generation_method = EXCLUDED.generation_method,\n      rule_version = EXCLUDED.rule_version,\n      provenance_metadata = EXCLUDED.provenance_metadata,\n      signal_dedup_key = EXCLUDED.signal_dedup_key,\n      detected_at = EXCLUDED.detected_at\n    RETURNING atlas.civic_map_signals.signal_id INTO inserted_id;\n\n    GET DIAGNOSTICS affected_rows = ROW_COUNT;\n    signal_action := CASE WHEN affected_rows = 1 THEN 'upserted' ELSE 'unknown' END;\n\n    out_signal_id := inserted_id;\n    out_signal_type := item->>'signal_type';\n    out_statute_id := (item->>'statute_id')::uuid;\n    out_rule_id := item->>'rule_id';\n    out_action := signal_action;\n    RETURN NEXT;\n  END LOOP;\nEND;\n$function$\n",
+      "result_type": "TABLE(out_signal_id bigint, out_signal_type character varying, out_statute_id uuid, out_rule_id text, out_action text)",
+      "identity_arguments": "_signals jsonb"
+    },
+    {
+      "schema": "public",
+      "function": "verify_atlas_tables",
+      "definition": "CREATE OR REPLACE FUNCTION public.verify_atlas_tables()\n RETURNS TABLE(table_name text, row_count bigint)\n LANGUAGE plpgsql\nAS $function$\nBEGIN\n    RETURN QUERY\n    SELECT 'jurisdictions'::TEXT, COUNT(*)::BIGINT FROM jurisdictions\n    UNION ALL SELECT 'schema_registry', COUNT(*) FROM schema_registry\n    UNION ALL SELECT 'connector_registry', COUNT(*) FROM connector_registry\n    UNION ALL SELECT 'raw_records', COUNT(*) FROM raw_records\n    UNION ALL SELECT 'ingest_jobs', COUNT(*) FROM ingest_jobs\n    UNION ALL SELECT 'statutes', COUNT(*) FROM statutes\n    UNION ALL SELECT 'case_law', COUNT(*) FROM case_law\n    UNION ALL SELECT 'entity_registry', COUNT(*) FROM entity_registry\n    UNION ALL SELECT 'civic_map_signals', COUNT(*) FROM civic_map_signals;\nEND;\n$function$\n",
+      "result_type": "TABLE(table_name text, row_count bigint)",
+      "identity_arguments": ""
+    }
+  ],
+  "captured_at": "2026-05-09T08:06:11.757413+00:00",
+  "project_ref": "bjdjjgnkhxblnpdrjqtw"
+}

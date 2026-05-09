@@ -1,0 +1,25 @@
+{
+  "name": "atlas-streaming-engine",
+  "version": "0.1.0",
+  "description": "Unified Atlas Express service with adapters, streaming ingest, cursors, investigations, and pattern query endpoints backed by Atlas Supabase.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "schema:apply": "node scripts/apply-sql-management-api.mjs src/schema/001_streaming_tables.sql",
+    "schema:export": "node scripts/export-atlas-state.mjs src/schema",
+    "seed:streams": "node scripts/register-streams.mjs",
+    "test:cycle": "node scripts/test-cycle.mjs",
+    "adapter:openstates:sample": "node src/adapters/openStatesApiSource.js --sample"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.86.0",
+    "ajv": "^8.17.1",
+    "axios": "^1.13.2",
+    "dotenv": "^17.2.3",
+    "express": "^4.21.2",
+    "nanoid": "^5.1.6"
+  },
+  "devDependencies": {}
+}

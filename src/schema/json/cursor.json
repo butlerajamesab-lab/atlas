@@ -1,0 +1,22 @@
+{
+  "$id": "cursor.json",
+  "type": "object",
+  "required": [
+    "cursor_id",
+    "stream_id",
+    "name",
+    "current_offset",
+    "created_by",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "cursor_id": { "type": "string" },
+    "stream_id": { "type": "string" },
+    "name": { "type": "string" },
+    "current_offset": { "type": "integer" },
+    "created_by": { "type": "string" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" }
+  }
+}

@@ -1,0 +1,12 @@
+◇ injected env (0) from .env // tip: ⌁ auth for agents [www.vestauth.com]
+◇ injected env (0) from .env // tip: ◈ secrets for agents [www.dotenvx.com]
+{
+  "ok": true,
+  "registered": 4,
+  "stream_ids": [
+    "court_listener",
+    "open_states",
+    "grants_gov",
+    "pro_publica"
+  ]
+}

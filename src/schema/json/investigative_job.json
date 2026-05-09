@@ -1,0 +1,30 @@
+{
+  "$id": "investigative_job.json",
+  "type": "object",
+  "required": [
+    "job_id",
+    "job_type",
+    "status",
+    "params",
+    "created_at"
+  ],
+  "properties": {
+    "job_id": { "type": "string" },
+    "job_type": {
+      "type": "string",
+      "enum": ["stream_health", "fraud_investigation", "cross_correlation"]
+    },
+    "stream_id": { "type": ["string", "null"] },
+    "cursor_id": { "type": ["string", "null"] },
+    "status": {
+      "type": "string",
+      "enum": ["pending", "running", "completed", "failed"]
+    },
+    "params": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "created_at": { "type": "string", "format": "date-time" },
+    "completed_at": { "type": ["string", "null"], "format": "date-time" }
+  }
+}

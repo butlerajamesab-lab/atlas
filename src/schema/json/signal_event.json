@@ -1,0 +1,44 @@
+{
+  "$id": "signal_event.json",
+  "type": "object",
+  "required": [
+    "stream_id",
+    "offset",
+    "timestamp",
+    "signal_type",
+    "spacetime",
+    "provenance",
+    "payload"
+  ],
+  "properties": {
+    "stream_id": { "type": "string" },
+    "offset": { "type": "integer" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "signal_type": { "type": "string" },
+    "spacetime": {
+      "type": "object",
+      "required": ["region"],
+      "properties": {
+        "region": { "type": "string" },
+        "lat_bucket": { "type": ["string", "null"] },
+        "lon_bucket": { "type": ["string", "null"] }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "required": ["channel", "confidence"],
+      "properties": {
+        "channel": {
+          "type": "string",
+          "enum": ["internal", "external", "partner"]
+        },
+        "confidence": { "type": "number" },
+        "source_system": { "type": ["string", "null"] }
+      }
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  }
+}

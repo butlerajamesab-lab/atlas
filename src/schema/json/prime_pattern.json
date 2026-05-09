@@ -1,0 +1,30 @@
+{
+  "$id": "prime_pattern.json",
+  "type": "object",
+  "required": [
+    "pattern_id",
+    "pattern_type",
+    "module",
+    "jurisdiction",
+    "confidence",
+    "severity",
+    "detected_at",
+    "summary",
+    "evidence",
+    "payload"
+  ],
+  "properties": {
+    "pattern_id": { "type": "string" },
+    "pattern_type": { "type": "string" },
+    "module": { "type": "string" },
+    "jurisdiction": { "type": "string" },
+    "stream_id": { "type": ["string", "null"] },
+    "job_id": { "type": ["string", "null"] },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "severity": { "type": "string", "enum": ["info", "low", "medium", "high", "critical"] },
+    "detected_at": { "type": "string", "format": "date-time" },
+    "summary": { "type": "string" },
+    "evidence": { "type": "object", "additionalProperties": true },
+    "payload": { "type": "object", "additionalProperties": true }
+  }
+}

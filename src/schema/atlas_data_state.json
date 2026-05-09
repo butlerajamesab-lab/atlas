@@ -1,0 +1,81 @@
+{
+  "project_ref": "bjdjjgnkhxblnpdrjqtw",
+  "captured_at": "2026-05-09T08:06:11.757413+00:00",
+  "row_counts": [
+    {
+      "table": "agency_metrics",
+      "schema": "public",
+      "row_count": 533
+    },
+    {
+      "table": "case_law",
+      "schema": "public",
+      "row_count": 20
+    },
+    {
+      "table": "civic_map_resources",
+      "schema": "public",
+      "row_count": 578
+    },
+    {
+      "table": "connector_registry",
+      "schema": "public",
+      "row_count": 25
+    },
+    {
+      "table": "cursors",
+      "schema": "public",
+      "row_count": 1
+    },
+    {
+      "table": "ingest_jobs",
+      "schema": "public",
+      "row_count": 19
+    },
+    {
+      "table": "investigative_jobs",
+      "schema": "public",
+      "row_count": 1
+    },
+    {
+      "table": "jurisdictions",
+      "schema": "public",
+      "row_count": 79
+    },
+    {
+      "table": "prime_patterns",
+      "schema": "public",
+      "row_count": 1
+    },
+    {
+      "table": "raw_records",
+      "schema": "public",
+      "row_count": 40
+    },
+    {
+      "table": "schema_registry",
+      "schema": "public",
+      "row_count": 25
+    },
+    {
+      "table": "signal_definitions",
+      "schema": "public",
+      "row_count": 2
+    },
+    {
+      "table": "signal_events",
+      "schema": "public",
+      "row_count": 4
+    },
+    {
+      "table": "statutes",
+      "schema": "public",
+      "row_count": 20
+    },
+    {
+      "table": "streams",
+      "schema": "public",
+      "row_count": 4
+    }
+  ]
+}

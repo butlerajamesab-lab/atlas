@@ -1,0 +1,10 @@
+◇ injected env (0) from .env // tip: ⌁ auth for agents [www.vestauth.com]
+{
+  "ok": true,
+  "source": "open_states",
+  "mode": "sample",
+  "result": {
+    "accepted": true,
+    "ingested_count": 2
+  }
+}
