@@ -12,7 +12,22 @@
     "schema:export": "node scripts/export-atlas-state.mjs src/schema",
     "seed:streams": "node scripts/register-streams.mjs",
     "test:cycle": "node scripts/test-cycle.mjs",
-    "adapter:openstates:sample": "node src/adapters/openStatesApiSource.js --sample"
+    "adapter:openstates:sample": "node src/adapters/openStatesApiSource.js --sample",
+    "adapter:census": "node src/adapters/censusAcsAdapter.js",
+    "adapter:usda-snap": "node src/adapters/usdaSnapAdapter.js",
+    "adapter:hud": "node src/adapters/hudHousingAdapter.js",
+    "adapter:bls": "node src/adapters/blsEmploymentAdapter.js",
+    "adapter:regulations": "node src/adapters/regulationsGovAdapter.js",
+    "adapter:fec": "node src/adapters/fecCampaignFinanceAdapter.js",
+    "adapter:sec": "node src/adapters/secEdgarAdapter.js",
+    "adapter:usaspending": "node src/adapters/usaSpendingAdapter.js",
+    "adapter:cfpb": "node src/adapters/cfpbComplaintsAdapter.js",
+    "adapter:epa": "node src/adapters/epaEchoAdapter.js",
+    "adapter:irs-exempt": "node src/adapters/irsExemptOrgAdapter.js",
+    "adapter:osha": "node src/adapters/oshaInspectionsAdapter.js",
+    "adapter:opensecrets": "node src/adapters/openSecretsAdapter.js",
+    "adapter:fara": "node src/adapters/faraForeignAgentsAdapter.js",
+    "adapter:all": "node scripts/run-all-adapters.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.86.0",
