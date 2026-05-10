@@ -1,0 +1,97 @@
+{
+  "latest_job": {
+    "status_code": 201,
+    "response_text": "[{\"id\":\"61efe44f-edfa-4538-be49-7d55b005ac0f\",\"connector_id\":\"06e0aef5-24e6-400d-b365-6e614e8dc41f\",\"status\":\"completed\",\"records_fetched\":20,\"records_inserted\":20,\"records_updated\":20,\"records_failed\":0,\"records_deduplicated\":20,\"error_log\":{},\"started_at\":\"2026-04-29 20:41:10.962213+00\",\"completed_at\":\"2026-04-29 20:41:13.806+00\",\"next_cursor\":null}]",
+    "data": [
+      {
+        "id": "61efe44f-edfa-4538-be49-7d55b005ac0f",
+        "connector_id": "06e0aef5-24e6-400d-b365-6e614e8dc41f",
+        "status": "completed",
+        "records_fetched": 20,
+        "records_inserted": 20,
+        "records_updated": 20,
+        "records_failed": 0,
+        "records_deduplicated": 20,
+        "error_log": {},
+        "started_at": "2026-04-29 20:41:10.962213+00",
+        "completed_at": "2026-04-29 20:41:13.806+00",
+        "next_cursor": null
+      }
+    ]
+  },
+  "raw_records_total_and_status": {
+    "status_code": 201,
+    "response_text": "[{\"raw_records_total\":20,\"status_counts\":{\"mapped\":20}}]",
+    "data": [
+      {
+        "raw_records_total": 20,
+        "status_counts": {
+          "mapped": 20
+        }
+      }
+    ]
+  },
+  "scoped_statutes_summary": {
+    "status_code": 201,
+    "response_text": "[{\"scoped_statutes_total\":20,\"distinct_external_ids\":20,\"rows_with_source_url\":20,\"rows_with_jurisdiction\":20,\"rows_with_jurisdiction_id\":0}]",
+    "data": [
+      {
+        "scoped_statutes_total": 20,
+        "distinct_external_ids": 20,
+        "rows_with_source_url": 20,
+        "rows_with_jurisdiction": 20,
+        "rows_with_jurisdiction_id": 0
+      }
+    ]
+  },
+  "duplicate_groups": {
+    "status_code": 201,
+    "response_text": "[]",
+    "data": []
+  },
+  "sample_statute": {
+    "status_code": 201,
+    "response_text": "[{\"id\":\"8c3c7f97-3a7b-4ad5-989e-0e8f639401e2\",\"external_id\":\"HB 1376\",\"title\":\"Concerning the prepayment of capital gains taxes six months prior to the due date.\",\"jurisdiction\":\"Washington\",\"jurisdiction_id\":null,\"source_url\":\"https://openstates.org/wa/bills/2025-2026/HB1376/\",\"created_at\":\"2026-04-29 20:17:25.668128+00\",\"updated_at\":\"2026-04-29 20:17:25.668128+00\"}]",
+    "data": [
+      {
+        "id": "8c3c7f97-3a7b-4ad5-989e-0e8f639401e2",
+        "external_id": "HB 1376",
+        "title": "Concerning the prepayment of capital gains taxes six months prior to the due date.",
+        "jurisdiction": "Washington",
+        "jurisdiction_id": null,
+        "source_url": "https://openstates.org/wa/bills/2025-2026/HB1376/",
+        "created_at": "2026-04-29 20:17:25.668128+00",
+        "updated_at": "2026-04-29 20:17:25.668128+00"
+      }
+    ]
+  },
+  "connector_state": {
+    "status_code": 201,
+    "response_text": "[{\"id\":\"06e0aef5-24e6-400d-b365-6e614e8dc41f\",\"name\":\"open_states_statutes\",\"last_run_at\":\"2026-04-29 20:41:13.839+00\",\"pagination_config\":{\"per_page\":20}}]",
+    "data": [
+      {
+        "id": "06e0aef5-24e6-400d-b365-6e614e8dc41f",
+        "name": "open_states_statutes",
+        "last_run_at": "2026-04-29 20:41:13.839+00",
+        "pagination_config": {
+          "per_page": 20
+        }
+      }
+    ]
+  },
+  "stable_index": {
+    "status_code": 201,
+    "response_text": "[{\"indexname\":\"statutes_external_id_jurisdiction_unique\",\"indexdef\":\"CREATE UNIQUE INDEX statutes_external_id_jurisdiction_unique ON public.statutes USING btree (external_id, jurisdiction) WHERE ((external_id IS NOT NULL) AND (jurisdiction IS NOT NULL))\"}]",
+    "data": [
+      {
+        "indexname": "statutes_external_id_jurisdiction_unique",
+        "indexdef": "CREATE UNIQUE INDEX statutes_external_id_jurisdiction_unique ON public.statutes USING btree (external_id, jurisdiction) WHERE ((external_id IS NOT NULL) AND (jurisdiction IS NOT NULL))"
+      }
+    ]
+  },
+  "mapping_errors": {
+    "status_code": 201,
+    "response_text": "[]",
+    "data": []
+  }
+}

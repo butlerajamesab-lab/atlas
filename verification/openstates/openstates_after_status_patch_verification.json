@@ -1,0 +1,211 @@
+{
+  "latest_ingest_job": {
+    "label": "latest_ingest_job",
+    "status_code": 201,
+    "sql": "SELECT j.id,\n       c.name AS connector,\n       j.status,\n       j.records_fetched,\n       j.records_inserted,\n       j.records_updated,\n       j.records_failed,\n       j.records_deduplicated,\n       j.next_cursor,\n       j.error_log,\n       j.metadata,\n       j.started_at,\n       j.completed_at\nFROM public.ingest_jobs j\nJOIN public.connector_registry c ON c.id = j.connector_id\nWHERE c.name = 'open_states_statutes'\nORDER BY j.started_at DESC NULLS LAST, j.completed_at DESC NULLS LAST\nLIMIT 1;",
+    "response_text": "[{\"id\":\"8fe3ce5a-7e08-4c6f-bb39-562b18c6baf0\",\"connector\":\"open_states_statutes\",\"status\":\"completed\",\"records_fetched\":20,\"records_inserted\":20,\"records_updated\":20,\"records_failed\":0,\"records_deduplicated\":20,\"next_cursor\":null,\"error_log\":{},\"metadata\":{},\"started_at\":\"2026-04-29 20:17:24.800681+00\",\"completed_at\":\"2026-04-29 20:17:27.681+00\"}]",
+    "data": [
+      {
+        "id": "8fe3ce5a-7e08-4c6f-bb39-562b18c6baf0",
+        "connector": "open_states_statutes",
+        "status": "completed",
+        "records_fetched": 20,
+        "records_inserted": 20,
+        "records_updated": 20,
+        "records_failed": 0,
+        "records_deduplicated": 20,
+        "next_cursor": null,
+        "error_log": {},
+        "metadata": {},
+        "started_at": "2026-04-29 20:17:24.800681+00",
+        "completed_at": "2026-04-29 20:17:27.681+00"
+      }
+    ]
+  },
+  "raw_records_total": {
+    "label": "raw_records_total",
+    "status_code": 201,
+    "sql": "SELECT count(*)::bigint AS raw_records_total,\n       count(r.sha256_hash)::bigint AS rows_with_sha256_hash,\n       count(r.external_id)::bigint AS rows_with_external_id\nFROM public.raw_records r\nJOIN public.connector_registry c ON c.id = r.connector_id\nWHERE c.name = 'open_states_statutes';",
+    "response_text": "[{\"raw_records_total\":20,\"rows_with_sha256_hash\":20,\"rows_with_external_id\":20}]",
+    "data": [
+      {
+        "raw_records_total": 20,
+        "rows_with_sha256_hash": 20,
+        "rows_with_external_id": 20
+      }
+    ]
+  },
+  "raw_records_status_counts": {
+    "label": "raw_records_status_counts",
+    "status_code": 201,
+    "sql": "SELECT COALESCE(r.process_status, '<null>') AS process_status,\n       count(*)::bigint AS count,\n       count(*) FILTER (WHERE r.processed_at IS NOT NULL)::bigint AS with_processed_at,\n       count(*) FILTER (WHERE r.error_message IS NOT NULL)::bigint AS with_error_message\nFROM public.raw_records r\nJOIN public.connector_registry c ON c.id = r.connector_id\nWHERE c.name = 'open_states_statutes'\nGROUP BY COALESCE(r.process_status, '<null>')\nORDER BY process_status;",
+    "response_text": "[{\"process_status\":\"mapped\",\"count\":20,\"with_processed_at\":20,\"with_error_message\":0}]",
+    "data": [
+      {
+        "process_status": "mapped",
+        "count": 20,
+        "with_processed_at": 20,
+        "with_error_message": 0
+      }
+    ]
+  },
+  "statutes_count": {
+    "label": "statutes_count",
+    "status_code": 201,
+    "sql": "SELECT count(*)::bigint AS statutes_count,\n       count(*) FILTER (WHERE jurisdiction IS NOT NULL)::bigint AS with_jurisdiction,\n       count(*) FILTER (WHERE jurisdiction_id IS NOT NULL)::bigint AS with_jurisdiction_id,\n       count(*) FILTER (WHERE source_url IS NOT NULL)::bigint AS with_source_url\nFROM public.statutes;",
+    "response_text": "[{\"statutes_count\":40,\"with_jurisdiction\":40,\"with_jurisdiction_id\":0,\"with_source_url\":0}]",
+    "data": [
+      {
+        "statutes_count": 40,
+        "with_jurisdiction": 40,
+        "with_jurisdiction_id": 0,
+        "with_source_url": 0
+      }
+    ]
+  },
+  "sample_statute_row": {
+    "label": "sample_statute_row",
+    "status_code": 201,
+    "sql": "SELECT external_id,\n       title,\n       jurisdiction,\n       jurisdiction_id,\n       source_url,\n       status,\n       created_at,\n       updated_at\nFROM public.statutes\nWHERE external_id IN (\n  SELECT external_id\n  FROM public.raw_records r\n  JOIN public.connector_registry c ON c.id = r.connector_id\n  WHERE c.name = 'open_states_statutes'\n)\nORDER BY updated_at DESC NULLS LAST, created_at DESC NULLS LAST\nLIMIT 5;",
+    "response_text": "[{\"external_id\":\"HB 2475\",\"title\":\"Concerning language accessible public programs, activities, and services conducted, operated, or administered by state agencies.\",\"jurisdiction\":\"Washington\",\"jurisdiction_id\":null,\"source_url\":null,\"status\":\"active\",\"created_at\":\"2026-04-29 20:17:27.636426+00\",\"updated_at\":\"2026-04-29 20:17:27.636426+00\"},{\"external_id\":\"HB 2532\",\"title\":\"Concerning the sale and distribution of nitrous oxide.\",\"jurisdiction\":\"Washington\",\"jurisdiction_id\":null,\"source_url\":null,\"status\":\"active\",\"created_at\":\"2026-04-29 20:17:27.537763+00\",\"updated_at\":\"2026-04-29 20:17:27.537763+00\"},{\"external_id\":\"HB 2089\",\"title\":\"Supporting wildfire mitigation by modifying RCW 82.04.29005, concerning taxes on loan interest.\",\"jurisdiction\":\"Washington\",\"jurisdiction_id\":null,\"source_url\":null,\"status\":\"active\",\"created_at\":\"2026-04-29 20:17:27.432284+00\",\"updated_at\":\"2026-04-29 20:17:27.432284+00\"},{\"external_id\":\"HB 1501\",\"title\":\"Concerning inquiries into association governance or operations by unit owners in common interest communities.\",\"jurisdiction\":\"Washington\",\"jurisdiction_id\":null,\"source_url\":null,\"status\":\"active\",\"created_at\":\"2026-04-29 20:17:27.334803+00\",\"updated_at\":\"2026-04-29 20:17:27.334803+00\"},{\"external_id\":\"HB 2309\",\"title\":\"Reducing barriers to state employment by eliminating postgraduate degree requirements that are unnecessary.\",\"jurisdiction\":\"Washington\",\"jurisdiction_id\":null,\"source_url\":null,\"status\":\"active\",\"created_at\":\"2026-04-29 20:17:27.231115+00\",\"updated_at\":\"2026-04-29 20:17:27.231115+00\"}]",
+    "data": [
+      {
+        "external_id": "HB 2475",
+        "title": "Concerning language accessible public programs, activities, and services conducted, operated, or administered by state agencies.",
+        "jurisdiction": "Washington",
+        "jurisdiction_id": null,
+        "source_url": null,
+        "status": "active",
+        "created_at": "2026-04-29 20:17:27.636426+00",
+        "updated_at": "2026-04-29 20:17:27.636426+00"
+      },
+      {
+        "external_id": "HB 2532",
+        "title": "Concerning the sale and distribution of nitrous oxide.",
+        "jurisdiction": "Washington",
+        "jurisdiction_id": null,
+        "source_url": null,
+        "status": "active",
+        "created_at": "2026-04-29 20:17:27.537763+00",
+        "updated_at": "2026-04-29 20:17:27.537763+00"
+      },
+      {
+        "external_id": "HB 2089",
+        "title": "Supporting wildfire mitigation by modifying RCW 82.04.29005, concerning taxes on loan interest.",
+        "jurisdiction": "Washington",
+        "jurisdiction_id": null,
+        "source_url": null,
+        "status": "active",
+        "created_at": "2026-04-29 20:17:27.432284+00",
+        "updated_at": "2026-04-29 20:17:27.432284+00"
+      },
+      {
+        "external_id": "HB 1501",
+        "title": "Concerning inquiries into association governance or operations by unit owners in common interest communities.",
+        "jurisdiction": "Washington",
+        "jurisdiction_id": null,
+        "source_url": null,
+        "status": "active",
+        "created_at": "2026-04-29 20:17:27.334803+00",
+        "updated_at": "2026-04-29 20:17:27.334803+00"
+      },
+      {
+        "external_id": "HB 2309",
+        "title": "Reducing barriers to state employment by eliminating postgraduate degree requirements that are unnecessary.",
+        "jurisdiction": "Washington",
+        "jurisdiction_id": null,
+        "source_url": null,
+        "status": "active",
+        "created_at": "2026-04-29 20:17:27.231115+00",
+        "updated_at": "2026-04-29 20:17:27.231115+00"
+      }
+    ]
+  },
+  "remaining_mapping_errors": {
+    "label": "remaining_mapping_errors",
+    "status_code": 201,
+    "sql": "SELECT r.external_id,\n       r.process_status,\n       r.error_message,\n       r.processed_at,\n       r.fetch_timestamp\nFROM public.raw_records r\nJOIN public.connector_registry c ON c.id = r.connector_id\nWHERE c.name = 'open_states_statutes'\n  AND (r.process_status IN ('failed', 'mapping_failed', 'unmapped') OR r.error_message IS NOT NULL)\nORDER BY r.fetch_timestamp DESC\nLIMIT 20;",
+    "response_text": "[]",
+    "data": []
+  },
+  "connector_state": {
+    "label": "connector_state",
+    "status_code": 201,
+    "sql": "SELECT name, last_run_at, next_run_at, pagination_config, jurisdiction_filter\nFROM public.connector_registry\nWHERE name = 'open_states_statutes';",
+    "response_text": "[{\"name\":\"open_states_statutes\",\"last_run_at\":\"2026-04-29 20:17:27.714+00\",\"next_run_at\":\"2026-04-30 20:17:27.714+00\",\"pagination_config\":{\"per_page\":20},\"jurisdiction_filter\":[{\"fips\":\"53\",\"abbreviation\":\"WA\"}]}]",
+    "data": [
+      {
+        "name": "open_states_statutes",
+        "last_run_at": "2026-04-29 20:17:27.714+00",
+        "next_run_at": "2026-04-30 20:17:27.714+00",
+        "pagination_config": {
+          "per_page": 20
+        },
+        "jurisdiction_filter": [
+          {
+            "fips": "53",
+            "abbreviation": "WA"
+          }
+        ]
+      }
+    ]
+  },
+  "openstates_raw_sample": {
+    "label": "openstates_raw_sample",
+    "status_code": 201,
+    "sql": "SELECT r.external_id,\n       r.process_status,\n       r.error_message,\n       r.processed_at,\n       r.fetch_timestamp,\n       r.raw_payload->>'title' AS title,\n       r.raw_payload->'jurisdiction'->>'name' AS raw_jurisdiction_name,\n       COALESCE(r.raw_payload->>'openstates_url', r.raw_payload->'sources'->0->>'url') AS upstream_url\nFROM public.raw_records r\nJOIN public.connector_registry c ON c.id = r.connector_id\nWHERE c.name = 'open_states_statutes'\nORDER BY r.fetch_timestamp DESC\nLIMIT 5;",
+    "response_text": "[{\"external_id\":\"HB 2475\",\"process_status\":\"mapped\",\"error_message\":null,\"processed_at\":\"2026-04-29 20:17:27.648+00\",\"fetch_timestamp\":\"2026-04-29 19:34:14.455935+00\",\"title\":\"Concerning language accessible public programs, activities, and services conducted, operated, or administered by state agencies.\",\"raw_jurisdiction_name\":\"Washington\",\"upstream_url\":\"https://openstates.org/wa/bills/2025-2026/HB2475/\"},{\"external_id\":\"HB 2532\",\"process_status\":\"mapped\",\"error_message\":null,\"processed_at\":\"2026-04-29 20:17:27.55+00\",\"fetch_timestamp\":\"2026-04-29 19:34:14.365585+00\",\"title\":\"Concerning the sale and distribution of nitrous oxide.\",\"raw_jurisdiction_name\":\"Washington\",\"upstream_url\":\"https://openstates.org/wa/bills/2025-2026/HB2532/\"},{\"external_id\":\"HB 2089\",\"process_status\":\"mapped\",\"error_message\":null,\"processed_at\":\"2026-04-29 20:17:27.444+00\",\"fetch_timestamp\":\"2026-04-29 19:34:14.268816+00\",\"title\":\"Supporting wildfire mitigation by modifying RCW 82.04.29005, concerning taxes on loan interest.\",\"raw_jurisdiction_name\":\"Washington\",\"upstream_url\":\"https://openstates.org/wa/bills/2025-2026/HB2089/\"},{\"external_id\":\"HB 1501\",\"process_status\":\"mapped\",\"error_message\":null,\"processed_at\":\"2026-04-29 20:17:27.346+00\",\"fetch_timestamp\":\"2026-04-29 19:34:14.168628+00\",\"title\":\"Concerning inquiries into association governance or operations by unit owners in common interest communities.\",\"raw_jurisdiction_name\":\"Washington\",\"upstream_url\":\"https://openstates.org/wa/bills/2025-2026/HB1501/\"},{\"external_id\":\"HB 2309\",\"process_status\":\"mapped\",\"error_message\":null,\"processed_at\":\"2026-04-29 20:17:27.243+00\",\"fetch_timestamp\":\"2026-04-29 19:34:14.074261+00\",\"title\":\"Reducing barriers to state employment by eliminating postgraduate degree requirements that are unnecessary.\",\"raw_jurisdiction_name\":\"Washington\",\"upstream_url\":\"https://openstates.org/wa/bills/2025-2026/HB2309/\"}]",
+    "data": [
+      {
+        "external_id": "HB 2475",
+        "process_status": "mapped",
+        "error_message": null,
+        "processed_at": "2026-04-29 20:17:27.648+00",
+        "fetch_timestamp": "2026-04-29 19:34:14.455935+00",
+        "title": "Concerning language accessible public programs, activities, and services conducted, operated, or administered by state agencies.",
+        "raw_jurisdiction_name": "Washington",
+        "upstream_url": "https://openstates.org/wa/bills/2025-2026/HB2475/"
+      },
+      {
+        "external_id": "HB 2532",
+        "process_status": "mapped",
+        "error_message": null,
+        "processed_at": "2026-04-29 20:17:27.55+00",
+        "fetch_timestamp": "2026-04-29 19:34:14.365585+00",
+        "title": "Concerning the sale and distribution of nitrous oxide.",
+        "raw_jurisdiction_name": "Washington",
+        "upstream_url": "https://openstates.org/wa/bills/2025-2026/HB2532/"
+      },
+      {
+        "external_id": "HB 2089",
+        "process_status": "mapped",
+        "error_message": null,
+        "processed_at": "2026-04-29 20:17:27.444+00",
+        "fetch_timestamp": "2026-04-29 19:34:14.268816+00",
+        "title": "Supporting wildfire mitigation by modifying RCW 82.04.29005, concerning taxes on loan interest.",
+        "raw_jurisdiction_name": "Washington",
+        "upstream_url": "https://openstates.org/wa/bills/2025-2026/HB2089/"
+      },
+      {
+        "external_id": "HB 1501",
+        "process_status": "mapped",
+        "error_message": null,
+        "processed_at": "2026-04-29 20:17:27.346+00",
+        "fetch_timestamp": "2026-04-29 19:34:14.168628+00",
+        "title": "Concerning inquiries into association governance or operations by unit owners in common interest communities.",
+        "raw_jurisdiction_name": "Washington",
+        "upstream_url": "https://openstates.org/wa/bills/2025-2026/HB1501/"
+      },
+      {
+        "external_id": "HB 2309",
+        "process_status": "mapped",
+        "error_message": null,
+        "processed_at": "2026-04-29 20:17:27.243+00",
+        "fetch_timestamp": "2026-04-29 19:34:14.074261+00",
+        "title": "Reducing barriers to state employment by eliminating postgraduate degree requirements that are unnecessary.",
+        "raw_jurisdiction_name": "Washington",
+        "upstream_url": "https://openstates.org/wa/bills/2025-2026/HB2309/"
+      }
+    ]
+  }
+}
