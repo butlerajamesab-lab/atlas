@@ -5,7 +5,7 @@ import { streamsRouter } from './routes/streams.js';
 import { investigationsRouter } from './routes/investigations.js';
 import { patternsRouter } from './routes/patterns.js';
 import { luminariStreamHealthManifest } from './services/streamHealthInvestigation.js';
-import { startScheduler, getSchedulerStatus, triggerAdapterNow } from './services/scheduler.js';
+import { startScheduler, getSchedulerStatus, triggerAdapterNow, triggerBridgeDrainNow } from './services/scheduler.js';
 
 dotenv.config();
 
@@ -32,6 +32,16 @@ app.get('/health', (_req, res) => {
 // Scheduler status endpoint — observability for the bridge operational audit
 app.get('/scheduler/status', (_req, res) => {
   res.json(getSchedulerStatus());
+});
+
+// Manual bridge drain trigger — run the bridge drain job immediately
+app.post('/scheduler/bridge-drain', async (_req, res) => {
+  try {
+    const stats = await triggerBridgeDrainNow();
+    res.json({ ok: true, stats, triggered_at: new Date().toISOString() });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
 });
 
 // Manual trigger endpoint — run a specific adapter immediately

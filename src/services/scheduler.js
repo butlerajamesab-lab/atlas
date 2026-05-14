@@ -1,19 +1,23 @@
 /**
  * Atlas Internal Scheduler Service
- * 
+ *
  * Governs ingestion cadence internally. No external cron dependency.
- * All adapters run on defined intervals. Bridge emission is automatic
- * via the trg_bridge_emit_signal_v1 trigger on civic_map_signals.
- * 
+ * All adapters run on defined intervals.
+ *
  * Canonical flow:
- *   Scheduler → Adapter → civic_map_signals → trigger → atlas_lighthouse_signal_bridge_v1
- * 
- * IMPORTANT: The scheduler NEVER writes directly to Lighthouse.
- * It only drives adapter ingestion. Bridge is handled by the DB trigger.
+ *   Scheduler → Adapter → atlas.civic_map_signals (view/raw_records)
+ *   Bridge Drain (every 15min) → atlas_lighthouse_signal_bridge_v1 (Lighthouse)
+ *     → live_signals → Sunam gate → detected_signals
+ *
+ * The bridge drain job is the only component that writes to Lighthouse.
+ * It reads from atlas_lighthouse_signal_bridge_v1 and pushes through
+ * evaluate_and_promote_signal() — the deterministic governance pathway.
  */
 
 import dotenv from 'dotenv';
 dotenv.config();
+
+import { runBridgeDrain } from './bridgeDrainService.js';
 
 // ─── Adapter registry ────────────────────────────────────────────────────────
 // Each adapter has: name, module path, function name, args, intervalMs, lastRun
@@ -253,7 +257,40 @@ export function startScheduler() {
     scheduleAdapter(adapter);
   }
 
-  console.log('\n[scheduler] All adapters scheduled. Bridge emission is automatic via DB trigger.\n');
+  console.log('\n[scheduler] All adapters scheduled.\n');
+
+  // Bridge drain job — runs every 15 minutes
+  // Reads unprocessed signals from atlas_lighthouse_signal_bridge_v1,
+  // writes to live_signals, then calls evaluate_and_promote_signal() (Sunam gate)
+  const BRIDGE_DRAIN_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
+  const BRIDGE_DRAIN_INITIAL_DELAY_MS = 60 * 1000;  // 1 minute after startup
+
+  setTimeout(async () => {
+    console.log('[scheduler] [bridge-drain] Starting initial bridge drain run...');
+    try {
+      const stats = await runBridgeDrain();
+      console.log(`[scheduler] [bridge-drain] Initial run complete:`, stats);
+    } catch (err) {
+      console.error('[scheduler] [bridge-drain] Initial run error:', err.message);
+    }
+    setInterval(async () => {
+      try {
+        const stats = await runBridgeDrain();
+        if (stats.processed > 0 || stats.errors > 0) {
+          console.log(`[scheduler] [bridge-drain] Run complete:`, stats);
+        }
+      } catch (err) {
+        console.error('[scheduler] [bridge-drain] Error:', err.message);
+      }
+    }, BRIDGE_DRAIN_INTERVAL_MS);
+  }, BRIDGE_DRAIN_INITIAL_DELAY_MS);
+
+  console.log(`[scheduler] Bridge drain scheduled — first run in ${BRIDGE_DRAIN_INITIAL_DELAY_MS / 1000}s, then every ${BRIDGE_DRAIN_INTERVAL_MS / 60000}min.\n`);
+}
+
+export async function triggerBridgeDrainNow() {
+  console.log('[scheduler] [bridge-drain] Manual trigger...');
+  return runBridgeDrain();
 }
 
 export function getSchedulerStatus() {
