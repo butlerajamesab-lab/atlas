@@ -4,6 +4,7 @@ import { ingestRouter } from './routes/ingest.js';
 import { streamsRouter } from './routes/streams.js';
 import { investigationsRouter } from './routes/investigations.js';
 import { patternsRouter } from './routes/patterns.js';
+import { recognitionAtlasRouter } from './routes/recognition_atlas.js';
 import { luminariStreamHealthManifest } from './services/streamHealthInvestigation.js';
 import { startScheduler, getSchedulerStatus, triggerAdapterNow, triggerBridgeDrainNow } from './services/scheduler.js';
 
@@ -29,12 +30,10 @@ app.get('/health', (_req, res) => {
   });
 });
 
-// Scheduler status endpoint — observability for the bridge operational audit
 app.get('/scheduler/status', (_req, res) => {
   res.json(getSchedulerStatus());
 });
 
-// Manual bridge drain trigger — run the bridge drain job immediately
 app.post('/scheduler/bridge-drain', async (_req, res) => {
   try {
     const stats = await triggerBridgeDrainNow();
@@ -44,7 +43,6 @@ app.post('/scheduler/bridge-drain', async (_req, res) => {
   }
 });
 
-// Manual trigger endpoint — run a specific adapter immediately
 app.post('/scheduler/trigger/:adapterName', async (req, res) => {
   const { adapterName } = req.params;
   try {
@@ -60,14 +58,13 @@ app.use(ingestRouter(routeContext));
 app.use(streamsRouter(routeContext));
 app.use(investigationsRouter(routeContext));
 app.use(patternsRouter(routeContext));
+app.use(recognitionAtlasRouter);
 
 app.use((req, res) => apiError(res, 404, `Route not found: ${req.method} ${req.path}`));
 
 if (process.env.NODE_ENV !== 'test') {
   app.listen(PORT, () => {
     console.log(`Atlas Streaming Engine listening on http://localhost:${PORT}`);
-
-    // Start internal scheduler after server is up
     if (SCHEDULER_ENABLED) {
       startScheduler();
     } else {
