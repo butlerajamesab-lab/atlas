@@ -5,6 +5,7 @@
   "type": "module",
   "private": true,
   "scripts": {
+    "build": "echo 'No build step required'",
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "schema:apply": "node scripts/apply-sql-management-api.mjs src/schema/001_streaming_tables.sql",
@@ -33,9 +34,6 @@
     "@supabase/supabase-js": "^2.86.0",
     "ajv": "^8.17.1",
     "axios": "^1.13.2",
-    "dotenv": "^17.2.3",
-    "express": "^4.21.2",
-    "nanoid": "^5.1.6"
-  },
-  "devDependencies": {}
+    "dotenv": "^17.2.3"
+  }
 }
