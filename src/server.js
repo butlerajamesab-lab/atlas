@@ -14,6 +14,33 @@ dotenv.config();
 const app = express();
 const PORT = Number(process.env.PORT || 8787);
 const SCHEDULER_ENABLED = process.env.ATLAS_SCHEDULER_ENABLED !== 'false'; // default ON
+const DEFAULT_ALLOWED_ORIGINS = [
+  'https://lighthouse.columbiacitycustomllc.com',
+  'https://luminari.onrender.com',
+  'http://localhost:5173',
+  'http://localhost:3000',
+];
+const ALLOWED_ORIGINS = (process.env.ATLAS_ALLOWED_ORIGINS || DEFAULT_ALLOWED_ORIGINS.join(','))
+  .split(',')
+  .map(origin => origin.trim())
+  .filter(Boolean);
+
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && (ALLOWED_ORIGINS.includes(origin) || ALLOWED_ORIGINS.includes('*'))) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+  res.setHeader('Access-Control-Max-Age', '86400');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
+
+  next();
+});
 
 app.use(express.json({ limit: '5mb' }));
 
@@ -65,8 +92,8 @@ app.use(recognitionAtlasRouter);
 app.use((req, res) => apiError(res, 404, `Route not found: ${req.method} ${req.path}`));
 
 if (process.env.NODE_ENV !== 'test') {
-  app.listen(PORT, () => {
-    console.log(`Atlas Streaming Engine listening on http://localhost:${PORT}`);
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Atlas Streaming Engine listening on http://0.0.0.0:${PORT}`);
     if (SCHEDULER_ENABLED) {
       startScheduler();
     } else {
