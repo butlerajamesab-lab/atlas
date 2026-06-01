@@ -4,6 +4,7 @@ import { ingestRouter } from './routes/ingest.js';
 import { streamsRouter } from './routes/streams.js';
 import { investigationsRouter } from './routes/investigations.js';
 import { patternsRouter } from './routes/patterns.js';
+import { populationRouter } from './routes/population.js';
 import { recognitionAtlasRouter } from './routes/recognition_atlas.js';
 import { luminariStreamHealthManifest } from './services/streamHealthInvestigation.js';
 import { startScheduler, getSchedulerStatus, triggerAdapterNow, triggerBridgeDrainNow } from './services/scheduler.js';
@@ -56,6 +57,7 @@ app.post('/scheduler/trigger/:adapterName', async (req, res) => {
 const routeContext = { apiError };
 app.use(ingestRouter(routeContext));
 app.use(streamsRouter(routeContext));
+app.use(populationRouter(routeContext));
 app.use(investigationsRouter(routeContext));
 app.use(patternsRouter(routeContext));
 app.use(recognitionAtlasRouter);
