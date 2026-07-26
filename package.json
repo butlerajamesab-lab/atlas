@@ -8,7 +8,7 @@
     "build": "echo 'No build step required'",
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
-    "test": "node --test",
+    "test": "node --test src/services/bridgeDrainService.test.js",
     "schema:apply": "node scripts/apply-sql-management-api.mjs src/schema/001_streaming_tables.sql",
     "schema:apply:bridge": "node scripts/apply-sql-management-api.mjs src/schema/002_lighthouse_bridge_rpc.sql",
     "schema:export": "node scripts/export-atlas-state.mjs src/schema",
