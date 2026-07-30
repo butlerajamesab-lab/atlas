@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - ops/cfpb-event-entity-phase-3
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: read
@@ -48,13 +51,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          node scripts/resolve-event-entities.mjs \
-            --dry-run \
-            --stream=cfpb_complaints \
-            --batch-size=100 \
-            --max-batches=1 \
-            --sample-limit=20 \
-            > phase3-dry-run.json
+          node scripts/resolve-event-entities.mjs --dry-run --stream=cfpb_complaints --batch-size=100 --max-batches=1 --sample-limit=20 > phase3-dry-run.json
           node -e "const r=require('./phase3-dry-run.json'); if(!r.ok||r.mode!=='dry_run'||r.writes_performed!==0) process.exit(1)"
 
       - name: Run exact bounded CFPB write
@@ -62,12 +59,7 @@ jobs:
         run: |
           set -euo pipefail
           test "${ATLAS_CONFIRM_BOUNDED_WRITE}" = "CFPB_100"
-          node scripts/resolve-event-entities.mjs \
-            --stream=cfpb_complaints \
-            --batch-size=100 \
-            --max-batches=1 \
-            --sample-limit=20 \
-            > phase3-write.json
+          node scripts/resolve-event-entities.mjs --stream=cfpb_complaints --batch-size=100 --max-batches=1 --sample-limit=20 > phase3-write.json
           node -e "const r=require('./phase3-write.json'); if(!r.ok||r.mode!=='write') process.exit(1)"
 
       - name: Replay identical bounded CFPB range
@@ -75,12 +67,7 @@ jobs:
         run: |
           set -euo pipefail
           test "${ATLAS_CONFIRM_BOUNDED_WRITE}" = "CFPB_100"
-          node scripts/resolve-event-entities.mjs \
-            --stream=cfpb_complaints \
-            --batch-size=100 \
-            --max-batches=1 \
-            --sample-limit=20 \
-            > phase3-replay.json
+          node scripts/resolve-event-entities.mjs --stream=cfpb_complaints --batch-size=100 --max-batches=1 --sample-limit=20 > phase3-replay.json
           node -e "const r=require('./phase3-replay.json'); if(!r.ok||r.mode!=='write') process.exit(1)"
 
       - name: Verify deterministic replay and build receipt
@@ -93,75 +80,19 @@ jobs:
           const write = JSON.parse(fs.readFileSync('phase3-write.json', 'utf8'));
           const replay = JSON.parse(fs.readFileSync('phase3-replay.json', 'utf8'));
           const fail = (message) => { throw new Error(message); };
-
-          if (dry.rule_manifest_hash !== write.rule_manifest_hash || write.rule_manifest_hash !== replay.rule_manifest_hash) {
-            fail('rule manifest hash changed across proof');
-          }
-          if (dry.entity_index_hash !== write.entity_index_hash || write.entity_index_hash !== replay.entity_index_hash) {
-            fail('entity index hash changed across proof');
-          }
-          if (dry.source_event_count !== write.processed_event_count || write.processed_event_count !== replay.processed_event_count) {
-            fail('source event range changed across dry run, write, or replay');
-          }
-          if (dry.source_event_count < 1 || dry.source_event_count > 100) {
-            fail('bounded source event count is outside 1..100');
-          }
-          if (write.inserted_count !== write.resolution_row_count) {
-            fail('first write did not insert every deterministic resolution row');
-          }
-          if (write.idempotent_count !== 0) {
-            fail('first write unexpectedly reported pre-existing idempotent rows');
-          }
-          if (replay.inserted_count !== 0) {
-            fail('replay inserted duplicate rows');
-          }
-          if (replay.idempotent_count !== write.resolution_row_count) {
-            fail('replay idempotent count does not equal first-write resolution rows');
-          }
-          for (const key of ['resolved_count', 'ambiguous_count', 'unresolved_count', 'ignored_count']) {
-            if (write[key] !== replay[key]) fail(`${key} changed on replay`);
-          }
-          if (write.last_stream_id !== replay.last_stream_id || String(write.last_offset) !== String(replay.last_offset)) {
-            fail('replay cursor differs from first write');
-          }
-
-          const receipt = {
-            receipt_type: 'atlas_event_entity_resolution_phase_3.v1',
-            generated_at: new Date().toISOString(),
-            repository: process.env.GITHUB_REPOSITORY,
-            commit_sha: process.env.GITHUB_SHA,
-            workflow_run_id: process.env.GITHUB_RUN_ID,
-            stream_id: 'cfpb_complaints',
-            requested_batch_size: 100,
-            requested_max_batches: 1,
-            resolver_id: write.resolver_id,
-            resolver_version: write.resolver_version,
-            rule_manifest_hash: write.rule_manifest_hash,
-            entity_index_hash: write.entity_index_hash,
-            accepted_alias_count: dry.accepted_alias_count,
-            entity_count: dry.entity_count,
-            dry_run: dry,
-            first_write: write,
-            replay,
-            deterministic_replay_proved: true,
-            duplicate_inserts_on_replay: replay.inserted_count,
-          };
-          fs.writeFileSync('phase3-receipt.json', JSON.stringify(receipt, null, 2) + '\n');
-          console.log(JSON.stringify({
-            source_event_count: dry.source_event_count,
-            resolution_row_count: write.resolution_row_count,
-            resolved: write.resolved_count,
-            ambiguous: write.ambiguous_count,
-            unresolved: write.unresolved_count,
-            ignored: write.ignored_count,
-            inserted: write.inserted_count,
-            replay_inserted: replay.inserted_count,
-            replay_idempotent: replay.idempotent_count,
-            entity_index_hash: write.entity_index_hash,
-            rule_manifest_hash: write.rule_manifest_hash,
-            last_stream_id: write.last_stream_id,
-            last_offset: write.last_offset,
-          }, null, 2));
+          if (dry.rule_manifest_hash !== write.rule_manifest_hash || write.rule_manifest_hash !== replay.rule_manifest_hash) fail('rule manifest hash changed across proof');
+          if (dry.entity_index_hash !== write.entity_index_hash || write.entity_index_hash !== replay.entity_index_hash) fail('entity index hash changed across proof');
+          if (dry.source_event_count !== write.processed_event_count || write.processed_event_count !== replay.processed_event_count) fail('source event range changed across dry run, write, or replay');
+          if (dry.source_event_count < 1 || dry.source_event_count > 100) fail('bounded source event count is outside 1..100');
+          if (write.inserted_count !== write.resolution_row_count) fail('first write did not insert every deterministic resolution row');
+          if (write.idempotent_count !== 0) fail('first write unexpectedly reported pre-existing idempotent rows');
+          if (replay.inserted_count !== 0) fail('replay inserted duplicate rows');
+          if (replay.idempotent_count !== write.resolution_row_count) fail('replay idempotent count does not equal first-write resolution rows');
+          for (const key of ['resolved_count','ambiguous_count','unresolved_count','ignored_count']) if (write[key] !== replay[key]) fail(`${key} changed on replay`);
+          if (write.last_stream_id !== replay.last_stream_id || String(write.last_offset) !== String(replay.last_offset)) fail('replay cursor differs from first write');
+          const receipt = {receipt_type:'atlas_event_entity_resolution_phase_3.v1',generated_at:new Date().toISOString(),repository:process.env.GITHUB_REPOSITORY,commit_sha:process.env.GITHUB_SHA,workflow_run_id:process.env.GITHUB_RUN_ID,stream_id:'cfpb_complaints',requested_batch_size:100,requested_max_batches:1,resolver_id:write.resolver_id,resolver_version:write.resolver_version,rule_manifest_hash:write.rule_manifest_hash,entity_index_hash:write.entity_index_hash,accepted_alias_count:dry.accepted_alias_count,entity_count:dry.entity_count,dry_run:dry,first_write:write,replay,deterministic_replay_proved:true,duplicate_inserts_on_replay:replay.inserted_count};
+          fs.writeFileSync('phase3-receipt.json', JSON.stringify(receipt,null,2)+'\n');
+          console.log(JSON.stringify({source_event_count:dry.source_event_count,resolution_row_count:write.resolution_row_count,resolved:write.resolved_count,ambiguous:write.ambiguous_count,unresolved:write.unresolved_count,ignored:write.ignored_count,inserted:write.inserted_count,replay_inserted:replay.inserted_count,replay_idempotent:replay.idempotent_count,entity_index_hash:write.entity_index_hash,rule_manifest_hash:write.rule_manifest_hash,last_stream_id:write.last_stream_id,last_offset:write.last_offset},null,2));
           NODE
 
       - name: Upload bounded proof receipt
