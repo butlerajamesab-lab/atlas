@@ -8,7 +8,7 @@
 -- No silent merge.
 --
 -- Contract:
---   public.signal_events(stream_id, offset)
+--   public.signal_events(stream_id, "offset")
 --     -> declared source-specific extraction rule
 --     -> exact canonical ID / exact external ID / exact normalized name / exact retained alias
 --     -> resolved | ambiguous | unresolved | ignored
@@ -285,7 +285,7 @@ CREATE TABLE IF NOT EXISTS atlas.signal_event_entity_resolution (
 
   CONSTRAINT signal_event_entity_resolution_event_fk
     FOREIGN KEY (stream_id, event_offset)
-    REFERENCES public.signal_events(stream_id, offset)
+    REFERENCES public.signal_events(stream_id, "offset")
     ON UPDATE RESTRICT ON DELETE RESTRICT,
   CONSTRAINT signal_event_entity_resolution_rule_fk
     FOREIGN KEY (rule_id, rule_version)
@@ -1181,7 +1181,7 @@ FROM atlas.signal_event_entity_resolution r
 JOIN atlas.entity_registry er ON er.entity_id = r.entity_id
 JOIN public.signal_events se
   ON se.stream_id = r.stream_id
- AND se.offset = r.event_offset
+ AND se."offset" = r.event_offset
 WHERE r.is_current = true
   AND r.resolution_status = 'resolved';
 
@@ -1504,7 +1504,7 @@ CREATE OR REPLACE FUNCTION public.fetch_atlas_signal_events_for_entity_resolutio
 )
 RETURNS TABLE (
   stream_id text,
-  offset bigint,
+  "offset" bigint,
   "timestamp" timestamptz,
   signal_type text,
   spacetime jsonb,
@@ -1523,7 +1523,7 @@ SET search_path TO pg_catalog, public, extensions
 AS $function$
   SELECT
     se.stream_id,
-    se.offset,
+    se."offset",
     se."timestamp",
     se.signal_type,
     se.spacetime,
@@ -1535,7 +1535,7 @@ AS $function$
     se.ingested_at,
     public.atlas_signal_event_input_hash_v1(
       se.stream_id,
-      se.offset,
+      se."offset",
       se."timestamp",
       se.signal_type,
       se.spacetime,
@@ -1550,9 +1550,9 @@ AS $function$
   WHERE (p_stream_id IS NULL OR se.stream_id = p_stream_id)
     AND (
       p_after_stream_id IS NULL
-      OR (se.stream_id, se.offset) > (p_after_stream_id, COALESCE(p_after_offset, -1))
+      OR (se.stream_id, se."offset") > (p_after_stream_id, COALESCE(p_after_offset, -1))
     )
-  ORDER BY se.stream_id, se.offset
+  ORDER BY se.stream_id, se."offset"
   LIMIT GREATEST(1, LEAST(COALESCE(p_batch_size, 500), 5000));
 $function$;
 
@@ -1861,7 +1861,7 @@ BEGIN
 
     SELECT * INTO v_event
     FROM public.signal_events
-    WHERE stream_id = v_stream_id AND offset = v_event_offset;
+    WHERE stream_id = v_stream_id AND "offset" = v_event_offset;
 
     IF NOT FOUND THEN
       RAISE EXCEPTION 'signal event not found: %:%', v_stream_id, v_event_offset;
@@ -1951,7 +1951,7 @@ BEGIN
 
     v_event_hash := public.atlas_signal_event_input_hash_v1(
       v_event.stream_id,
-      v_event.offset,
+      v_event."offset",
       v_event."timestamp",
       v_event.signal_type,
       v_event.spacetime,

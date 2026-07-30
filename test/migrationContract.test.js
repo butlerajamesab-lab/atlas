@@ -146,6 +146,17 @@ test('migration locks source-specific rules and independently validates extracti
   assert.match(text, /d6c15b4bae26b4fb9c87f4173fcd8f880e59b1ff17e0d2e046aaeedaee9695dd/);
 });
 
+
+test('signal_events offset identifier is consistently quoted', async () => {
+  const text = await sql();
+  assert.match(text, /REFERENCES public\.signal_events\(stream_id, "offset"\)/);
+  assert.match(text, /RETURNS TABLE \([\s\S]*?"offset" bigint,/);
+  assert.doesNotMatch(text, /REFERENCES\s+public\.signal_events\s*\(\s*stream_id\s*,\s*offset\s*\)/i);
+  assert.doesNotMatch(text, /\b(?:se|v_event)\.offset\b/);
+  assert.doesNotMatch(text, /\bAND\s+offset\s*=\s*v_event_offset\b/i);
+  assert.doesNotMatch(text, /^\s*offset\s+bigint,/im);
+});
+
 test('migration text has balanced function blocks and no duplicate SET assignment syntax', async () => {
   const text = await sql();
   const functionDelimiters = text.match(/\$function\$/g) ?? [];
