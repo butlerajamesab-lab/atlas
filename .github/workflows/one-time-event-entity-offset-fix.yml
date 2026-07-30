@@ -1,0 +1,161 @@
+name: One-time event entity offset correction
+
+on:
+  push:
+    branches:
+      - feature/atlas-event-entity-resolution-v1
+
+permissions:
+  contents: write
+
+jobs:
+  correct-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/atlas-event-entity-resolution-v1
+          fetch-depth: 0
+
+      - name: Apply narrow correction
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/atlas-event-entity-offset-fix.patch <<'PATCH'
+          diff --git a/src/schema/20260726_event_entity_resolution.sql b/src/schema/20260726_event_entity_resolution.sql
+          index 3446a77..90f37e7 100644
+          --- a/src/schema/20260726_event_entity_resolution.sql
+          +++ b/src/schema/20260726_event_entity_resolution.sql
+          @@ -8,7 +8,7 @@
+           -- No silent merge.
+           --
+           -- Contract:
+          ---   public.signal_events(stream_id, offset)
+          +--   public.signal_events(stream_id, "offset")
+           --     -> declared source-specific extraction rule
+           --     -> exact canonical ID / exact external ID / exact normalized name / exact retained alias
+           --     -> resolved | ambiguous | unresolved | ignored
+          @@ -285,7 +285,7 @@ CREATE TABLE IF NOT EXISTS atlas.signal_event_entity_resolution (
+           
+             CONSTRAINT signal_event_entity_resolution_event_fk
+               FOREIGN KEY (stream_id, event_offset)
+          -    REFERENCES public.signal_events(stream_id, offset)
+          +    REFERENCES public.signal_events(stream_id, "offset")
+               ON UPDATE RESTRICT ON DELETE RESTRICT,
+             CONSTRAINT signal_event_entity_resolution_rule_fk
+               FOREIGN KEY (rule_id, rule_version)
+          @@ -1181,7 +1181,7 @@ FROM atlas.signal_event_entity_resolution r
+           JOIN atlas.entity_registry er ON er.entity_id = r.entity_id
+           JOIN public.signal_events se
+             ON se.stream_id = r.stream_id
+          - AND se.offset = r.event_offset
+          + AND se."offset" = r.event_offset
+           WHERE r.is_current = true
+             AND r.resolution_status = 'resolved';
+           
+          @@ -1504,7 +1504,7 @@ CREATE OR REPLACE FUNCTION public.fetch_atlas_signal_events_for_entity_resolutio
+           )
+           RETURNS TABLE (
+             stream_id text,
+          -  offset bigint,
+          +  "offset" bigint,
+             "timestamp" timestamptz,
+             signal_type text,
+             spacetime jsonb,
+          @@ -1523,7 +1523,7 @@ SET search_path TO pg_catalog, public, extensions
+           AS $function$
+             SELECT
+               se.stream_id,
+          -    se.offset,
+          +    se."offset",
+               se."timestamp",
+               se.signal_type,
+               se.spacetime,
+          @@ -1535,7 +1535,7 @@ AS $function$
+               se.ingested_at,
+               public.atlas_signal_event_input_hash_v1(
+                 se.stream_id,
+          -      se.offset,
+          +      se."offset",
+                 se."timestamp",
+                 se.signal_type,
+                 se.spacetime,
+          @@ -1550,9 +1550,9 @@ AS $function$
+             WHERE (p_stream_id IS NULL OR se.stream_id = p_stream_id)
+               AND (
+                 p_after_stream_id IS NULL
+          -      OR (se.stream_id, se.offset) > (p_after_stream_id, COALESCE(p_after_offset, -1))
+          +      OR (se.stream_id, se."offset") > (p_after_stream_id, COALESCE(p_after_offset, -1))
+               )
+          -  ORDER BY se.stream_id, se.offset
+          +  ORDER BY se.stream_id, se."offset"
+             LIMIT GREATEST(1, LEAST(COALESCE(p_batch_size, 500), 5000));
+           $function$;
+           
+          @@ -1861,7 +1861,7 @@ BEGIN
+           
+               SELECT * INTO v_event
+               FROM public.signal_events
+          -    WHERE stream_id = v_stream_id AND offset = v_event_offset;
+          +    WHERE stream_id = v_stream_id AND "offset" = v_event_offset;
+           
+               IF NOT FOUND THEN
+                 RAISE EXCEPTION 'signal event not found: %:%', v_stream_id, v_event_offset;
+          @@ -1951,7 +1951,7 @@ BEGIN
+           
+               v_event_hash := public.atlas_signal_event_input_hash_v1(
+                 v_event.stream_id,
+          -      v_event.offset,
+          +      v_event."offset",
+                 v_event."timestamp",
+                 v_event.signal_type,
+                 v_event.spacetime,
+          diff --git a/test/migrationContract.test.js b/test/migrationContract.test.js
+          index 04a3660..de7a89c 100644
+          --- a/test/migrationContract.test.js
+          +++ b/test/migrationContract.test.js
+          @@ -146,6 +146,17 @@ test('migration locks source-specific rules and independently validates extracti
+             assert.match(text, /d6c15b4bae26b4fb9c87f4173fcd8f880e59b1ff17e0d2e046aaeedaee9695dd/);
+           });
+           
+          +
+          +test('signal_events offset identifier is consistently quoted', async () => {
+          +  const text = await sql();
+          +  assert.match(text, /REFERENCES public\.signal_events\(stream_id, "offset"\)/);
+          +  assert.match(text, /RETURNS TABLE \([\s\S]*?"offset" bigint,/);
+          +  assert.doesNotMatch(text, /REFERENCES\s+public\.signal_events\s*\(\s*stream_id\s*,\s*offset\s*\)/i);
+          +  assert.doesNotMatch(text, /\b(?:se|v_event)\.offset\b/);
+          +  assert.doesNotMatch(text, /\bAND\s+offset\s*=\s*v_event_offset\b/i);
+          +  assert.doesNotMatch(text, /^\s*offset\s+bigint,/im);
+          +});
+          +
+           test('migration text has balanced function blocks and no duplicate SET assignment syntax', async () => {
+             const text = await sql();
+             const functionDelimiters = text.match(/\$function\$/g) ?? [];
+          PATCH
+
+          git apply --check /tmp/atlas-event-entity-offset-fix.patch
+          git apply /tmp/atlas-event-entity-offset-fix.patch
+
+      - name: Verify corrected candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check src/services/eventEntityResolution.js
+          node --check scripts/resolve-event-entities.mjs
+          node --test test/eventEntityResolution.test.js test/migrationContract.test.js test/ruleManifestContract.test.js
+          git diff --check
+          test "$(sha256sum src/schema/20260726_event_entity_resolution.sql | awk '{print $1}')" = "1b4797242e26c8e5df8e92a00a70f8a0d8327324f4bffa906b1a3f9645eb9be5"
+          test "$(sha256sum test/migrationContract.test.js | awk '{print $1}')" = "84958b612f2eb9984960da098c3aa5886c507821383ee9e0bfc1fd87262a3b9b"
+
+      - name: Commit verified correction and remove wrapper
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/one-time-event-entity-offset-fix.yml
+          git add src/schema/20260726_event_entity_resolution.sql test/migrationContract.test.js
+          git commit -m "Fix quoted signal event offset references"
+          git push origin HEAD:feature/atlas-event-entity-resolution-v1
