@@ -1,0 +1,26 @@
+name: Event entity resolution contracts
+
+on:
+  pull_request:
+    branches: ["main"]
+  push:
+    branches: ["main"]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: npm
+      - run: npm ci
+      - run: node --check src/services/eventEntityResolution.js
+      - run: node --check scripts/resolve-event-entities.mjs
+      - run: >-
+          node --test
+          test/eventEntityResolution.test.js
+          test/migrationContract.test.js
+          test/ruleManifestContract.test.js
+          test/usaSpendingSqlExtractionFix.test.js
