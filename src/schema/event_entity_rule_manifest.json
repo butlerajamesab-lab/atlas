@@ -1,0 +1,271 @@
+{
+  "resolver_id": "atlas.signal_event_entity_exact",
+  "resolver_version": "1.0.0",
+  "rule_manifest_hash": "d6c15b4bae26b4fb9c87f4173fcd8f880e59b1ff17e0d2e046aaeedaee9695dd",
+  "rules": [
+    {
+      "rule_id": "pro_publica.nonprofit_registry_record.subject_nonprofit",
+      "rule_version": "1.0.0",
+      "stream_id": "pro_publica",
+      "signal_types": [
+        "nonprofit_registry_record"
+      ],
+      "entity_role": "subject_nonprofit",
+      "expected_entity_type": "nonprofit",
+      "exact_identifier_types": [
+        "ein"
+      ],
+      "name_fields": [
+        "payload.name",
+        "payload.raw.name",
+        "payload.raw.sub_name"
+      ],
+      "identifier_fields": [
+        "payload.ein",
+        "payload.external_id",
+        "payload.raw.ein"
+      ],
+      "transform": "first_non_empty_exact_field",
+      "rule_contract_hash": "d1bbb9a5d7c3ad7c728e1c3eea20f98447555a8a944a58e00469d1da8013c882"
+    },
+    {
+      "rule_id": "pro_publica.nonprofit_990.subject_nonprofit",
+      "rule_version": "1.0.0",
+      "stream_id": "pro_publica",
+      "signal_types": [
+        "nonprofit_990",
+        "nonprofit_990_filing"
+      ],
+      "entity_role": "subject_nonprofit",
+      "expected_entity_type": "nonprofit",
+      "exact_identifier_types": [
+        "ein"
+      ],
+      "name_fields": [
+        "payload.organization_name",
+        "payload.name",
+        "payload.raw.organization_name",
+        "payload.raw.name"
+      ],
+      "identifier_fields": [
+        "payload.ein",
+        "payload.raw.ein"
+      ],
+      "transform": "first_non_empty_exact_field",
+      "rule_contract_hash": "f2c9f0958e4231a7016ff96bd1d941fec67cd21118a83d8ca99352d317bc10cc"
+    },
+    {
+      "rule_id": "cfpb_complaints.complained_against_entity",
+      "rule_version": "1.0.0",
+      "stream_id": "cfpb_complaints",
+      "signal_types": [
+        "*"
+      ],
+      "entity_role": "complained_against_entity",
+      "expected_entity_type": "organization",
+      "exact_identifier_types": [],
+      "name_fields": [
+        "payload.company",
+        "payload.employer"
+      ],
+      "identifier_fields": [],
+      "transform": "first_non_empty_exact_field",
+      "rule_contract_hash": "3b3abc5ee592d4a8c62dec2f94ec128165df66997f1172e44aa4d30a7dfbebee"
+    },
+    {
+      "rule_id": "eeoc_filings.respondent_employer",
+      "rule_version": "1.0.0",
+      "stream_id": "eeoc_filings",
+      "signal_types": [
+        "*"
+      ],
+      "entity_role": "respondent_employer",
+      "expected_entity_type": "organization",
+      "exact_identifier_types": [],
+      "name_fields": [
+        "payload.employer"
+      ],
+      "identifier_fields": [],
+      "transform": "first_non_empty_exact_field",
+      "rule_contract_hash": "9d476c640b8ce04e735410137f4d5ac5166eae3c57cee830a8038e8ae7d4e805"
+    },
+    {
+      "rule_id": "sec_edgar.issuer",
+      "rule_version": "1.0.0",
+      "stream_id": "sec_edgar",
+      "signal_types": [
+        "*"
+      ],
+      "entity_role": "issuer",
+      "expected_entity_type": "organization",
+      "exact_identifier_types": [
+        "cik"
+      ],
+      "name_fields": [
+        "payload.company"
+      ],
+      "identifier_fields": [
+        "payload.cik"
+      ],
+      "transform": "first_non_empty_exact_field",
+      "rule_contract_hash": "34ba4547199b8626482d67ad32f820655e06ffb645aaf86a9728eca425adaa64"
+    },
+    {
+      "rule_id": "regulations_gov.issuing_agency",
+      "rule_version": "1.0.0",
+      "stream_id": "regulations_gov",
+      "signal_types": [
+        "*"
+      ],
+      "entity_role": "issuing_agency",
+      "expected_entity_type": "government_agency",
+      "exact_identifier_types": [],
+      "name_fields": [
+        "payload.agency",
+        "payload.agency_name"
+      ],
+      "identifier_fields": [],
+      "transform": "first_non_empty_exact_field",
+      "rule_contract_hash": "8599770e6f8028091facdf80f9c3448a1094fe47c1f7d33d976e06d60b0e8245"
+    },
+    {
+      "rule_id": "usa_spending.award_recipient",
+      "rule_version": "1.0.0",
+      "stream_id": "usa_spending",
+      "signal_types": [
+        "*"
+      ],
+      "entity_role": "award_recipient",
+      "expected_entity_type": "organization",
+      "exact_identifier_types": [
+        "uei",
+        "duns"
+      ],
+      "name_fields": [
+        "payload.recipient_name",
+        "payload.recipient",
+        "payload.award_recipient",
+        "payload.recipient_legal_entity_name",
+        "payload.title"
+      ],
+      "identifier_fields": [
+        "payload.recipient_uei",
+        "payload.uei",
+        "payload.recipient_duns",
+        "payload.duns"
+      ],
+      "transform": "first_exact_field_or_contract_title_recipient_prefix",
+      "rule_contract_hash": "ff131501463b763791741f6fcfd05fe0f793b1b50ab0e969e9e354a159424c02"
+    },
+    {
+      "rule_id": "usa_spending.awarding_agency",
+      "rule_version": "1.0.0",
+      "stream_id": "usa_spending",
+      "signal_types": [
+        "*"
+      ],
+      "entity_role": "awarding_agency",
+      "expected_entity_type": "government_agency",
+      "exact_identifier_types": [],
+      "name_fields": [
+        "payload.agency",
+        "payload.awarding_agency_name"
+      ],
+      "identifier_fields": [],
+      "transform": "first_non_empty_exact_field",
+      "rule_contract_hash": "38bbcb8788563cddbf99f2aa9525546da9caaa00a28ab97707afbffb3653d613"
+    },
+    {
+      "rule_id": "grants_gov.granting_agency",
+      "rule_version": "1.0.0",
+      "stream_id": "grants_gov",
+      "signal_types": [
+        "*"
+      ],
+      "entity_role": "granting_agency",
+      "expected_entity_type": "government_agency",
+      "exact_identifier_types": [],
+      "name_fields": [
+        "payload.agency",
+        "payload.agency_name"
+      ],
+      "identifier_fields": [],
+      "transform": "first_non_empty_exact_field",
+      "rule_contract_hash": "44b4e3958220b5c4a7dc300075012791017d71645a350367bc7503163aa104a4"
+    },
+    {
+      "rule_id": "open_states.legislative_sponsor",
+      "rule_version": "1.0.0",
+      "stream_id": "open_states",
+      "signal_types": [
+        "*"
+      ],
+      "entity_role": "legislative_sponsor",
+      "expected_entity_type": "person",
+      "exact_identifier_types": [],
+      "name_fields": [
+        "payload.sponsor",
+        "payload.sponsor_name",
+        "payload.sponsors[*]"
+      ],
+      "identifier_fields": [],
+      "transform": "direct_or_array_exact_sponsor_name",
+      "rule_contract_hash": "0f7e7c9c9a9e81b775d796e863be46008aa37f39d7db25ab98139d4ecc08253f"
+    },
+    {
+      "rule_id": "generic.canonical_entity_id",
+      "rule_version": "1.0.0",
+      "stream_id": "*",
+      "signal_types": [
+        "*"
+      ],
+      "entity_role": "subject_entity",
+      "expected_entity_type": null,
+      "exact_identifier_types": [
+        "canonical_entity_id"
+      ],
+      "name_fields": [
+        "payload.entity_name",
+        "payload.entity"
+      ],
+      "identifier_fields": [
+        "payload.canonical_entity_id"
+      ],
+      "transform": "exact_canonical_entity_id",
+      "rule_contract_hash": "2d4006aaa6469fb5203e0cd045ced99e4aa210b0934de38471b55a93d2d8fcca"
+    },
+    {
+      "rule_id": "generic.declared_subject_field",
+      "rule_version": "1.0.0",
+      "stream_id": "*",
+      "signal_types": [
+        "*"
+      ],
+      "entity_role": "subject_entity",
+      "expected_entity_type": null,
+      "exact_identifier_types": [],
+      "name_fields": [
+        "payload.entity_name",
+        "payload.entity"
+      ],
+      "identifier_fields": [],
+      "transform": "first_non_empty_exact_field",
+      "rule_contract_hash": "41286a9352bbabbda95e3f9f86cf83204a767ea6d6c46f55090475742bc47ae3"
+    },
+    {
+      "rule_id": "system.no_declared_entity_rule",
+      "rule_version": "1.0.0",
+      "stream_id": "*",
+      "signal_types": [
+        "*"
+      ],
+      "entity_role": "none",
+      "expected_entity_type": null,
+      "exact_identifier_types": [],
+      "name_fields": [],
+      "identifier_fields": [],
+      "transform": "explicit_ignored_outcome",
+      "rule_contract_hash": "9beb2e1d96f9e4b30c888f9123ff34947ad0ec04a6a91389844849f191f7c98d"
+    }
+  ]
+}
