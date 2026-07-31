@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   bridgeLiveDataSignalCandidates,
+  parseRegistrationReceipt,
   resolveLiveDataSignalBridgeConfiguration,
 } from './liveDataSignalBridgeService.js';
 
@@ -18,16 +19,17 @@ const RECORD = {
   confidence_score: 1,
   verification_state: 'verified',
   supporting_statistics: {
+    candidate_identity_version: '1.1.0',
     unique_source_record_count: 13,
     unresolved_unique_record_count: 13,
     unresolved_unique_rate: 1,
   },
   evidence_refs: [{ stream_id: 'pro_publica', offset: 10 }],
   detection_rule_id: 'atlas.propublica_unresolved_filing_metadata_rate',
-  detection_rule_version: '1.0.0',
+  detection_rule_version: '1.1.0',
   engine_id: 'atlas.live_data_signal_exact',
-  engine_version: '1.0.0',
-  source_freshness_at: '2026-07-31T18:36:54.291Z',
+  engine_version: '1.1.0',
+  source_freshness_at: '2025-02-14T23:10:35.430Z',
   detected_at: '2026-07-31T19:00:00.000Z',
   governance_status: 'observation_candidate',
 };
@@ -51,6 +53,21 @@ test('Domain 3 bridge configuration fails closed', () => {
   );
 });
 
+test('registration receipt parser accepts object, array, and JSON string shapes', () => {
+  const receipt = {
+    live_data_signal_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    signal_hash: 'b'.repeat(64),
+    governance_status: 'observation_candidate',
+  };
+  assert.equal(parseRegistrationReceipt(receipt).live_data_signal_id, receipt.live_data_signal_id);
+  assert.equal(parseRegistrationReceipt([receipt]).signal_hash, receipt.signal_hash);
+  assert.equal(
+    parseRegistrationReceipt(JSON.stringify(receipt)).governance_status,
+    'observation_candidate',
+  );
+  assert.throws(() => parseRegistrationReceipt(null), /no live-data signal registration receipt/);
+});
+
 test('Domain 3 bridge preserves the completed Atlas record without defaults', async () => {
   const calls = [];
   const atlasClient = {
@@ -62,9 +79,16 @@ test('Domain 3 bridge preserves the completed Atlas record without defaults', as
   const lighthouseClient = {
     async rpc(name, args) {
       calls.push({ system: 'lighthouse', name, args });
-      assert.equal(name, 'register_live_data_signal_v1');
+      assert.equal(name, 'register_live_data_signal_receipt_v1');
       assert.deepEqual(args.p_record, RECORD);
-      return { data: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', error: null };
+      return {
+        data: {
+          live_data_signal_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          signal_hash: 'b'.repeat(64),
+          governance_status: 'observation_candidate',
+        },
+        error: null,
+      };
     },
   };
 
@@ -86,11 +110,49 @@ test('Domain 3 bridge preserves the completed Atlas record without defaults', as
   assert.equal(result.candidates_seen, 1);
   assert.equal(result.bridged, 1);
   assert.equal(result.failed, 0);
+  assert.equal(result.receipts[0].signal_hash, 'b'.repeat(64));
   assert.equal(calls.filter((call) => call.system === 'lighthouse').length, 1);
   assert.equal(
     calls.some((call) => call.name === 'mark_live_data_signal_candidate_bridge_v1'),
     true,
   );
+});
+
+test('Domain 3 bridge counts an exact receipt replay as idempotent', async () => {
+  const atlasClient = {
+    async rpc() {
+      return { data: null, error: null };
+    },
+  };
+  const lighthouseClient = {
+    async rpc() {
+      return {
+        data: [{
+          live_data_signal_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          signal_hash: 'b'.repeat(64),
+          governance_status: 'observation_candidate',
+        }],
+        error: null,
+      };
+    },
+  };
+
+  const result = await bridgeLiveDataSignalCandidates({
+    atlasClient,
+    lighthouseClient,
+    detection: {
+      candidates: [{
+        candidate_id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+        lighthouse_status: 'bridged',
+        lighthouse_record_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        lighthouse_record: RECORD,
+      }],
+    },
+  });
+
+  assert.equal(result.bridged, 0);
+  assert.equal(result.idempotent, 1);
+  assert.equal(result.failed, 0);
 });
 
 test('Domain 3 bridge rejects incomplete candidates instead of inventing values', async () => {
