@@ -84,6 +84,40 @@ function requireCandidate(candidate) {
   return record;
 }
 
+export function parseRegistrationReceipt(data) {
+  let parsed = data;
+  if (typeof parsed === 'string') {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch {
+      parsed = { live_data_signal_id: parsed };
+    }
+  }
+  if (Array.isArray(parsed)) parsed = parsed[0] ?? null;
+  if (!parsed || typeof parsed !== 'object') {
+    throw new Error('Lighthouse returned no live-data signal registration receipt');
+  }
+
+  const lighthouseRecordId = String(
+    parsed.live_data_signal_id
+      ?? parsed.register_live_data_signal_receipt_v1
+      ?? parsed.liveDataSignalId
+      ?? '',
+  );
+  if (!lighthouseRecordId) {
+    throw new Error('Lighthouse registration receipt contains no live_data_signal_id');
+  }
+
+  return {
+    live_data_signal_id: lighthouseRecordId,
+    signal_hash: parsed.signal_hash == null ? null : String(parsed.signal_hash),
+    governance_status: parsed.governance_status == null
+      ? null
+      : String(parsed.governance_status),
+    registered_at: parsed.registered_at == null ? null : String(parsed.registered_at),
+  };
+}
+
 async function markCandidate(atlasClient, candidateId, status, lighthouseRecordId = null, errorMessage = null) {
   const { error } = await atlasClient.rpc('mark_live_data_signal_candidate_bridge_v1', {
     p_candidate_id: candidateId,
@@ -104,12 +138,13 @@ export async function bridgeLiveDataSignalCandidates({ atlasClient, lighthouseCl
   for (const candidate of candidates) {
     try {
       const record = requireCandidate(candidate);
-      const { data, error } = await lighthouseClient.rpc('register_live_data_signal_v1', {
-        p_record: record,
-      });
+      const { data, error } = await lighthouseClient.rpc(
+        'register_live_data_signal_receipt_v1',
+        { p_record: record },
+      );
       if (error) throw new Error(error.message);
-      const lighthouseRecordId = typeof data === 'string' ? data : String(data ?? '');
-      if (!lighthouseRecordId) throw new Error('Lighthouse returned no live_data_signal_id');
+      const registration = parseRegistrationReceipt(data);
+      const lighthouseRecordId = registration.live_data_signal_id;
 
       const wasAlreadyBridged = candidate.lighthouse_status === 'bridged'
         && candidate.lighthouse_record_id === lighthouseRecordId;
@@ -119,6 +154,8 @@ export async function bridgeLiveDataSignalCandidates({ atlasClient, lighthouseCl
       receipts.push({
         candidate_id: candidate.candidate_id,
         lighthouse_record_id: lighthouseRecordId,
+        signal_hash: registration.signal_hash,
+        governance_status: registration.governance_status,
         status: wasAlreadyBridged ? 'idempotent' : 'bridged',
       });
     } catch (error) {
