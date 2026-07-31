@@ -1,194 +1,157 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-  bridgeLiveDataSignalCandidates,
-  parseRegistrationReceipt,
+  executeLiveDataSignalCycle,
   resolveLiveDataSignalBridgeConfiguration,
 } from './liveDataSignalBridgeService.js';
 
-const RECORD = {
-  signal_type: 'elevated_unresolved_record_rate',
-  title: 'Elevated unresolved nonprofit filing metadata rate',
-  description: 'Data-quality observation; not a misconduct or legal finding.',
-  primary_stream_id: 'pro_publica',
-  source_event_refs: [{ stream_id: 'pro_publica', offset: 10 }],
-  entity_ids: ['np-example'],
-  entity_resolution_status: 'resolved',
-  jurisdiction_id: 'us_federal',
-  severity: 'high',
-  confidence_score: 1,
-  verification_state: 'verified',
-  supporting_statistics: {
-    candidate_identity_version: '1.1.0',
-    unique_source_record_count: 13,
-    unresolved_unique_record_count: 13,
-    unresolved_unique_rate: 1,
-  },
-  evidence_refs: [{ stream_id: 'pro_publica', offset: 10 }],
-  detection_rule_id: 'atlas.propublica_unresolved_filing_metadata_rate',
-  detection_rule_version: '1.1.0',
-  engine_id: 'atlas.live_data_signal_exact',
-  engine_version: '1.1.0',
-  source_freshness_at: '2025-02-14T23:10:35.430Z',
-  detected_at: '2026-07-31T19:00:00.000Z',
-  governance_status: 'observation_candidate',
-};
-
-test('Domain 3 bridge configuration fails closed', () => {
+test('Domain 3 bridge configuration requires Atlas service credentials only', () => {
   assert.throws(
     () => resolveLiveDataSignalBridgeConfiguration({
       SUPABASE_URL: 'https://atlas.example.test',
-      SUPABASE_SERVICE_ROLE_KEY: 'atlas-key',
     }),
-    /LIGHTHOUSE_SUPABASE_URL/,
+    /SUPABASE_SERVICE_ROLE_KEY/,
   );
-  assert.throws(
-    () => resolveLiveDataSignalBridgeConfiguration({
-      SUPABASE_URL: 'https://same.example.test',
-      SUPABASE_SERVICE_ROLE_KEY: 'atlas-key',
-      LIGHTHOUSE_SUPABASE_URL: 'https://same.example.test',
-      LIGHTHOUSE_SERVICE_ROLE_KEY: 'lighthouse-key',
-    }),
-    /identical source and target URLs/,
-  );
+
+  const config = resolveLiveDataSignalBridgeConfiguration({
+    SUPABASE_URL: 'https://atlas.example.test',
+    SUPABASE_SERVICE_ROLE_KEY: 'atlas-service-key',
+    ATLAS_DOMAIN3_MIN_UNIQUE_RECORDS: '12',
+    ATLAS_DOMAIN3_MIN_UNRESOLVED_RATE: '0.75',
+    ATLAS_DOMAIN3_CANDIDATE_LIMIT: '25',
+  });
+  assert.equal(config.atlasUrl, 'https://atlas.example.test');
+  assert.equal(config.atlasKey, 'atlas-service-key');
+  assert.equal(config.minUniqueRecords, 12);
+  assert.equal(config.minUnresolvedRate, 0.75);
+  assert.equal(config.candidateLimit, 25);
+  assert.equal('lighthouseUrl' in config, false);
+  assert.equal('lighthouseKey' in config, false);
 });
 
-test('registration receipt parser accepts object, array, and JSON string shapes', () => {
-  const receipt = {
-    live_data_signal_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-    signal_hash: 'b'.repeat(64),
-    governance_status: 'observation_candidate',
-  };
-  assert.equal(parseRegistrationReceipt(receipt).live_data_signal_id, receipt.live_data_signal_id);
-  assert.equal(parseRegistrationReceipt([receipt]).signal_hash, receipt.signal_hash);
-  assert.equal(
-    parseRegistrationReceipt(JSON.stringify(receipt)).governance_status,
-    'observation_candidate',
-  );
-  assert.throws(() => parseRegistrationReceipt(null), /no live-data signal registration receipt/);
-});
-
-test('Domain 3 bridge preserves the completed Atlas record without defaults', async () => {
+test('Domain 3 cycle runs detection then governed Atlas database transport', async () => {
   const calls = [];
   const atlasClient = {
     async rpc(name, args) {
-      calls.push({ system: 'atlas', name, args });
-      return { data: null, error: null };
+      calls.push({ name, args });
+      if (name === 'detect_propublica_unresolved_metadata_v1') {
+        return {
+          data: {
+            run_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+            status: 'completed',
+            rule_version: '1.1.0',
+            candidates_produced: 9,
+          },
+          error: null,
+        };
+      }
+      if (name === 'bridge_live_data_signal_candidates_v1') {
+        assert.deepEqual(args, {
+          p_run_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+          p_limit: 25,
+        });
+        return {
+          data: {
+            run_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+            candidates_seen: 9,
+            bridged: 9,
+            idempotent: 0,
+            failed: 0,
+            transport: 'atlas_database_http_receipt_v1',
+          },
+          error: null,
+        };
+      }
+      throw new Error(`Unexpected RPC ${name}`);
     },
   };
-  const lighthouseClient = {
-    async rpc(name, args) {
-      calls.push({ system: 'lighthouse', name, args });
-      assert.equal(name, 'register_live_data_signal_receipt_v1');
-      assert.deepEqual(args.p_record, RECORD);
+
+  const result = await executeLiveDataSignalCycle({
+    atlasClient,
+    minUniqueRecords: 12,
+    minUnresolvedRate: 0.75,
+    candidateLimit: 25,
+  });
+
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0].name, 'detect_propublica_unresolved_metadata_v1');
+  assert.deepEqual(calls[0].args, {
+    p_min_unique_records: 12,
+    p_min_unresolved_rate: 0.75,
+    p_limit: 25,
+  });
+  assert.equal(calls[1].name, 'bridge_live_data_signal_candidates_v1');
+  assert.equal(result.bridge.bridged, 9);
+  assert.equal(result.bridge.failed, 0);
+  assert.equal(result.bridge.transport, 'atlas_database_http_receipt_v1');
+});
+
+test('Domain 3 cycle fails closed when detection has no completed run receipt', async () => {
+  const atlasClient = {
+    async rpc(name) {
+      assert.equal(name, 'detect_propublica_unresolved_metadata_v1');
+      return { data: { status: 'failed', candidates: [] }, error: null };
+    },
+  };
+
+  await assert.rejects(
+    executeLiveDataSignalCycle({ atlasClient }),
+    /no completed run receipt/,
+  );
+});
+
+test('Domain 3 cycle surfaces governed database transport errors', async () => {
+  const atlasClient = {
+    async rpc(name) {
+      if (name === 'detect_propublica_unresolved_metadata_v1') {
+        return {
+          data: {
+            run_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+            status: 'completed',
+          },
+          error: null,
+        };
+      }
+      return {
+        data: null,
+        error: { message: 'encrypted bridge config unavailable' },
+      };
+    },
+  };
+
+  await assert.rejects(
+    executeLiveDataSignalCycle({ atlasClient }),
+    /Atlas Domain 3 transport failed: encrypted bridge config unavailable/,
+  );
+});
+
+test('Domain 3 cycle recognizes idempotent replay receipt', async () => {
+  const atlasClient = {
+    async rpc(name) {
+      if (name === 'detect_propublica_unresolved_metadata_v1') {
+        return {
+          data: {
+            run_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+            status: 'completed',
+          },
+          error: null,
+        };
+      }
       return {
         data: {
-          live_data_signal_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-          signal_hash: 'b'.repeat(64),
-          governance_status: 'observation_candidate',
+          candidates_seen: 9,
+          bridged: 0,
+          idempotent: 9,
+          failed: 0,
+          transport: 'atlas_database_http_receipt_v1',
         },
         error: null,
       };
     },
   };
 
-  const result = await bridgeLiveDataSignalCandidates({
-    atlasClient,
-    lighthouseClient,
-    detection: {
-      run_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
-      candidates: [{
-        candidate_id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
-        candidate_hash: 'a'.repeat(64),
-        lighthouse_status: 'pending',
-        lighthouse_record_id: null,
-        lighthouse_record: RECORD,
-      }],
-    },
-  });
-
-  assert.equal(result.candidates_seen, 1);
-  assert.equal(result.bridged, 1);
-  assert.equal(result.failed, 0);
-  assert.equal(result.receipts[0].signal_hash, 'b'.repeat(64));
-  assert.equal(calls.filter((call) => call.system === 'lighthouse').length, 1);
-  assert.equal(
-    calls.some((call) => call.name === 'mark_live_data_signal_candidate_bridge_v1'),
-    true,
-  );
-});
-
-test('Domain 3 bridge counts an exact receipt replay as idempotent', async () => {
-  const atlasClient = {
-    async rpc() {
-      return { data: null, error: null };
-    },
-  };
-  const lighthouseClient = {
-    async rpc() {
-      return {
-        data: [{
-          live_data_signal_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-          signal_hash: 'b'.repeat(64),
-          governance_status: 'observation_candidate',
-        }],
-        error: null,
-      };
-    },
-  };
-
-  const result = await bridgeLiveDataSignalCandidates({
-    atlasClient,
-    lighthouseClient,
-    detection: {
-      candidates: [{
-        candidate_id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
-        lighthouse_status: 'bridged',
-        lighthouse_record_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-        lighthouse_record: RECORD,
-      }],
-    },
-  });
-
-  assert.equal(result.bridged, 0);
-  assert.equal(result.idempotent, 1);
-  assert.equal(result.failed, 0);
-});
-
-test('Domain 3 bridge rejects incomplete candidates instead of inventing values', async () => {
-  const atlasCalls = [];
-  const atlasClient = {
-    async rpc(name, args) {
-      atlasCalls.push({ name, args });
-      return { data: null, error: null };
-    },
-  };
-  const lighthouseClient = {
-    async rpc() {
-      throw new Error('Lighthouse must not be called for an incomplete candidate');
-    },
-  };
-
-  const incomplete = { ...RECORD };
-  delete incomplete.confidence_score;
-  delete incomplete.severity;
-
-  const result = await bridgeLiveDataSignalCandidates({
-    atlasClient,
-    lighthouseClient,
-    detection: {
-      candidates: [{
-        candidate_id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
-        lighthouse_record: incomplete,
-      }],
-    },
-  });
-
-  assert.equal(result.bridged, 0);
-  assert.equal(result.failed, 1);
-  assert.match(result.receipts[0].error, /severity|confidence_score/);
-  assert.equal(
-    atlasCalls.some((call) => call.args?.p_status === 'failed'),
-    true,
-  );
+  const result = await executeLiveDataSignalCycle({ atlasClient });
+  assert.equal(result.bridge.bridged, 0);
+  assert.equal(result.bridge.idempotent, 9);
+  assert.equal(result.bridge.failed, 0);
 });
