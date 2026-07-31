@@ -1,0 +1,481 @@
+name: Apply Atlas Circulation Hardening
+
+on:
+  push:
+    branches:
+      - agent/quarantine-stale-civic-writers
+    paths:
+      - .github/workflows/apply-atlas-circulation-hardening.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/quarantine-stale-civic-writers
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Apply deterministic source repairs
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          # Governed transport preserves fields exactly and rejects missing semantics.
+          path = Path('src/services/bridgeDrainService.js')
+          source = path.read_text()
+          replacements = {
+            "    confidence_score: signal.confidence_score ?? signal.severity_score ?? 0.5,": "    confidence_score: signal.confidence_score ?? null,",
+            "    severity: signal.severity ?? 'info',": "    severity: signal.severity ?? null,",
+            "    signal_status: signal.signal_status ?? 'active',": "    signal_status: String(requireSignalField(signal, 'signal_status')),
+",
+            "    rule_version: signal.rule_version ?? 'v1',": "    rule_version: String(requireSignalField(signal, 'rule_version')),
+",
+            "    generation_method: signal.generation_method ?? 'deterministic_rule',": "    generation_method: String(requireSignalField(signal, 'generation_method')),
+",
+            "    record_origin: signal.record_origin ?? 'live_api',": "    record_origin: String(requireSignalField(signal, 'record_origin')),
+",
+            "    verification_status: signal.verification_status ?? 'verified',": "    verification_status: String(requireSignalField(signal, 'verification_status')),
+",
+            "    evidence_payload: signal.evidence_payload ?? {},": "    evidence_payload: requireSignalField(signal, 'evidence_payload'),",
+            "    provenance_metadata: signal.provenance_metadata ?? {},": "    provenance_metadata: requireSignalField(signal, 'provenance_metadata'),",
+            "      deterministic_verified_only: true,": "      source_verification_status: String(signal.verification_status),",
+          }
+          for before, after in replacements.items():
+            if before not in source:
+              raise SystemExit(f'missing bridge marker: {before}')
+            source = source.replace(before, after, 1)
+          path.write_text(source)
+
+          # Browser-facing Atlas access is closed; internal ingest and control routes require separate tokens.
+          path = Path('src/server.js')
+          source = path.read_text()
+          source = source.replace("import dotenv from 'dotenv';\n", "import { timingSafeEqual } from 'node:crypto';\nimport dotenv from 'dotenv';\n", 1)
+          old_origins = """const DEFAULT_ALLOWED_ORIGINS = [
+  'https://lighthouse.columbiacitycustomllc.com',
+  'https://luminari.onrender.com',
+  'http://localhost:5173',
+  'http://localhost:3000',
+];"""
+          new_origins = """const DEFAULT_ALLOWED_ORIGINS = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+];"""
+          if old_origins not in source:
+            raise SystemExit('default origin marker missing')
+          source = source.replace(old_origins, new_origins, 1)
+          marker = """const ALLOWED_ORIGINS = (process.env.ATLAS_ALLOWED_ORIGINS || DEFAULT_ALLOWED_ORIGINS.join(','))
+  .split(',')
+  .map(origin => origin.trim())
+  .filter(Boolean);
+"""
+          auth = marker + """
+function requireAtlasToken(environmentName) {
+  return (req, res, next) => {
+    const expected = process.env[environmentName];
+    if (!expected) {
+      return res.status(503).json({ error: `${environmentName} is not configured` });
+    }
+
+    const authorization = req.headers.authorization || '';
+    const presented = authorization.startsWith('Bearer ')
+      ? authorization.slice('Bearer '.length)
+      : String(req.headers['x-atlas-token'] || '');
+    const expectedBuffer = Buffer.from(expected);
+    const presentedBuffer = Buffer.from(presented);
+    const authorized = expectedBuffer.length === presentedBuffer.length
+      && timingSafeEqual(expectedBuffer, presentedBuffer);
+
+    if (!authorized) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    next();
+  };
+}
+"""
+          if marker not in source:
+            raise SystemExit('allowed origins marker missing')
+          source = source.replace(marker, auth, 1)
+          marker = "app.get('/scheduler/status', (_req, res) => {"
+          if marker not in source:
+            raise SystemExit('scheduler route marker missing')
+          source = source.replace(marker, "app.use('/scheduler', requireAtlasToken('ATLAS_CONTROL_TOKEN'));\n\n" + marker, 1)
+          marker = "const routeContext = { apiError };\n"
+          if marker not in source:
+            raise SystemExit('route context marker missing')
+          source = source.replace(marker, "app.use('/v1/ingest/signals', requireAtlasToken('ATLAS_INGEST_TOKEN'));\n\n" + marker, 1)
+          path.write_text(source)
+
+          # Internal adapters authenticate to Atlas ingest.
+          path = Path('src/adapters/ingestClient.js')
+          source = path.read_text()
+          before = "  const response = await axios.post(`${apiBaseUrl}/v1/ingest/signals`, body, { timeout: 20000 });"
+          after = """  const ingestToken = process.env.ATLAS_INGEST_TOKEN;
+  const response = await axios.post(`${apiBaseUrl}/v1/ingest/signals`, body, {
+    timeout: 20000,
+    headers: ingestToken ? { Authorization: `Bearer ${ingestToken}` } : {},
+  });"""
+          if before not in source:
+            raise SystemExit('ingest client marker missing')
+          path.write_text(source.replace(before, after, 1))
+
+          # Durable stream-run receipts and truthful zero classification.
+          Path('src/services/streamRunReceiptService.js').write_text("""import { randomUUID } from 'node:crypto';
+import { supabase } from '../lib/supabaseClient.js';
+
+const STREAM_ID_BY_ADAPTER = Object.freeze({
+  courtlistener: 'court_listener',
+  openstates: 'open_states',
+  propublica: 'pro_publica',
+  cfpb_complaints: 'cfpb_complaints',
+  regulations_gov: 'regulations_gov',
+  grants_gov: 'grants_gov',
+  osha_inspections: 'osha_inspections',
+  epa_echo: 'epa_echo',
+  census_acs: 'census_acs',
+  usda_snap: 'usda_snap',
+  hud_fmr: 'hud_housing',
+  bls_employment: 'bls_employment',
+  fec_campaign_finance: 'fec_campaign_finance',
+  sec_edgar: 'sec_edgar',
+  usa_spending: 'usa_spending',
+  irs_exempt_orgs: 'irs_exempt_orgs',
+  opensecrets_lda: 'open_secrets',
+  fara_foreign_agents: 'fara_foreign_agents',
+});
+
+function numericResultCount(result) {
+  for (const value of [result?.records_seen, result?.ingested_count, result?.accepted, result?.count]) {
+    const number = Number(value);
+    if (Number.isFinite(number) && number >= 0) return number;
+  }
+  return 0;
+}
+
+async function readStreamHead(streamId) {
+  const [{ count, error: countError }, { data, error: offsetError }] = await Promise.all([
+    supabase.from('signal_events').select('offset', { count: 'exact', head: true }).eq('stream_id', streamId),
+    supabase.from('signal_events').select('offset').eq('stream_id', streamId).order('offset', { ascending: false }).limit(1),
+  ]);
+  if (countError) throw countError;
+  if (offsetError) throw offsetError;
+  const maxOffset = data?.length ? Number(data[0].offset) : null;
+  return {
+    eventCount: Number(count ?? 0),
+    nextOffset: Number.isSafeInteger(maxOffset) ? maxOffset + 1 : null,
+  };
+}
+
+export async function beginStreamRun(adapter) {
+  const streamId = STREAM_ID_BY_ADAPTER[adapter.name] || adapter.name;
+  const before = await readStreamHead(streamId);
+  const runId = randomUUID();
+  const startedAt = new Date().toISOString();
+  const { error } = await supabase.schema('atlas').from('stream_run_receipt').insert({
+    run_id: runId,
+    stream_id: streamId,
+    adapter_name: adapter.name,
+    scheduler_owner: 'atlas_internal_scheduler_v1',
+    status: 'running',
+    started_at: startedAt,
+    source_request_receipt: {
+      adapter_name: adapter.name,
+      priority: adapter.priority,
+      interval_ms: adapter.intervalMs,
+    },
+    cursor_before: before.nextOffset,
+    retry_state: { attempt: 1, retry_scheduled: false },
+  });
+  if (error) throw error;
+  return { runId, streamId, before, startedAt };
+}
+
+export async function completeStreamRun(context, result, elapsedMs) {
+  const after = await readStreamHead(context.streamId);
+  const recordsSeen = numericResultCount(result);
+  const newEvents = Math.max(0, after.eventCount - context.before.eventCount);
+  const declaredNoChange = result?.outcome_classification === 'completed_no_change'
+    || result?.outcomeClassification === 'completed_no_change';
+  const outcome = newEvents > 0
+    ? 'scheduled_and_producing'
+    : declaredNoChange
+      ? 'completed_with_no_change'
+      : 'unexpectedly_zero';
+  const { error } = await supabase.schema('atlas').from('stream_run_receipt').update({
+    status: 'completed',
+    completed_at: new Date().toISOString(),
+    records_seen: recordsSeen,
+    records_accepted: newEvents,
+    events_emitted: newEvents,
+    signals_generated: Number(result?.signals_generated ?? newEvents),
+    error_count: 0,
+    errors: [],
+    cursor_after: after.nextOffset,
+    partial_completion: false,
+    outcome_classification: outcome,
+    duration_ms: elapsedMs,
+  }).eq('run_id', context.runId);
+  if (error) throw error;
+  return { outcome, recordsSeen, newEvents, cursorBefore: context.before.nextOffset, cursorAfter: after.nextOffset };
+}
+
+export async function failStreamRun(context, errorValue, elapsedMs) {
+  const after = await readStreamHead(context.streamId);
+  const errorMessage = errorValue instanceof Error ? errorValue.message : String(errorValue);
+  const newEvents = Math.max(0, after.eventCount - context.before.eventCount);
+  const partial = newEvents > 0;
+  const { error } = await supabase.schema('atlas').from('stream_run_receipt').update({
+    status: partial ? 'partial' : 'failed',
+    completed_at: new Date().toISOString(),
+    records_seen: newEvents,
+    records_accepted: newEvents,
+    events_emitted: newEvents,
+    signals_generated: newEvents,
+    error_count: 1,
+    errors: [{ message: errorMessage.slice(0, 500) }],
+    cursor_after: after.nextOffset,
+    partial_completion: partial,
+    outcome_classification: partial ? 'partial_failure' : 'failed',
+    retry_state: { attempt: 1, retry_scheduled: true },
+    duration_ms: elapsedMs,
+  }).eq('run_id', context.runId);
+  if (error) throw error;
+  return { partial, newEvents, cursorAfter: after.nextOffset };
+}
+""")
+
+          path = Path('src/services/scheduler.js')
+          source = path.read_text()
+          source = source.replace("import { runBridgeDrain } from './bridgeDrainService.js';", "import { runBridgeDrain } from './bridgeDrainService.js';\nimport { beginStreamRun, completeStreamRun, failStreamRun } from './streamRunReceiptService.js';", 1)
+          pattern = re.compile(r"async function runAdapter\(adapter\) \{[\s\S]*?\n\}\n\n// ─── Schedule a single adapter", re.M)
+          replacement = """async function runAdapter(adapter) {
+  const start = Date.now();
+  const state = adapterState.get(adapter.name) || { running: false, lastRun: null, lastResult: null, errors: 0 };
+
+  if (state.running) {
+    console.log(`[scheduler] [SKIP] ${adapter.name} — already running`);
+    return;
+  }
+
+  state.running = true;
+  adapterState.set(adapter.name, state);
+  let receiptContext = null;
+
+  try {
+    receiptContext = await beginStreamRun(adapter);
+    const mod = await import(adapter.module);
+    const fn = mod[adapter.fn];
+
+    if (!fn) {
+      throw new Error(`Function ${adapter.fn} not found in ${adapter.module}`);
+    }
+
+    const result = await fn(adapter.args || {});
+    const elapsed = Date.now() - start;
+    const receipt = await completeStreamRun(receiptContext, result, elapsed);
+    const marker = receipt.outcome === 'scheduled_and_producing' ? 'PRODUCTIVE' : 'ZERO?';
+    console.log(`[scheduler] [${marker}] ${adapter.name} — ${receipt.recordsSeen} seen, ${receipt.newEvents} new events (${elapsed}ms)`);
+
+    state.lastRun = new Date().toISOString();
+    state.lastResult = {
+      count: receipt.recordsSeen,
+      new_events: receipt.newEvents,
+      cursor_before: receipt.cursorBefore,
+      cursor_after: receipt.cursorAfter,
+      elapsed,
+      status: receipt.outcome,
+    };
+    state.errors = receipt.outcome === 'unexpectedly_zero' ? (state.errors || 0) + 1 : 0;
+  } catch (err) {
+    const elapsed = Date.now() - start;
+    console.error(`[scheduler] [FAIL] ${adapter.name} — ${err.message?.slice(0, 120)} (${elapsed}ms)`);
+
+    if (receiptContext) {
+      try {
+        await failStreamRun(receiptContext, err, elapsed);
+      } catch (receiptError) {
+        console.error(`[scheduler] [RECEIPT-FAIL] ${adapter.name} — ${receiptError.message}`);
+      }
+    }
+
+    state.lastRun = new Date().toISOString();
+    state.lastResult = { status: 'failed', error: err.message?.slice(0, 200), elapsed };
+    state.errors = (state.errors || 0) + 1;
+  } finally {
+    state.running = false;
+    adapterState.set(adapter.name, state);
+  }
+}
+
+// ─── Schedule a single adapter"""
+          source, count = pattern.subn(replacement, source, count=1)
+          if count != 1:
+            raise SystemExit(f'runAdapter replacement count={count}')
+          path.write_text(source)
+
+          # Focused migration: durable receipts, service-only exports, and legacy-secret removal.
+          Path('src/schema/20260731_atlas_circulation_hardening.sql').write_text("""begin;
+
+create table if not exists atlas.stream_run_receipt (
+  receipt_id uuid primary key default gen_random_uuid(),
+  run_id uuid not null unique,
+  stream_id text not null references public.streams(stream_id),
+  adapter_name text not null,
+  scheduler_owner text not null,
+  status text not null check (status in ('running','completed','partial','failed')),
+  outcome_classification text,
+  started_at timestamptz not null,
+  completed_at timestamptz,
+  source_request_receipt jsonb not null default '{}'::jsonb,
+  records_seen integer not null default 0,
+  records_accepted integer not null default 0,
+  events_emitted integer not null default 0,
+  signals_generated integer not null default 0,
+  error_count integer not null default 0,
+  errors jsonb not null default '[]'::jsonb,
+  cursor_before bigint,
+  cursor_after bigint,
+  partial_completion boolean not null default false,
+  retry_state jsonb not null default '{}'::jsonb,
+  duration_ms integer,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists stream_run_receipt_stream_started_idx
+  on atlas.stream_run_receipt(stream_id, started_at desc);
+
+alter table atlas.stream_run_receipt enable row level security;
+revoke all on atlas.stream_run_receipt from public, anon, authenticated;
+grant select, insert, update on atlas.stream_run_receipt to service_role;
+
+-- Atlas source tables are never browser-readable. Lighthouse uses only the
+-- allowlisted SECURITY DEFINER exports below with its service role.
+alter table public.streams enable row level security;
+alter table public.signal_events enable row level security;
+alter table public.cursors enable row level security;
+revoke all on public.streams, public.signal_events, public.cursors from public, anon, authenticated;
+
+revoke all on function public.get_lighthouse_stream_definition(text)
+  from public, anon, authenticated;
+revoke all on function public.get_lighthouse_signal_events(text,bigint,integer)
+  from public, anon, authenticated;
+grant execute on function public.get_lighthouse_stream_definition(text) to service_role;
+grant execute on function public.get_lighthouse_signal_events(text,bigint,integer) to service_role;
+
+alter function public.get_lighthouse_stream_definition(text)
+  set search_path to 'pg_catalog', 'public', 'private';
+alter function public.get_lighthouse_signal_events(text,bigint,integer)
+  set search_path to 'pg_catalog', 'public', 'private';
+
+-- These April-era credentials belong to quarantined database writers. The
+-- active transports use Render/Lighthouse Vault instead of plaintext columns.
+update atlas.bridge_config
+   set enabled = false,
+       target_service_key = null,
+       updated_at = now()
+ where target_service_key is not null
+    or enabled is true;
+
+revoke all on atlas.bridge_config from public, anon, authenticated;
+alter table atlas.bridge_config enable row level security;
+
+commit;
+""")
+
+          # Extend package commands without changing the canonical runtime.
+          path = Path('package.json')
+          source = path.read_text()
+          marker = '    "schema:apply:civic-contract-quarantine": "node scripts/apply-sql-management-api.mjs src/schema/20260731_quarantine_stale_civic_contract_writers.sql",'
+          addition = marker + '\n    "schema:apply:circulation-hardening": "node scripts/apply-sql-management-api.mjs src/schema/20260731_atlas_circulation_hardening.sql",'
+          if marker not in source:
+            raise SystemExit('package migration marker missing')
+          path.write_text(source.replace(marker, addition, 1))
+
+          # Contract tests for non-fabrication, route authentication, and receipts.
+          test_path = Path('src/services/bridgeDrainService.test.js')
+          test_source = test_path.read_text()
+          test_source += """
+
+test('bridge mapping preserves absent confidence and severity as null', () => {
+  const row = mapProductionSignalToBridgeRow({
+    ...SIGNAL,
+    confidence_score: null,
+    severity_score: 0.77,
+    severity: null,
+  });
+  assert.equal(row.confidence_score, null);
+  assert.equal(row.severity, null);
+});
+
+test('bridge mapping rejects missing governance semantics rather than inventing them', () => {
+  const missingVerification = { ...SIGNAL };
+  delete missingVerification.verification_status;
+  assert.throws(
+    () => mapProductionSignalToBridgeRow(missingVerification),
+    /verification_status/,
+  );
+});
+"""
+          test_path.write_text(test_source)
+
+          Path('src/services/circulationHardening.contract.test.js').write_text("""import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import test from 'node:test';
+
+const server = await readFile(new URL('../server.js', import.meta.url), 'utf8');
+const scheduler = await readFile(new URL('./scheduler.js', import.meta.url), 'utf8');
+const receipts = await readFile(new URL('./streamRunReceiptService.js', import.meta.url), 'utf8');
+const migration = await readFile(new URL('../schema/20260731_atlas_circulation_hardening.sql', import.meta.url), 'utf8');
+
+test('Atlas HTTP ingest and control routes require private tokens', () => {
+  assert.match(server, /ATLAS_CONTROL_TOKEN/);
+  assert.match(server, /ATLAS_INGEST_TOKEN/);
+  assert.doesNotMatch(server, /lighthouse\.columbiacitycustomllc\.com/);
+});
+
+test('scheduler writes durable truthful receipts', () => {
+  assert.match(scheduler, /beginStreamRun/);
+  assert.match(scheduler, /unexpectedly_zero/);
+  assert.match(receipts, /cursor_before/);
+  assert.match(receipts, /partial_failure/);
+  assert.match(receipts, /scheduled_and_producing/);
+});
+
+test('exports and source tables are service-only', () => {
+  assert.match(migration, /enable row level security/);
+  assert.match(migration, /get_lighthouse_signal_events/);
+  assert.match(migration, /grant execute[\s\S]*service_role/i);
+  assert.match(migration, /target_service_key = null/);
+});
+""")
+          PY
+
+      - name: Install and test
+        run: |
+          npm install
+          npm test
+          node --test src/services/circulationHardening.contract.test.js
+          node --check src/server.js
+          node --check src/services/scheduler.js
+          node --check src/services/streamRunReceiptService.js
+          git diff --check
+
+      - name: Commit repairs
+        run: |
+          rm -f .github/workflows/apply-atlas-circulation-hardening.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Harden Atlas circulation, receipts, and transport boundaries'
+          git push origin HEAD:agent/quarantine-stale-civic-writers
