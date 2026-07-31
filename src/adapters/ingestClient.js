@@ -23,6 +23,11 @@ export function asArray(value) {
 }
 
 export async function postSignalsToAtlas({ sourceId, jurisdictionId, moduleHint, signals, apiBaseUrl = ATLAS_API_BASE_URL }) {
+  const ingestToken = process.env.ATLAS_INGEST_TOKEN;
+  if (!ingestToken) {
+    throw new Error('ATLAS_INGEST_TOKEN is required for adapter ingestion');
+  }
+
   const body = {
     source_id: sourceId,
     jurisdiction_id: jurisdictionId,
@@ -30,6 +35,12 @@ export async function postSignalsToAtlas({ sourceId, jurisdictionId, moduleHint,
     signals,
   };
 
-  const response = await axios.post(`${apiBaseUrl}/v1/ingest/signals`, body, { timeout: 20000 });
+  const response = await axios.post(`${apiBaseUrl}/v1/ingest/signals`, body, {
+    timeout: 20000,
+    headers: {
+      Authorization: `Bearer ${ingestToken}`,
+      'Content-Type': 'application/json',
+    },
+  });
   return response.data;
 }

@@ -32,21 +32,8 @@ export async function findStream({ stream_id, source_id, jurisdiction_id, module
   return data?.[0] ?? null;
 }
 
-export async function nextOffsetForStream(streamId) {
-  const { data, error } = await supabase
-    .from('signal_events')
-    .select('offset')
-    .eq('stream_id', streamId)
-    .order('offset', { ascending: false })
-    .limit(1);
-  if (error) throw error;
-  if (!data?.length) return 0;
-  return Number(data[0].offset) + 1;
-}
-
 export async function buildRowsForIngest(body) {
   const rows = [];
-  const nextOffsets = new Map();
 
   for (const [index, incoming] of body.signals.entries()) {
     const stream = await findStream({
@@ -74,18 +61,12 @@ export async function buildRowsForIngest(body) {
     };
     provenance.confidence = normalizeConfidence(provenance.confidence);
 
-    let offset = incoming.offset;
-    if (!Number.isInteger(offset)) {
-      if (!nextOffsets.has(stream.stream_id)) {
-        nextOffsets.set(stream.stream_id, await nextOffsetForStream(stream.stream_id));
-      }
-      offset = nextOffsets.get(stream.stream_id);
-      nextOffsets.set(stream.stream_id, offset + 1);
-    }
-
+    // Offset assignment belongs to the database identity function. The zero
+    // value is used only for JSON-schema validation and is ignored by the
+    // replay-safe persistence RPC.
     const normalized = {
       stream_id: stream.stream_id,
-      offset,
+      offset: Number.isInteger(incoming.offset) ? incoming.offset : 0,
       timestamp,
       signal_type: incoming.signal_type ?? `${body.source_id}.signal`,
       spacetime,
@@ -100,6 +81,9 @@ export async function buildRowsForIngest(body) {
           received_at: new Date().toISOString(),
         },
       },
+      source_id: body.source_id,
+      jurisdiction_id: body.jurisdiction_id,
+      module_hint: body.module_hint,
     };
 
     const validation = validateSchema('signal_event.json', normalized);
@@ -107,13 +91,33 @@ export async function buildRowsForIngest(body) {
       throw Object.assign(new Error(`Signal index ${index} failed schema validation`), { status: 400, details: validation.errors });
     }
 
-    rows.push({
-      ...normalized,
-      source_id: body.source_id,
-      jurisdiction_id: body.jurisdiction_id,
-      module_hint: body.module_hint,
-    });
+    rows.push(normalized);
   }
 
   return rows;
+}
+
+export async function persistSignalRows(rows) {
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return {
+      run_id: null,
+      stream_id: null,
+      records_seen: 0,
+      events_inserted: 0,
+      replays_suppressed: 0,
+      cursor_before: null,
+      cursor_after: null,
+      partial_completion: false,
+      receipts: [],
+    };
+  }
+
+  const { data, error } = await supabase.rpc('persist_signal_event_batch_v2', {
+    p_events: rows,
+  });
+  if (error) throw error;
+  if (!data || typeof data !== 'object') {
+    throw new Error('Atlas persistence RPC returned an invalid receipt');
+  }
+  return data;
 }
