@@ -6,6 +6,10 @@ const migration = fs.readFileSync(
   new URL('../src/schema/20260731_signal_event_identity_and_live_data_detection.sql', import.meta.url),
   'utf8',
 );
+const hardening = fs.readFileSync(
+  new URL('../src/schema/20260731_signal_event_identity_hardening.sql', import.meta.url),
+  'utf8',
+);
 const streamStore = fs.readFileSync(
   new URL('../src/services/streamStore.js', import.meta.url),
   'utf8',
@@ -48,21 +52,33 @@ test('ingestion delegates offset allocation and replay decisions to one database
   assert.match(migration, /select coalesce\(max\("offset"\) \+ 1, 0\)/);
 });
 
-test('Lighthouse export reads only canonical unique identities', () => {
+test('partial-page failure preserves committed progress and a truthful run receipt', () => {
+  assert.match(hardening, /begin\n      if coalesce\(v_event->>'stream_id'/);
+  assert.match(hardening, /exception when others then/);
+  assert.match(hardening, /v_status := case/);
+  assert.match(hardening, /when v_inserted > 0 or v_replayed > 0 then 'partial'/);
+  assert.match(hardening, /partial_completion = v_status = 'partial'/);
+  assert.match(hardening, /'records_failed', v_failed/);
+  assert.match(ingestRoute, /status === 'partial' \? 207/);
+});
+
+test('Lighthouse export reads only canonical unique identities and reports replay-aware freshness', () => {
   assert.match(migration, /create or replace function public\.get_lighthouse_signal_events/);
-  assert.match(migration, /from atlas\.signal_event_identity identity/);
-  assert.match(migration, /event\."offset" = identity\.canonical_offset/);
+  assert.match(hardening, /from atlas\.signal_event_identity identity/);
+  assert.match(hardening, /event\."offset" = identity\.canonical_offset/);
+  assert.match(hardening, /identity\.last_seen_at as ingested_at/);
 });
 
 test('Domain 3 detector uses unique source records and exact entity resolution', () => {
   assert.match(migration, /identity_unit', 'unique external_id plus pdf_url'/);
-  assert.match(migration, /group by normalized_entity_name, source_record_key/);
-  assert.match(migration, /where entity\.match_count = 1/);
-  assert.match(migration, /unresolved_unique_record_count/);
-  assert.match(migration, /unresolved_unique_rate/);
-  assert.match(migration, /historical_raw_event_count/);
-  assert.match(migration, /canonical_event_count/);
-  assert.match(migration, /data-quality observation, not a misconduct or legal finding/);
+  assert.match(hardening, /group by normalized_entity_name, source_record_key/);
+  assert.match(hardening, /where entity\.match_count = 1/);
+  assert.match(hardening, /unresolved_unique_record_count/);
+  assert.match(hardening, /unresolved_unique_rate/);
+  assert.match(hardening, /historical_raw_event_count/);
+  assert.match(hardening, /canonical_event_count/);
+  assert.match(hardening, /entity_registry_primary_name_exact/);
+  assert.match(hardening, /data-quality observation, not a misconduct or legal finding/);
 });
 
 test('Domain 3 output requires explicit evidence, statistics, entity, severity, confidence, rule, and engine', () => {
