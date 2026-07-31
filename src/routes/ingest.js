@@ -1,7 +1,6 @@
 import express from 'express';
-import { supabase } from '../lib/supabaseClient.js';
 import { assertSignalIngestRequest } from '../lib/validators.js';
-import { buildRowsForIngest } from '../services/streamStore.js';
+import { buildRowsForIngest, persistSignalRows } from '../services/streamStore.js';
 
 export function ingestRouter({ apiError }) {
   const router = express.Router();
@@ -12,15 +11,20 @@ export function ingestRouter({ apiError }) {
       if (errors.length) return apiError(res, 400, 'Invalid SignalIngestRequest', errors);
 
       const rows = await buildRowsForIngest(req.body);
-      if (!rows.length) return res.json({ accepted: true, ingested_count: 0 });
+      const receipt = await persistSignalRows(rows);
 
-      const { data, error } = await supabase
-        .from('signal_events')
-        .upsert(rows, { onConflict: 'stream_id,offset' })
-        .select('stream_id,offset');
-      if (error) throw error;
-
-      return res.json({ accepted: true, ingested_count: data?.length ?? rows.length });
+      return res.json({
+        accepted: true,
+        ingested_count: Number(receipt.events_inserted ?? 0),
+        replayed_count: Number(receipt.replays_suppressed ?? 0),
+        records_seen: Number(receipt.records_seen ?? rows.length),
+        run_id: receipt.run_id ?? null,
+        stream_id: receipt.stream_id ?? null,
+        cursor_before: receipt.cursor_before ?? null,
+        cursor_after: receipt.cursor_after ?? null,
+        partial_completion: Boolean(receipt.partial_completion),
+        receipts: Array.isArray(receipt.receipts) ? receipt.receipts : [],
+      });
     } catch (error) {
       return apiError(res, error.status || 500, error.message, error.details);
     }
