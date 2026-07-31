@@ -11,6 +11,7 @@
     "test": "node --test src/services/bridgeDrainService.test.js",
     "schema:apply": "node scripts/apply-sql-management-api.mjs src/schema/001_streaming_tables.sql",
     "schema:apply:bridge": "node scripts/apply-sql-management-api.mjs src/schema/002_lighthouse_bridge_rpc.sql",
+    "schema:apply:civic-contract-quarantine": "node scripts/apply-sql-management-api.mjs src/schema/20260731_quarantine_stale_civic_contract_writers.sql",
     "schema:export": "node scripts/export-atlas-state.mjs src/schema",
     "seed:streams": "node scripts/register-streams.mjs",
     "test:cycle": "node scripts/test-cycle.mjs",
