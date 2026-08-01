@@ -16,6 +16,31 @@
 import { createClient } from '@supabase/supabase-js';
 import { runDomain3Transport, resolveTransportConfiguration } from './liveDataSignalTransport.js';
 
+/**
+ * Parse the Lighthouse register_live_data_signal_receipt_v1 response.
+ * Extracts the live_data_signal_id from various PostgREST response shapes.
+ * This is the canonical receipt parser for Domain 3 bridge operations.
+ */
+export function parseRegistrationReceipt(data) {
+  if (data && typeof data === 'object' && !Array.isArray(data)) {
+    return data.live_data_signal_id || data.register_live_data_signal_receipt_v1 || null;
+  }
+  if (Array.isArray(data) && data.length > 0) {
+    return data[0]?.live_data_signal_id || data[0]?.register_live_data_signal_receipt_v1 || null;
+  }
+  if (typeof data === 'string') {
+    try {
+      const parsed = JSON.parse(data);
+      return parsed?.live_data_signal_id || null;
+    } catch {
+      if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data)) {
+        return data;
+      }
+    }
+  }
+  return null;
+}
+
 function createServiceClient(url, key) {
   return createClient(url, key, {
     auth: {
