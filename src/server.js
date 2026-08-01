@@ -6,6 +6,7 @@ import { investigationsRouter } from './routes/investigations.js';
 import { patternsRouter } from './routes/patterns.js';
 import { populationRouter } from './routes/population.js';
 import { recognitionAtlasRouter } from './routes/recognition_atlas.js';
+import convergenceRouter from './routes/convergence.js';
 import { requireBearerToken } from './lib/serviceAuth.js';
 import { luminariStreamHealthManifest } from './services/streamHealthInvestigation.js';
 import {
@@ -112,6 +113,7 @@ app.use(populationRouter(routeContext));
 app.use(investigationsRouter(routeContext));
 app.use(patternsRouter(routeContext));
 app.use(recognitionAtlasRouter);
+app.use('/v1/convergence', convergenceRouter);
 
 app.use((req, res) => apiError(res, 404, `Route not found: ${req.method} ${req.path}`));
 
