@@ -9,6 +9,7 @@ import { recognitionAtlasRouter } from './routes/recognition_atlas.js';
 import convergenceRouter from './routes/convergence.js';
 import { requireBearerToken } from './lib/serviceAuth.js';
 import { luminariStreamHealthManifest } from './services/streamHealthInvestigation.js';
+import { runConvergenceAcceptanceFromEnvironment } from './services/convergenceAcceptance.js';
 import {
   startScheduler,
   getSchedulerStatus,
@@ -60,6 +61,7 @@ app.get('/health', (_req, res) => {
     scheduler_enabled: SCHEDULER_ENABLED,
     event_identity_version: '1.0.0',
     live_data_signal_engine: 'atlas.live_data_signal_exact@1.0.0',
+    convergence_engine_version: '2.1.0',
   });
 });
 
@@ -122,6 +124,18 @@ if (process.env.NODE_ENV !== 'test') {
     console.log(`Atlas Streaming Engine listening on http://0.0.0.0:${PORT}`);
     if (SCHEDULER_ENABLED) startScheduler();
     else console.log('[scheduler] Disabled via ATLAS_SCHEDULER_ENABLED=false');
+
+    void runConvergenceAcceptanceFromEnvironment()
+      .then((receipt) => {
+        if (!receipt) return;
+        console.log('[convergence-acceptance] completed', receipt);
+      })
+      .catch((error) => {
+        console.error('[convergence-acceptance] failed', {
+          error_class: error instanceof Error ? error.name : 'unknown',
+          error_message: error instanceof Error ? error.message : String(error),
+        });
+      });
   });
 }
 
