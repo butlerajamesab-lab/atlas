@@ -68,16 +68,16 @@ export function computeRegistryHash(records) {
   const sorted = [...records]
     .map((record) => ({
       jurisdiction_id: normalizeGeographyId(record.jurisdiction_id),
-      source_id: record.source_id,
-      source_record_id: record.source_record_id,
-      name: record.name,
-      level: record.level,
+      source_id: record.source_id ?? null,
+      source_record_id: record.source_record_id ?? null,
+      name: record.name ?? null,
+      level: record.level ?? null,
       fips_code: record.fips_code ?? null,
       parent_jurisdiction_id: normalizeGeographyId(record.parent_jurisdiction_id),
-      area_sq_km: record.area_sq_km,
+      area_sq_km: record.area_sq_km ?? null,
       centroid_lat: record.centroid_lat ?? null,
       centroid_lon: record.centroid_lon ?? null,
-      effective_from: record.effective_from,
+      effective_from: record.effective_from ?? null,
       effective_to: record.effective_to ?? null,
       adjacent_to: [...(record.adjacent_to ?? [])].map(normalizeGeographyId).sort(),
     }))
