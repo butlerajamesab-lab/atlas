@@ -1,27 +1,9 @@
-/**
- * ATLAS CONVERGENCE ENDPOINT v2.1.0
- *
- * Controlled endpoint for governed convergence runs.
- * Requires explicit parameters — no defaults from wall-clock.
- * Protected by ATLAS_CONTROL_TOKEN (same as scheduler).
- *
- * POST /v1/convergence/run
- *   Requires: as_of, time_window_ms, temporal_bucket_ms,
- *             geography_registry_version, rule_manifest_hash, engine_version
- *   Optional: target_geographies, min_signals_for_analysis, z_score_threshold, persist
- *
- * POST /v1/convergence/replay
- *   Requires: run_key
- *
- * GET /v1/convergence/status/:run_key
- *   Returns the persisted run manifest and receipts.
- */
-
 import { Router } from 'express';
 import { createClient } from '@supabase/supabase-js';
 import {
   executeConvergenceRun,
   replayConvergenceRun,
+  getConvergenceRunStatus,
 } from '../services/convergenceRunner.js';
 import { sha256, ENGINE_VERSION } from '../substrate/canonical.js';
 import { ENGINE_EQUATIONS } from '../substrate/convergence.js';
@@ -29,190 +11,137 @@ import { loadWashingtonGeography } from '../substrate/geographyLoader.js';
 
 const router = Router();
 
-/**
- * Auth middleware: requires ATLAS_CONTROL_TOKEN.
- */
-function requireControlToken(req, res, next) {
-  const token = process.env.ATLAS_CONTROL_TOKEN;
-  if (!token) return res.status(503).json({ error: 'ATLAS_CONTROL_TOKEN not configured' });
-  const auth = req.headers.authorization;
-  if (!auth || auth !== `Bearer ${token}`) {
-    return res.status(401).json({ error: 'unauthorized — requires ATLAS_CONTROL_TOKEN' });
-  }
-  next();
-}
-
-/**
- * Get a Supabase client with service_role key.
- */
 function getSupabase() {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY required');
-  return createClient(url, key);
+  if (!url || !key) throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required');
+  return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
 }
 
-/**
- * POST /v1/convergence/run
- *
- * Execute a governed convergence run with explicit parameters.
- */
-router.post('/run', requireControlToken, async (req, res) => {
+function requireFields(body, fields) {
+  const missing = fields.filter((field) => body[field] === undefined || body[field] === null || body[field] === '');
+  if (missing.length) throw new Error(`missing required fields: ${missing.join(', ')}`);
+}
+
+function validateRunBody(body) {
+  requireFields(body, [
+    'as_of',
+    'time_window_ms',
+    'temporal_bucket_ms',
+    'geography_registry_version',
+    'analysis_level',
+    'rule_manifest_hash',
+    'engine_version',
+    'min_signals_for_analysis',
+    'z_score_threshold',
+    'persist',
+  ]);
+  if (!Number.isFinite(body.as_of)) throw new Error('as_of must be a finite epoch-millisecond number');
+  if (!Number.isFinite(body.time_window_ms) || body.time_window_ms <= 0) throw new Error('time_window_ms must be positive');
+  if (!Number.isFinite(body.temporal_bucket_ms) || body.temporal_bucket_ms <= 0) throw new Error('temporal_bucket_ms must be positive');
+  if (!Number.isInteger(body.min_signals_for_analysis) || body.min_signals_for_analysis < 0) {
+    throw new Error('min_signals_for_analysis must be a non-negative integer');
+  }
+  if (!Number.isFinite(body.z_score_threshold)) throw new Error('z_score_threshold must be finite');
+  if (typeof body.persist !== 'boolean') throw new Error('persist must be boolean');
+  if (body.target_geographies !== undefined && body.target_geographies !== null
+      && (!Array.isArray(body.target_geographies) || body.target_geographies.length === 0)) {
+    throw new Error('target_geographies must be null or a non-empty array');
+  }
+  if (body.engine_version !== ENGINE_VERSION) {
+    throw new Error(`engine_version mismatch: requested '${body.engine_version}', runtime '${ENGINE_VERSION}'`);
+  }
+  const expectedRuleHash = sha256(ENGINE_EQUATIONS);
+  if (body.rule_manifest_hash !== expectedRuleHash) {
+    throw new Error(`rule_manifest_hash mismatch: expected '${expectedRuleHash}'`);
+  }
+}
+
+router.post('/run', async (req, res) => {
   try {
-    const {
-      as_of,
-      time_window_ms,
-      temporal_bucket_ms,
-      geography_registry_version,
-      rule_manifest_hash,
-      engine_version,
-      target_geographies,
-      min_signals_for_analysis,
-      z_score_threshold,
-      persist,
-    } = req.body;
-
-    // Validate all required explicit parameters
-    if (!as_of) return res.status(400).json({ error: 'as_of is required (epoch ms)' });
-    if (!time_window_ms) return res.status(400).json({ error: 'time_window_ms is required' });
-    if (!temporal_bucket_ms) return res.status(400).json({ error: 'temporal_bucket_ms is required' });
-    if (!geography_registry_version) return res.status(400).json({ error: 'geography_registry_version is required' });
-    if (!rule_manifest_hash) return res.status(400).json({ error: 'rule_manifest_hash is required' });
-    if (!engine_version) return res.status(400).json({ error: 'engine_version is required' });
-
-    // Verify engine version matches
-    if (engine_version !== ENGINE_VERSION) {
-      return res.status(400).json({
-        error: `engine_version mismatch: requested '${engine_version}' but this Atlas runs '${ENGINE_VERSION}'`,
-      });
-    }
-
-    // Verify rule manifest hash matches
-    const expectedRuleHash = sha256(ENGINE_EQUATIONS);
-    if (rule_manifest_hash !== expectedRuleHash) {
-      return res.status(400).json({
-        error: `rule_manifest_hash mismatch: requested '${rule_manifest_hash}' but current ENGINE_EQUATIONS hash is '${expectedRuleHash}'`,
-      });
-    }
-
-    const supabase = getSupabase();
-
+    validateRunBody(req.body ?? {});
     const result = await executeConvergenceRun({
-      supabase,
-      as_of,
-      time_window_ms,
-      temporal_bucket_ms,
-      geography_registry_version,
-      min_signals_for_analysis: min_signals_for_analysis ?? 1,
-      z_score_threshold: z_score_threshold ?? 2.0,
-      target_geographies: target_geographies || null,
-      persist: persist !== false,
+      supabase: getSupabase(),
+      as_of: req.body.as_of,
+      time_window_ms: req.body.time_window_ms,
+      temporal_bucket_ms: req.body.temporal_bucket_ms,
+      geography_registry_version: req.body.geography_registry_version,
+      analysis_level: req.body.analysis_level,
+      min_signals_for_analysis: req.body.min_signals_for_analysis,
+      z_score_threshold: req.body.z_score_threshold,
+      target_geographies: req.body.target_geographies ?? null,
+      persist: req.body.persist,
     });
-
-    // Return the run receipt (not the full payload — that's persisted)
-    res.json({
+    return res.status(result.persistence?.status === 'created' ? 201 : 200).json({
       status: 'completed',
       run_key: result.run_key,
       engine_version: result.engine_version,
       as_of: result.as_of,
       output_hash: result.output_hash,
+      source_population_hash: result.source_population_hash,
+      total_source_rows: result.total_source_rows,
       total_signals_raw: result.total_signals_raw,
       total_signals_deduplicated: result.total_signals_deduplicated,
       total_geographies: result.total_geographies,
-      transform_errors: result.transform_errors,
+      transform_error_count: result.transform_errors.length,
       receipt_count: result.receipts.length,
       persistence: result.persistence,
-      receipts: result.receipts.map(r => ({
-        geography_id: r.geography_id,
-        status: r.status,
-        observed_count: r.observed_count,
-        expected_count: r.expected_count,
-        z_score: r.z_score,
-        convergence_detected: r.convergence_detected,
-        input_hash: r.input_hash,
+      receipts: result.receipts.map((receipt) => ({
+        receipt_identity: receipt.receipt_identity,
+        geography_id: receipt.geography_id,
+        status: receipt.status,
+        observed_count: receipt.observed_count,
+        expected_count: receipt.expected_count,
+        z_score: receipt.z_score,
+        convergence_detected: receipt.convergence_detected,
+        input_hash: receipt.input_hash,
+        output_hash: receipt.output_hash,
       })),
     });
-  } catch (err) {
-    res.status(500).json({ error: err.message, stack: process.env.NODE_ENV === 'development' ? err.stack : undefined });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const clientError = /required|must be|mismatch|target geography|registry/.test(message);
+    return res.status(clientError ? 400 : 500).json({ error: message });
   }
 });
 
-/**
- * POST /v1/convergence/replay
- *
- * Replay a persisted run from its snapshots and verify determinism.
- */
-router.post('/replay', requireControlToken, async (req, res) => {
+router.post('/replay', async (req, res) => {
   try {
-    const { run_key } = req.body;
-    if (!run_key) return res.status(400).json({ error: 'run_key is required' });
-
-    const supabase = getSupabase();
-    const result = await replayConvergenceRun(supabase, run_key);
-
-    res.json(result);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+    requireFields(req.body ?? {}, ['run_key']);
+    const result = await replayConvergenceRun(getSupabase(), req.body.run_key);
+    return res.status(result.consistent ? 200 : 409).json(result);
+  } catch (error) {
+    return res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
   }
 });
 
-/**
- * GET /v1/convergence/status/:run_key
- *
- * Get the status of a persisted run.
- */
-router.get('/status/:run_key', requireControlToken, async (req, res) => {
+router.get('/status/:run_key', async (req, res) => {
   try {
-    const supabase = getSupabase();
-    const { run_key } = req.params;
-
-    const { data: manifest, error: manifestErr } = await supabase
-      .from('convergence_run_manifest')
-      .select('*')
-      .eq('run_key', run_key)
-      .single();
-
-    if (manifestErr || !manifest) {
-      return res.status(404).json({ error: `Run ${run_key} not found` });
-    }
-
-    const { data: receipts } = await supabase
-      .from('convergence_receipt')
-      .select('geography_id, status, observed_count, expected_count, z_score, convergence_detected, input_hash')
-      .eq('run_key', run_key);
-
-    res.json({
-      manifest,
-      receipts: receipts || [],
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+    const result = await getConvergenceRunStatus(getSupabase(), req.params.run_key);
+    return res.json(result);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return res.status(message.includes('not found') ? 404 : 500).json({ error: message });
   }
 });
 
-/**
- * GET /v1/convergence/registry
- *
- * Get the current geography registry metadata (not the full data).
- */
-router.get('/registry', requireControlToken, async (req, res) => {
+router.get('/registry', (_req, res) => {
   try {
-    const wa = loadWashingtonGeography();
-    res.json({
-      jurisdictions: [{
-        jurisdiction_id: 'us_wa',
-        name: 'Washington State',
-        registry_hash: wa.registry_hash,
-        runtime_version: wa.runtime.version,
-        record_count: wa.record_count,
-        source_id: wa.source_id,
-        source_version: wa.source_version,
-      }],
+    const washington = loadWashingtonGeography();
+    return res.json({
       engine_version: ENGINE_VERSION,
       rule_manifest_hash: sha256(ENGINE_EQUATIONS),
+      registries: [{
+        jurisdiction_id: 'US_WA',
+        registry_hash: washington.registry_hash,
+        record_count: washington.record_count,
+        source_id: washington.source_id,
+        source_version: washington.source_version,
+        available_analysis_levels: [...new Set(washington.records.map((record) => record.level))].sort(),
+      }],
     });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+  } catch (error) {
+    return res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
   }
 });
 
