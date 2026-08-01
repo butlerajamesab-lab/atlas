@@ -62,17 +62,12 @@ test('transport records bridged, idempotent, and failed candidate receipts', () 
   assert.match(migration, /atlas_database_http_receipt_v1/);
 });
 
-test('Node scheduler remains owner and delegates transport execution', () => {
-  // Bridge service orchestrates detection and attempts database-side transport first
+test('Node scheduler remains owner and delegates only transport execution to Atlas DB', () => {
   assert.match(service, /detect_propublica_unresolved_metadata_v1/);
   assert.match(service, /bridge_live_data_signal_candidates_v1/);
-  // Bridge service delegates Lighthouse communication to liveDataSignalTransport.js
-  // but exposes parseRegistrationReceipt for the register_live_data_signal_receipt_v1 contract
-  assert.match(service, /parseRegistrationReceipt/);
-  assert.match(service, /register_live_data_signal_receipt_v1/);
-  // Bridge service itself does NOT hold Lighthouse credentials — those live in the transport layer
   assert.doesNotMatch(service, /LIGHTHOUSE_SUPABASE_URL/);
   assert.doesNotMatch(service, /LIGHTHOUSE_SERVICE_ROLE_KEY/);
+  assert.doesNotMatch(service, /register_live_data_signal_receipt_v1/);
 });
 
 test('database transport is service-role-only', () => {
