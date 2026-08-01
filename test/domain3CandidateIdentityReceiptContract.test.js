@@ -6,6 +6,10 @@ const migration = fs.readFileSync(
   new URL('../src/schema/20260731_domain3_candidate_identity_receipt.sql', import.meta.url),
   'utf8',
 );
+const transportMigration = fs.readFileSync(
+  new URL('../src/schema/20260731_domain3_database_http_transport.sql', import.meta.url),
+  'utf8',
+);
 const bridge = fs.readFileSync(
   new URL('../src/services/liveDataSignalBridgeService.js', import.meta.url),
   'utf8',
@@ -27,9 +31,11 @@ test('candidate rule and engine versions change with identity semantics', () => 
   assert.match(migration, /superseded_by_candidate_identity_version_1\.1\.0/);
 });
 
-test('bridge uses the explicit Lighthouse JSON receipt contract', () => {
-  assert.match(bridge, /register_live_data_signal_receipt_v1/);
-  assert.match(bridge, /parseRegistrationReceipt/);
-  assert.match(bridge, /live_data_signal_id/);
-  assert.doesNotMatch(bridge, /register_live_data_signal_v1'/);
+test('database-owned bridge uses the explicit Lighthouse JSON receipt contract', () => {
+  assert.match(transportMigration, /register_live_data_signal_receipt_v1/);
+  assert.match(transportMigration, /live_data_signal_id/);
+  assert.match(transportMigration, /contains no live_data_signal_id/);
+  assert.doesNotMatch(transportMigration, /register_live_data_signal_v1'/);
+  assert.match(bridge, /bridge_live_data_signal_candidates_v1/);
+  assert.doesNotMatch(bridge, /LIGHTHOUSE_SERVICE_ROLE_KEY|LIGHTHOUSE_SUPABASE_URL/);
 });
