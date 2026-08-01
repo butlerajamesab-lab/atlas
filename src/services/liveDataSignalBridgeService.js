@@ -1,4 +1,20 @@
+/**
+ * Atlas Domain 3 Live Data Signal Bridge Service
+ *
+ * Orchestrates detection and transport of live data signal candidates
+ * from Atlas to Lighthouse. Uses the JS-side transport when the
+ * database-side bridge function is unavailable.
+ *
+ * Transport strategy:
+ * 1. Try database-side bridge_live_data_signal_candidates_v1 (preferred)
+ * 2. Fall back to JS-side transport via liveDataSignalTransport.js
+ *
+ * The JS transport produces identical receipt structures and uses the
+ * same mark_live_data_signal_candidate_bridge_v1 RPC for state recording.
+ */
+
 import { createClient } from '@supabase/supabase-js';
+import { runDomain3Transport, resolveTransportConfiguration } from './liveDataSignalTransport.js';
 
 function createServiceClient(url, key) {
   return createClient(url, key, {
@@ -31,6 +47,10 @@ export function resolveLiveDataSignalBridgeConfiguration(env = process.env) {
   };
 }
 
+/**
+ * Try the database-side transport first. If the function doesn't exist
+ * in the schema cache, fall back to JS-side transport.
+ */
 export async function executeLiveDataSignalCycle({
   atlasClient,
   minUniqueRecords = 10,
@@ -47,6 +67,7 @@ export async function executeLiveDataSignalCycle({
     Math.max(1, Number(candidateLimit) || 100),
   );
 
+  // Step 1: Run detection
   const { data: detection, error: detectionError } = await atlasClient.rpc(
     'detect_propublica_unresolved_metadata_v1',
     {
@@ -64,6 +85,7 @@ export async function executeLiveDataSignalCycle({
     );
   }
 
+  // Step 2: Try database-side bridge first
   const { data: bridge, error: bridgeError } = await atlasClient.rpc(
     'bridge_live_data_signal_candidates_v1',
     {
@@ -71,28 +93,78 @@ export async function executeLiveDataSignalCycle({
       p_limit: boundedCandidateLimit,
     },
   );
-  if (bridgeError) {
+
+  if (!bridgeError && bridge && typeof bridge === 'object') {
+    // Database-side transport succeeded
+    return {
+      detection,
+      bridge,
+      transport_method: 'database_http',
+      completed_at: new Date().toISOString(),
+    };
+  }
+
+  // Step 3: Fall back to JS-side transport
+  const isMissingFunction = bridgeError?.message?.includes('Could not find the function')
+    || bridgeError?.message?.includes('schema cache')
+    || bridgeError?.code === 'PGRST202';
+
+  if (!isMissingFunction) {
+    // Real error, not a missing function — throw
     throw new Error(`Atlas Domain 3 transport failed: ${bridgeError.message}`);
   }
-  if (!bridge || typeof bridge !== 'object') {
-    throw new Error('Atlas Domain 3 transport returned no receipt');
-  }
+
+  console.log('[bridge] Database transport unavailable, using JS-side transport');
+
+  // JS-side transport uses the detection result directly
+  const jsResult = await runDomain3Transport();
 
   return {
     detection,
-    bridge,
+    bridge: jsResult,
+    transport_method: 'js_receipt',
     completed_at: new Date().toISOString(),
   };
 }
 
 export async function runLiveDataSignalBridge(env = process.env) {
+  // Check if JS transport credentials are available
+  let hasJsTransportCredentials = false;
+  try {
+    resolveTransportConfiguration(env);
+    hasJsTransportCredentials = true;
+  } catch {
+    // JS transport not configured — will try database-side only
+  }
+
   const config = resolveLiveDataSignalBridgeConfiguration(env);
   const atlasClient = createServiceClient(config.atlasUrl, config.atlasKey);
 
-  return executeLiveDataSignalCycle({
-    atlasClient,
-    minUniqueRecords: config.minUniqueRecords,
-    minUnresolvedRate: config.minUnresolvedRate,
-    candidateLimit: config.candidateLimit,
-  });
+  try {
+    return await executeLiveDataSignalCycle({
+      atlasClient,
+      minUniqueRecords: config.minUniqueRecords,
+      minUnresolvedRate: config.minUnresolvedRate,
+      candidateLimit: config.candidateLimit,
+    });
+  } catch (err) {
+    // If the error is about the missing bridge function and we have JS credentials,
+    // try the direct JS transport
+    const message = err instanceof Error ? err.message : String(err);
+    const isMissingFunction = message.includes('Could not find the function')
+      || message.includes('schema cache');
+
+    if (isMissingFunction && hasJsTransportCredentials) {
+      console.log('[bridge] Retrying with direct JS transport...');
+      const result = await runDomain3Transport(env);
+      return {
+        detection: { run_id: result.run_id, status: result.detection?.status || 'completed' },
+        bridge: result,
+        transport_method: 'js_receipt_direct',
+        completed_at: new Date().toISOString(),
+      };
+    }
+
+    throw err;
+  }
 }
