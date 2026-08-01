@@ -1,0 +1,794 @@
+{
+  "registry_version": "1.0.0",
+  "source_id": "census_tiger_2024",
+  "source_version": "TIGER/Line 2024",
+  "source_url": "https://www.census.gov/geographies/mapping-files/time-series/geo/tiger-line-file.html",
+  "jurisdiction": "us_wa",
+  "record_count": 40,
+  "generated_at": "2026-08-01T00:00:00.000Z",
+  "records": [
+    {
+      "jurisdiction_id": "us_wa",
+      "source_id": "census_tiger_2024",
+      "source_record_id": "STATEFP:53",
+      "name": "Washington",
+      "level": "state",
+      "fips_code": "53",
+      "parent_jurisdiction_id": null,
+      "area_sq_km": 184827,
+      "centroid_lat": 47.3826,
+      "centroid_lon": -120.4472,
+      "effective_from": "2024-01-01",
+      "effective_to": null,
+      "adjacent_to": []
+    },
+    {
+      "jurisdiction_id": "us_wa_adams",
+      "source_id": "census_tiger_2024",
+      "source_record_id": "COUNTYFP:53001",
+      "name": "Adams County",
+      "level": "county",
+      "fips_code": "53001",
+      "parent_jurisdiction_id": "us_wa",
+      "area_sq_km": 4986,
+      "centroid_lat": 46.9833,
+      "centroid_lon": -118.5604,
+      "effective_from": "2024-01-01",
+      "effective_to": null,
+      "adjacent_to": [
+        "us_wa_franklin",
+        "us_wa_grant",
+        "us_wa_walla_walla",
+        "us_wa_whitman"
+      ]
+    },
+    {
+      "jurisdiction_id": "us_wa_asotin",
+      "source_id": "census_tiger_2024",
+      "source_record_id": "COUNTYFP:53003",
+      "name": "Asotin County",
+      "level": "county",
+      "fips_code": "53003",
+      "parent_jurisdiction_id": "us_wa",
+      "area_sq_km": 1647,
+      "centroid_lat": 46.1908,
+      "centroid_lon": -117.2069,
+      "effective_from": "2024-01-01",
+      "effective_to": null,
+      "adjacent_to": [
+        "us_wa_columbia",
+        "us_wa_garfield"
+      ]
+    },
+    {
+      "jurisdiction_id": "us_wa_benton",
+      "source_id": "census_tiger_2024",
+      "source_record_id": "COUNTYFP:53005",
+      "name": "Benton County",
+      "level": "county",
+      "fips_code": "53005",
+      "parent_jurisdiction_id": "us_wa",
+      "area_sq_km": 4403,
+      "centroid_lat": 46.2396,
+      "centroid_lon": -119.5154,
+      "effective_from": "2024-01-01",
+      "effective_to": null,
+      "adjacent_to": [
+        "us_wa_franklin",
+        "us_wa_klickitat",
+        "us_wa_yakima"
+      ]
+    },
+    {
+      "jurisdiction_id": "us_wa_chelan",
+      "source_id": "census_tiger_2024",
+      "source_record_id": "COUNTYFP:53007",
+      "name": "Chelan County",
+      "level": "county",
+      "fips_code": "53007",
+      "parent_jurisdiction_id": "us_wa",
+      "area_sq_km": 7563,
+      "centroid_lat": 47.868,
+      "centroid_lon": -120.6189,
+      "effective_from": "2024-01-01",
+      "effective_to": null,
+      "adjacent_to": [
+        "us_wa_douglas",
+        "us_wa_grant",
+        "us_wa_kittitas",
+        "us_wa_okanogan",
+        "us_wa_skagit",
+        "us_wa_snohomish"
+      ]
+    },
+    {
+      "jurisdiction_id": "us_wa_clallam",
+      "source_id": "census_tiger_2024",
+      "source_record_id": "COUNTYFP:53009",
+      "name": "Clallam County",
+      "level": "county",
+      "fips_code": "53009",
+      "parent_jurisdiction_id": "us_wa",
+      "area_sq_km": 4501,
+      "centroid_lat": 48.1108,
+      "centroid_lon": -123.9343,
+      "effective_from": "2024-01-01",
+      "effective_to": null,
+      "adjacent_to": [
+        "us_wa_jefferson"
+      ]
+    },
+    {
+      "jurisdiction_id": "us_wa_clark",
+      "source_id": "census_tiger_2024",
+      "source_record_id": "COUNTYFP:53011",
+      "name": "Clark County",
+      "level": "county",
+      "fips_code": "53011",
+      "parent_jurisdiction_id": "us_wa",
+      "area_sq_km": 1637,
+      "centroid_lat": 45.7742,
+      "centroid_lon": -122.4851,
+      "effective_from": "2024-01-01",
+      "effective_to": null,
+      "adjacent_to": [
+        "us_wa_cowlitz",
+        "us_wa_skamania"
+      ]
+    },
+    {
+      "jurisdiction_id": "us_wa_columbia",
+      "source_id": "census_tiger_2024",
+      "source_record_id": "COUNTYFP:53013",
+      "name": "Columbia County",
+      "level": "county",
+      "fips_code": "53013",
+      "parent_jurisdiction_id": "us_wa",
+      "area_sq_km": 2252,
+      "centroid_lat": 46.2974,
+      "centroid_lon": -117.9082,
+      "effective_from": "2024-01-01",
+      "effective_to": null,
+      "adjacent_to": [
+        "us_wa_asotin",
+        "us_wa_garfield",
+        "us_wa_walla_walla"
+      ]
+    },
+    {
+      "jurisdiction_id": "us_wa_cowlitz",
+      "source_id": "census_tiger_2024",
+      "source_record_id": "COUNTYFP:53015",
+      "name": "Cowlitz County",
+      "level": "county",
+      "fips_code": "53015",
+      "parent_jurisdiction_id": "us_wa",
+      "area_sq_km": 2946,
+      "centroid_lat": 46.1905,
+      "centroid_lon": -122.6784,
+      "effective_from": "2024-01-01",
+      "effective_to": null,
+      "adjacent_to": [
+        "us_wa_clark",
+        "us_wa_lewis",
+        "us_wa_wahkiakum"
+      ]
+    },
+    {
+      "jurisdiction_id": "us_wa_douglas",
+      "source_id": "census_tiger_2024",
+      "source_record_id": "COUNTYFP:53017",
+      "name": "Douglas County",
+      "level": "county",
+      "fips_code": "53017",
+      "parent_jurisdiction_id": "us_wa",
+      "area_sq_km": 4764,
+      "centroid_lat": 47.7365,
+      "centroid_lon": -119.6924,
+      "effective_from": "2024-01-01",
+      "effective_to": null,
+      "adjacent_to": [
+        "us_wa_chelan",
+        "us_wa_grant",
+        "us_wa_kittitas",
+        "us_wa_okanogan"
+      ]
+    },
+    {
+      "jurisdiction_id": "us_wa_ferry",
+      "source_id": "census_tiger_2024",
+      "source_record_id": "COUNTYFP:53019",
+      "name": "Ferry County",
+      "level": "county",
+      "fips_code": "53019",
+      "parent_jurisdiction_id": "us_wa",
+      "area_sq_km": 5699,
+      "centroid_lat": 48.472,
+      "centroid_lon": -118.5179,
+      "effective_from": "2024-01-01",
+      "effective_to": null,
+      "adjacent_to": [
+        "us_wa_okanogan",
+        "us_wa_spokane",
+        "us_wa_stevens"
+      ]
+    },
+    {
+      "jurisdiction_id": "us_wa_franklin",
+      "source_id": "census_tiger_2024",
+      "source_record_id": "COUNTYFP:53021",
+      "name": "Franklin County",
+      "level": "county",
+      "fips_code": "53021",
+      "parent_jurisdiction_id": "us_wa",
+      "area_sq_km": 3210,
+      "centroid_lat": 46.5349,
+      "centroid_lon": -118.9096,
+      "effective_from": "2024-01-01",
+      "effective_to": null,
+      "adjacent_to": [
+        "us_wa_adams",
+        "us_wa_benton",
+        "us_wa_grant",
+        "us_wa_walla_walla"
+      ]
+    },
+    {
+      "jurisdiction_id": "us_wa_garfield",
+      "source_id": "census_tiger_2024",
+      "source_record_id": "COUNTYFP:53023",
+      "name": "Garfield County",
+      "level": "county",
+      "fips_code": "53023",
+      "parent_jurisdiction_id": "us_wa",
+      "area_sq_km": 1836,
+      "centroid_lat": 46.4317,
+      "centroid_lon": -117.5466,
+      "effective_from": "2024-01-01",
+      "effective_to": null,
+      "adjacent_to": [
+        "us_wa_asotin",
+        "us_wa_columbia"
+      ]
+    },
+    {
+      "jurisdiction_id": "us_wa_grant",
+      "source_id": "census_tiger_2024",
+      "source_record_id": "COUNTYFP:53025",
+      "name": "Grant County",
+      "level": "county",
+      "fips_code": "53025",
+      "parent_jurisdiction_id": "us_wa",
+      "area_sq_km": 6939,
+      "centroid_lat": 47.2076,
+      "centroid_lon": -119.4523,
+      "effective_from": "2024-01-01",
+      "effective_to": null,
+      "adjacent_to": [
+        "us_wa_adams",
+        "us_wa_chelan",
+        "us_wa_douglas",
+        "us_wa_franklin",
+        "us_wa_kittitas",
+        "us_wa_lincoln"
+      ]
+    },
+    {
+      "jurisdiction_id": "us_wa_grays_harbor",
+      "source_id": "census_tiger_2024",
+      "source_record_id": "COUNTYFP:53027",
+      "name": "Grays Harbor County",
+      "level": "county",
+      "fips_code": "53027",
+      "parent_jurisdiction_id": "us_wa",
+      "area_sq_km": 5166,
+      "centroid_lat": 47.1462,
+      "centroid_lon": -123.7766,
+      "effective_from": "2024-01-01",
+      "effective_to": null,
+      "adjacent_to": [
+        "us_wa_jefferson",
+        "us_wa_lewis",
+        "us_wa_mason",
+        "us_wa_pacific",
+        "us_wa_thurston"
+      ]
+    },
+    {
+      "jurisdiction_id": "us_wa_island",
+      "source_id": "census_tiger_2024",
+      "source_record_id": "COUNTYFP:53029",
+      "name": "Island County",
+      "level": "county",
+      "fips_code": "53029",
+      "parent_jurisdiction_id": "us_wa",
+      "area_sq_km": 531,
+      "centroid_lat": 48.2155,
+      "centroid_lon": -122.6889,
+      "effective_from": "2024-01-01",
+      "effective_to": null,
+      "adjacent_to": [
+        "us_wa_skagit",
+        "us_wa_snohomish"
+      ]
+    },
+    {
+      "jurisdiction_id": "us_wa_jefferson",
+      "source_id": "census_tiger_2024",
+      "source_record_id": "COUNTYFP:53031",
+      "name": "Jefferson County",
+      "level": "county",
+      "fips_code": "53031",
+      "parent_jurisdiction_id": "us_wa",
+      "area_sq_km": 4594,
+      "centroid_lat": 47.7613,
+      "centroid_lon": -123.5063,
+      "effective_from": "2024-01-01",
+      "effective_to": null,
+      "adjacent_to": [
+        "us_wa_clallam",
+        "us_wa_grays_harbor",
+        "us_wa_mason"
+      ]
+    },
+    {
+      "jurisdiction_id": "us_wa_king",
+      "source_id": "census_tiger_2024",
+      "source_record_id": "COUNTYFP:53033",
+      "name": "King County",
+      "level": "county",
+      "fips_code": "53033",
+      "parent_jurisdiction_id": "us_wa",
+      "area_sq_km": 5507,
+      "centroid_lat": 47.4903,
+      "centroid_lon": -121.8362,
+      "effective_from": "2024-01-01",
+      "effective_to": null,
+      "adjacent_to": [
+        "us_wa_kitsap",
+        "us_wa_kittitas",
+        "us_wa_mason",
+        "us_wa_pierce",
+        "us_wa_skagit",
+        "us_wa_snohomish",
+        "us_wa_thurston"
+      ]
+    },
+    {
+      "jurisdiction_id": "us_wa_kitsap",
+      "source_id": "census_tiger_2024",
+      "source_record_id": "COUNTYFP:53035",
+      "name": "Kitsap County",
+      "level": "county",
+      "fips_code": "53035",
+      "parent_jurisdiction_id": "us_wa",
+      "area_sq_km": 1025,
+      "centroid_lat": 47.6378,
+      "centroid_lon": -122.6482,
+      "effective_from": "2024-01-01",
+      "effective_to": null,
+      "adjacent_to": [
+        "us_wa_king",
+        "us_wa_mason",
+        "us_wa_pierce"
+      ]
+    },
+    {
+      "jurisdiction_id": "us_wa_kittitas",
+      "source_id": "census_tiger_2024",
+      "source_record_id": "COUNTYFP:53037",
+      "name": "Kittitas County",
+      "level": "county",
+      "fips_code": "53037",
+      "parent_jurisdiction_id": "us_wa",
+      "area_sq_km": 5959,
+      "centroid_lat": 47.1245,
+      "centroid_lon": -120.6818,
+      "effective_from": "2024-01-01",
+      "effective_to": null,
+      "adjacent_to": [
+        "us_wa_chelan",
+        "us_wa_douglas",
+        "us_wa_grant",
+        "us_wa_king",
+        "us_wa_yakima"
+      ]
+    },
+    {
+      "jurisdiction_id": "us_wa_klickitat",
+      "source_id": "census_tiger_2024",
+      "source_record_id": "COUNTYFP:53039",
+      "name": "Klickitat County",
+      "level": "county",
+      "fips_code": "53039",
+      "parent_jurisdiction_id": "us_wa",
+      "area_sq_km": 4838,
+      "centroid_lat": 45.8706,
+      "centroid_lon": -121.1752,
+      "effective_from": "2024-01-01",
+      "effective_to": null,
+      "adjacent_to": [
+        "us_wa_benton",
+        "us_wa_skamania",
+        "us_wa_yakima"
+      ]
+    },
+    {
+      "jurisdiction_id": "us_wa_lewis",
+      "source_id": "census_tiger_2024",
+      "source_record_id": "COUNTYFP:53041",
+      "name": "Lewis County",
+      "level": "county",
+      "fips_code": "53041",
+      "parent_jurisdiction_id": "us_wa",
+      "area_sq_km": 6213,
+      "centroid_lat": 46.5769,
+      "centroid_lon": -122.3803,
+      "effective_from": "2024-01-01",
+      "effective_to": null,
+      "adjacent_to": [
+        "us_wa_cowlitz",
+        "us_wa_grays_harbor",
+        "us_wa_pierce",
+        "us_wa_skamania",
+        "us_wa_thurston"
+      ]
+    },
+    {
+      "jurisdiction_id": "us_wa_lincoln",
+      "source_id": "census_tiger_2024",
+      "source_record_id": "COUNTYFP:53043",
+      "name": "Lincoln County",
+      "level": "county",
+      "fips_code": "53043",
+      "parent_jurisdiction_id": "us_wa",
+      "area_sq_km": 5962,
+      "centroid_lat": 47.5749,
+      "centroid_lon": -118.4108,
+      "effective_from": "2024-01-01",
+      "effective_to": null,
+      "adjacent_to": [
+        "us_wa_grant",
+        "us_wa_spokane",
+        "us_wa_stevens"
+      ]
+    },
+    {
+      "jurisdiction_id": "us_wa_mason",
+      "source_id": "census_tiger_2024",
+      "source_record_id": "COUNTYFP:53045",
+      "name": "Mason County",
+      "level": "county",
+      "fips_code": "53045",
+      "parent_jurisdiction_id": "us_wa",
+      "area_sq_km": 2460,
+      "centroid_lat": 47.3498,
+      "centroid_lon": -123.186,
+      "effective_from": "2024-01-01",
+      "effective_to": null,
+      "adjacent_to": [
+        "us_wa_grays_harbor",
+        "us_wa_jefferson",
+        "us_wa_king",
+        "us_wa_kitsap",
+        "us_wa_thurston"
+      ]
+    },
+    {
+      "jurisdiction_id": "us_wa_okanogan",
+      "source_id": "census_tiger_2024",
+      "source_record_id": "COUNTYFP:53047",
+      "name": "Okanogan County",
+      "level": "county",
+      "fips_code": "53047",
+      "parent_jurisdiction_id": "us_wa",
+      "area_sq_km": 13644,
+      "centroid_lat": 48.5523,
+      "centroid_lon": -119.7401,
+      "effective_from": "2024-01-01",
+      "effective_to": null,
+      "adjacent_to": [
+        "us_wa_chelan",
+        "us_wa_douglas",
+        "us_wa_ferry",
+        "us_wa_skagit",
+        "us_wa_stevens"
+      ]
+    },
+    {
+      "jurisdiction_id": "us_wa_pacific",
+      "source_id": "census_tiger_2024",
+      "source_record_id": "COUNTYFP:53049",
+      "name": "Pacific County",
+      "level": "county",
+      "fips_code": "53049",
+      "parent_jurisdiction_id": "us_wa",
+      "area_sq_km": 2402,
+      "centroid_lat": 46.5547,
+      "centroid_lon": -123.7802,
+      "effective_from": "2024-01-01",
+      "effective_to": null,
+      "adjacent_to": [
+        "us_wa_grays_harbor",
+        "us_wa_wahkiakum"
+      ]
+    },
+    {
+      "jurisdiction_id": "us_wa_pend_oreille",
+      "source_id": "census_tiger_2024",
+      "source_record_id": "COUNTYFP:53051",
+      "name": "Pend Oreille County",
+      "level": "county",
+      "fips_code": "53051",
+      "parent_jurisdiction_id": "us_wa",
+      "area_sq_km": 3631,
+      "centroid_lat": 48.5353,
+      "centroid_lon": -117.2726,
+      "effective_from": "2024-01-01",
+      "effective_to": null,
+      "adjacent_to": [
+        "us_wa_spokane",
+        "us_wa_stevens"
+      ]
+    },
+    {
+      "jurisdiction_id": "us_wa_pierce",
+      "source_id": "census_tiger_2024",
+      "source_record_id": "COUNTYFP:53053",
+      "name": "Pierce County",
+      "level": "county",
+      "fips_code": "53053",
+      "parent_jurisdiction_id": "us_wa",
+      "area_sq_km": 4369,
+      "centroid_lat": 47.0388,
+      "centroid_lon": -122.1406,
+      "effective_from": "2024-01-01",
+      "effective_to": null,
+      "adjacent_to": [
+        "us_wa_king",
+        "us_wa_kitsap",
+        "us_wa_lewis",
+        "us_wa_thurston"
+      ]
+    },
+    {
+      "jurisdiction_id": "us_wa_san_juan",
+      "source_id": "census_tiger_2024",
+      "source_record_id": "COUNTYFP:53055",
+      "name": "San Juan County",
+      "level": "county",
+      "fips_code": "53055",
+      "parent_jurisdiction_id": "us_wa",
+      "area_sq_km": 451,
+      "centroid_lat": 48.5326,
+      "centroid_lon": -123.0247,
+      "effective_from": "2024-01-01",
+      "effective_to": null,
+      "adjacent_to": [
+        "us_wa_skagit",
+        "us_wa_whatcom"
+      ]
+    },
+    {
+      "jurisdiction_id": "us_wa_skagit",
+      "source_id": "census_tiger_2024",
+      "source_record_id": "COUNTYFP:53057",
+      "name": "Skagit County",
+      "level": "county",
+      "fips_code": "53057",
+      "parent_jurisdiction_id": "us_wa",
+      "area_sq_km": 4497,
+      "centroid_lat": 48.48,
+      "centroid_lon": -121.7985,
+      "effective_from": "2024-01-01",
+      "effective_to": null,
+      "adjacent_to": [
+        "us_wa_chelan",
+        "us_wa_island",
+        "us_wa_king",
+        "us_wa_okanogan",
+        "us_wa_san_juan",
+        "us_wa_snohomish",
+        "us_wa_whatcom"
+      ]
+    },
+    {
+      "jurisdiction_id": "us_wa_skamania",
+      "source_id": "census_tiger_2024",
+      "source_record_id": "COUNTYFP:53059",
+      "name": "Skamania County",
+      "level": "county",
+      "fips_code": "53059",
+      "parent_jurisdiction_id": "us_wa",
+      "area_sq_km": 4345,
+      "centroid_lat": 46.0218,
+      "centroid_lon": -121.9181,
+      "effective_from": "2024-01-01",
+      "effective_to": null,
+      "adjacent_to": [
+        "us_wa_clark",
+        "us_wa_klickitat",
+        "us_wa_lewis",
+        "us_wa_yakima"
+      ]
+    },
+    {
+      "jurisdiction_id": "us_wa_snohomish",
+      "source_id": "census_tiger_2024",
+      "source_record_id": "COUNTYFP:53061",
+      "name": "Snohomish County",
+      "level": "county",
+      "fips_code": "53061",
+      "parent_jurisdiction_id": "us_wa",
+      "area_sq_km": 5443,
+      "centroid_lat": 48.053,
+      "centroid_lon": -121.717,
+      "effective_from": "2024-01-01",
+      "effective_to": null,
+      "adjacent_to": [
+        "us_wa_chelan",
+        "us_wa_island",
+        "us_wa_king",
+        "us_wa_skagit",
+        "us_wa_whatcom"
+      ]
+    },
+    {
+      "jurisdiction_id": "us_wa_spokane",
+      "source_id": "census_tiger_2024",
+      "source_record_id": "COUNTYFP:53063",
+      "name": "Spokane County",
+      "level": "county",
+      "fips_code": "53063",
+      "parent_jurisdiction_id": "us_wa",
+      "area_sq_km": 4558,
+      "centroid_lat": 47.62,
+      "centroid_lon": -117.404,
+      "effective_from": "2024-01-01",
+      "effective_to": null,
+      "adjacent_to": [
+        "us_wa_ferry",
+        "us_wa_lincoln",
+        "us_wa_pend_oreille",
+        "us_wa_stevens",
+        "us_wa_whitman"
+      ]
+    },
+    {
+      "jurisdiction_id": "us_wa_stevens",
+      "source_id": "census_tiger_2024",
+      "source_record_id": "COUNTYFP:53065",
+      "name": "Stevens County",
+      "level": "county",
+      "fips_code": "53065",
+      "parent_jurisdiction_id": "us_wa",
+      "area_sq_km": 6372,
+      "centroid_lat": 48.3962,
+      "centroid_lon": -117.8537,
+      "effective_from": "2024-01-01",
+      "effective_to": null,
+      "adjacent_to": [
+        "us_wa_ferry",
+        "us_wa_lincoln",
+        "us_wa_okanogan",
+        "us_wa_pend_oreille",
+        "us_wa_spokane"
+      ]
+    },
+    {
+      "jurisdiction_id": "us_wa_thurston",
+      "source_id": "census_tiger_2024",
+      "source_record_id": "COUNTYFP:53067",
+      "name": "Thurston County",
+      "level": "county",
+      "fips_code": "53067",
+      "parent_jurisdiction_id": "us_wa",
+      "area_sq_km": 1876,
+      "centroid_lat": 46.9325,
+      "centroid_lon": -122.8257,
+      "effective_from": "2024-01-01",
+      "effective_to": null,
+      "adjacent_to": [
+        "us_wa_grays_harbor",
+        "us_wa_king",
+        "us_wa_lewis",
+        "us_wa_mason",
+        "us_wa_pierce"
+      ]
+    },
+    {
+      "jurisdiction_id": "us_wa_wahkiakum",
+      "source_id": "census_tiger_2024",
+      "source_record_id": "COUNTYFP:53069",
+      "name": "Wahkiakum County",
+      "level": "county",
+      "fips_code": "53069",
+      "parent_jurisdiction_id": "us_wa",
+      "area_sq_km": 680,
+      "centroid_lat": 46.2927,
+      "centroid_lon": -123.4248,
+      "effective_from": "2024-01-01",
+      "effective_to": null,
+      "adjacent_to": [
+        "us_wa_cowlitz",
+        "us_wa_pacific"
+      ]
+    },
+    {
+      "jurisdiction_id": "us_wa_walla_walla",
+      "source_id": "census_tiger_2024",
+      "source_record_id": "COUNTYFP:53071",
+      "name": "Walla Walla County",
+      "level": "county",
+      "fips_code": "53071",
+      "parent_jurisdiction_id": "us_wa",
+      "area_sq_km": 3291,
+      "centroid_lat": 46.2296,
+      "centroid_lon": -118.4803,
+      "effective_from": "2024-01-01",
+      "effective_to": null,
+      "adjacent_to": [
+        "us_wa_adams",
+        "us_wa_columbia",
+        "us_wa_franklin"
+      ]
+    },
+    {
+      "jurisdiction_id": "us_wa_whatcom",
+      "source_id": "census_tiger_2024",
+      "source_record_id": "COUNTYFP:53073",
+      "name": "Whatcom County",
+      "level": "county",
+      "fips_code": "53073",
+      "parent_jurisdiction_id": "us_wa",
+      "area_sq_km": 5503,
+      "centroid_lat": 48.8296,
+      "centroid_lon": -121.8703,
+      "effective_from": "2024-01-01",
+      "effective_to": null,
+      "adjacent_to": [
+        "us_wa_san_juan",
+        "us_wa_skagit",
+        "us_wa_snohomish"
+      ]
+    },
+    {
+      "jurisdiction_id": "us_wa_whitman",
+      "source_id": "census_tiger_2024",
+      "source_record_id": "COUNTYFP:53075",
+      "name": "Whitman County",
+      "level": "county",
+      "fips_code": "53075",
+      "parent_jurisdiction_id": "us_wa",
+      "area_sq_km": 5567,
+      "centroid_lat": 46.903,
+      "centroid_lon": -117.5244,
+      "effective_from": "2024-01-01",
+      "effective_to": null,
+      "adjacent_to": [
+        "us_wa_adams",
+        "us_wa_spokane"
+      ]
+    },
+    {
+      "jurisdiction_id": "us_wa_yakima",
+      "source_id": "census_tiger_2024",
+      "source_record_id": "COUNTYFP:53077",
+      "name": "Yakima County",
+      "level": "county",
+      "fips_code": "53077",
+      "parent_jurisdiction_id": "us_wa",
+      "area_sq_km": 11670,
+      "centroid_lat": 46.4567,
+      "centroid_lon": -120.739,
+      "effective_from": "2024-01-01",
+      "effective_to": null,
+      "adjacent_to": [
+        "us_wa_benton",
+        "us_wa_kittitas",
+        "us_wa_klickitat",
+        "us_wa_skamania"
+      ]
+    }
+  ]
+}
