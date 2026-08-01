@@ -1,164 +1,132 @@
-/**
- * ATLAS GEOGRAPHY AUTHORITY v2.1.0
- *
- * Atlas is the canonical geography authority. Lighthouse consumes Atlas geography receipts.
- *
- * The geography registry is a versioned, immutable snapshot of geography entries.
- * The registry hash includes: source IDs, effective dates, areas, centroids,
- * hierarchy, and adjacency — canonicalized and hashed via canonical.js.
- *
- * Runtime format (Math Engine v2.1):
- *   GeographyRegistry { version: string, entries: GeographyEntry[] }
- *   GeographyEntry { id: string, area_sq_km: number, centroid_lat: number|null, centroid_lon: number|null, adjacency: string[] }
- *
- * Provenance format (full, persisted):
- *   Includes source_id, source_record_id, name, level, fips_code,
- *   parent_jurisdiction_id, effective_from, effective_to, adjacent_to.
- *
- * Geography IDs are uppercase strings (e.g., "US_WA", "US_WA_KING").
- */
-
 import { sha256 } from './canonical.js';
 
-/**
- * Normalize a geography ID to canonical form: trimmed uppercase.
- * Matches Math Engine v2.1 normalizeGeographyId.
- */
 export function normalizeGeographyId(value) {
   if (value === null || value === undefined) return null;
-  return String(value).trim().toUpperCase();
+  const normalized = String(value).trim().toUpperCase();
+  return normalized || null;
 }
 
-/**
- * Validate a single geography record (provenance format).
- * Returns { valid, errors }.
- */
 export function validateGeographyRecord(record) {
   const errors = [];
-  if (!record.jurisdiction_id) errors.push('missing jurisdiction_id');
-  if (!record.source_id) errors.push('missing source_id');
-  if (!record.source_record_id) errors.push('missing source_record_id');
-  if (!record.name) errors.push('missing name');
-  if (!record.level) errors.push('missing level');
-  if (!record.effective_from) errors.push('missing effective_from');
-  if (record.area_sq_km !== null && record.area_sq_km !== undefined) {
-    if (typeof record.area_sq_km !== 'number' || record.area_sq_km < 0) {
-      errors.push('area_sq_km must be non-negative');
-    }
-    if (record.area_sq_km === 0) {
-      errors.push('area_sq_km is zero — likely invalid');
-    }
+  for (const field of ['jurisdiction_id', 'source_id', 'source_record_id', 'name', 'level', 'effective_from']) {
+    if (typeof record?.[field] !== 'string' || record[field].trim() === '') errors.push(`missing ${field}`);
   }
-  if (record.centroid_lat !== null && record.centroid_lat !== undefined) {
-    if (record.centroid_lat < -90 || record.centroid_lat > 90) errors.push('centroid_lat out of range');
+  if (!Number.isFinite(record?.area_sq_km) || record.area_sq_km <= 0) {
+    errors.push('area_sq_km must be positive');
   }
-  if (record.centroid_lon !== null && record.centroid_lon !== undefined) {
-    if (record.centroid_lon < -180 || record.centroid_lon > 180) errors.push('centroid_lon out of range');
+  if (record?.centroid_lat !== null && record?.centroid_lat !== undefined
+      && (!Number.isFinite(record.centroid_lat) || record.centroid_lat < -90 || record.centroid_lat > 90)) {
+    errors.push('centroid_lat out of range');
+  }
+  if (record?.centroid_lon !== null && record?.centroid_lon !== undefined
+      && (!Number.isFinite(record.centroid_lon) || record.centroid_lon < -180 || record.centroid_lon > 180)) {
+    errors.push('centroid_lon out of range');
+  }
+  if (record?.fips_code !== null && record?.fips_code !== undefined
+      && (typeof record.fips_code !== 'string' || !/^\d{2,5}$/.test(record.fips_code))) {
+    errors.push('fips_code must be a 2-5 digit string');
+  }
+  if (record?.adjacent_to !== undefined && !Array.isArray(record.adjacent_to)) {
+    errors.push('adjacent_to must be an array');
   }
   return { valid: errors.length === 0, errors };
 }
 
-/**
- * Validate a full geography registry (provenance format).
- * Checks for duplicates and validates each record.
- */
 export function validateGeographyRegistry(records) {
+  if (!Array.isArray(records) || records.length === 0) {
+    return { valid: false, errors: [{ jurisdiction_id: null, errors: ['registry is empty'] }] };
+  }
   const errors = [];
-  const seen = new Set();
+  const byId = new Map();
+  const sourceKeys = new Set();
   for (const record of records) {
-    if (seen.has(record.jurisdiction_id)) {
-      errors.push({ jurisdiction_id: record.jurisdiction_id, errors: ['duplicate jurisdiction_id'] });
-    }
-    seen.add(record.jurisdiction_id);
     const result = validateGeographyRecord(record);
-    if (!result.valid) {
-      errors.push({ jurisdiction_id: record.jurisdiction_id, errors: result.errors });
+    const id = normalizeGeographyId(record?.jurisdiction_id);
+    if (!result.valid) errors.push({ jurisdiction_id: id, errors: result.errors });
+    if (id && byId.has(id)) errors.push({ jurisdiction_id: id, errors: ['duplicate jurisdiction_id'] });
+    if (id) byId.set(id, record);
+    const sourceKey = `${record?.source_id ?? ''}:${record?.source_record_id ?? ''}`;
+    if (sourceKeys.has(sourceKey)) errors.push({ jurisdiction_id: id, errors: ['duplicate source_record_id'] });
+    sourceKeys.add(sourceKey);
+  }
+  for (const record of records) {
+    const id = normalizeGeographyId(record.jurisdiction_id);
+    for (const neighborValue of record.adjacent_to ?? []) {
+      const neighbor = normalizeGeographyId(neighborValue);
+      const neighborRecord = byId.get(neighbor);
+      if (!neighborRecord) {
+        errors.push({ jurisdiction_id: id, errors: [`unknown adjacency ${neighbor}`] });
+      } else if (!(neighborRecord.adjacent_to ?? []).map(normalizeGeographyId).includes(id)) {
+        errors.push({ jurisdiction_id: id, errors: [`asymmetric adjacency ${neighbor}`] });
+      }
     }
   }
-  return { valid: errors.length === 0, errors };
+  return { valid: errors.length === 0, errors, total_records: records.length };
 }
 
-/**
- * Compute the immutable registry hash from provenance records.
- * Includes ALL provenance fields: source IDs, effective dates, areas, centroids,
- * hierarchy, and adjacency. Canonical JSON sorted by jurisdiction_id.
- *
- * This hash IS the registry version identity.
- */
 export function computeRegistryHash(records) {
-  const sorted = [...records].sort((a, b) =>
-    a.jurisdiction_id.localeCompare(b.jurisdiction_id),
-  );
-  const payload = sorted.map((r) => ({
-    jurisdiction_id: r.jurisdiction_id,
-    source_id: r.source_id,
-    source_record_id: r.source_record_id,
-    name: r.name,
-    level: r.level,
-    fips_code: r.fips_code || null,
-    parent_jurisdiction_id: r.parent_jurisdiction_id || null,
-    area_sq_km: r.area_sq_km || null,
-    centroid_lat: r.centroid_lat ?? null,
-    centroid_lon: r.centroid_lon ?? null,
-    effective_from: r.effective_from,
-    effective_to: r.effective_to || null,
-    adjacent_to: [...(r.adjacent_to || [])].sort(),
-  }));
-  return sha256(payload);
+  const sorted = [...records]
+    .map((record) => ({
+      jurisdiction_id: normalizeGeographyId(record.jurisdiction_id),
+      source_id: record.source_id,
+      source_record_id: record.source_record_id,
+      name: record.name,
+      level: record.level,
+      fips_code: record.fips_code ?? null,
+      parent_jurisdiction_id: normalizeGeographyId(record.parent_jurisdiction_id),
+      area_sq_km: record.area_sq_km,
+      centroid_lat: record.centroid_lat ?? null,
+      centroid_lon: record.centroid_lon ?? null,
+      effective_from: record.effective_from,
+      effective_to: record.effective_to ?? null,
+      adjacent_to: [...(record.adjacent_to ?? [])].map(normalizeGeographyId).sort(),
+    }))
+    .sort((left, right) => left.jurisdiction_id.localeCompare(right.jurisdiction_id));
+  return sha256(sorted);
 }
 
-/**
- * Transform provenance records into Math Engine v2.1 runtime format.
- * Geography IDs are normalized to uppercase.
- */
-export function toRuntimeRegistry(records, version) {
-  if (!version) throw new Error('geography registry version is required');
-  const entries = records.map((r) => ({
-    id: normalizeGeographyId(r.jurisdiction_id),
-    area_sq_km: r.area_sq_km,
-    centroid_lat: r.centroid_lat ?? null,
-    centroid_lon: r.centroid_lon ?? null,
-    adjacency: (r.adjacent_to || []).map(normalizeGeographyId).sort(),
-  }));
-  return Object.freeze({
-    version,
-    entries: Object.freeze(entries.sort((a, b) => a.id.localeCompare(b.id))),
-  });
+export function toRuntimeRegistry(records, version, analysisLevel = null) {
+  if (typeof version !== 'string' || version.length === 0) throw new Error('geography registry version is required');
+  const selected = analysisLevel ? records.filter((record) => record.level === analysisLevel) : records;
+  if (selected.length === 0) throw new Error(`geography registry has no entries for analysis_level '${analysisLevel}'`);
+  const entries = selected.map((record) => Object.freeze({
+    id: normalizeGeographyId(record.jurisdiction_id),
+    level: record.level,
+    source_record_id: record.source_record_id,
+    parent_id: normalizeGeographyId(record.parent_jurisdiction_id),
+    area_sq_km: record.area_sq_km,
+    centroid_lat: record.centroid_lat ?? null,
+    centroid_lon: record.centroid_lon ?? null,
+    adjacency: (record.adjacent_to ?? []).map(normalizeGeographyId).sort(),
+  })).sort((left, right) => left.id.localeCompare(right.id));
+  return Object.freeze({ version, analysis_level: analysisLevel, entries: Object.freeze(entries) });
 }
 
-/**
- * Resolve a raw geography string to a canonical geography ID.
- * Matches by: exact ID (case-insensitive), name, FIPS code.
- * Returns null if no match — never guesses.
- */
+function derivedStatePostalAlias(record) {
+  if (record.level !== 'state') return null;
+  const id = normalizeGeographyId(record.jurisdiction_id);
+  const match = /^US_([A-Z]{2})$/.exec(id);
+  return match?.[1] ?? null;
+}
+
 export function resolveGeography(rawValue, records) {
-  if (!rawValue) return null;
   const normalized = normalizeGeographyId(rawValue);
-
-  // Exact jurisdiction_id match (uppercase)
-  const byId = records.find((r) => normalizeGeographyId(r.jurisdiction_id) === normalized);
-  if (byId) return normalizeGeographyId(byId.jurisdiction_id);
-
-  // Name match (case-insensitive)
-  const byName = records.find((r) => r.name && r.name.toUpperCase() === normalized);
-  if (byName) return normalizeGeographyId(byName.jurisdiction_id);
-
-  // FIPS code match
-  const byFips = records.find((r) => r.fips_code && r.fips_code === rawValue.trim());
-  if (byFips) return normalizeGeographyId(byFips.jurisdiction_id);
-
+  if (!normalized) return null;
+  for (const record of records) {
+    const id = normalizeGeographyId(record.jurisdiction_id);
+    if (id === normalized) return id;
+    if (normalizeGeographyId(record.name) === normalized) return id;
+    if (record.fips_code && String(record.fips_code) === String(rawValue).trim()) return id;
+    if (derivedStatePostalAlias(record) === normalized) return id;
+  }
   return null;
 }
 
-/**
- * Build the adjacency map from provenance records.
- * Keys are normalized (uppercase) geography IDs.
- */
 export function buildAdjacencyMap(records) {
-  const map = {};
-  for (const record of records) {
-    const id = normalizeGeographyId(record.jurisdiction_id);
-    map[id] = (record.adjacent_to || []).map(normalizeGeographyId).sort();
-  }
-  return map;
+  return Object.fromEntries(records
+    .map((record) => [
+      normalizeGeographyId(record.jurisdiction_id),
+      (record.adjacent_to ?? []).map(normalizeGeographyId).sort(),
+    ])
+    .sort(([left], [right]) => left.localeCompare(right)));
 }
