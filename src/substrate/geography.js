@@ -1,128 +1,95 @@
 /**
- * Atlas Deterministic Geography Registry
+ * ATLAS GEOGRAPHY AUTHORITY v2.1.0
  *
- * Versioned, source-identified geographic normalization. Each geography
- * record carries its source identity, effective period, area, centroid,
- * and adjacency. No placeholder assumptions — missing data is null.
+ * Atlas is the canonical geography authority. Lighthouse consumes Atlas geography receipts.
  *
- * Platform rule: Same geography version + same input → same normalized output.
+ * The geography registry is a versioned, immutable snapshot of geography entries.
+ * The registry hash includes: source IDs, effective dates, areas, centroids,
+ * hierarchy, and adjacency — canonicalized and hashed via canonical.js.
+ *
+ * Runtime format (Math Engine v2.1):
+ *   GeographyRegistry { version: string, entries: GeographyEntry[] }
+ *   GeographyEntry { id: string, area_sq_km: number, centroid_lat: number|null, centroid_lon: number|null, adjacency: string[] }
+ *
+ * Provenance format (full, persisted):
+ *   Includes source_id, source_record_id, name, level, fips_code,
+ *   parent_jurisdiction_id, effective_from, effective_to, adjacent_to.
+ *
+ * Geography IDs are uppercase strings (e.g., "US_WA", "US_WA_KING").
  */
 
-import { createHash } from 'node:crypto';
-
-const GEOGRAPHY_REGISTRY_VERSION = '1.0.0';
+import { sha256 } from './canonical.js';
 
 /**
- * Validate a single geography record. Returns { valid, errors }.
- * Rejects negative areas, duplicate IDs, zero-weight entries, and
- * missing required fields.
+ * Normalize a geography ID to canonical form: trimmed uppercase.
+ * Matches Math Engine v2.1 normalizeGeographyId.
+ */
+export function normalizeGeographyId(value) {
+  if (value === null || value === undefined) return null;
+  return String(value).trim().toUpperCase();
+}
+
+/**
+ * Validate a single geography record (provenance format).
+ * Returns { valid, errors }.
  */
 export function validateGeographyRecord(record) {
   const errors = [];
-
-  if (!record.jurisdiction_id || typeof record.jurisdiction_id !== 'string') {
-    errors.push('missing or invalid jurisdiction_id');
-  }
-  if (!record.source_id || typeof record.source_id !== 'string') {
-    errors.push('missing source_id');
-  }
-  if (!record.source_record_id || typeof record.source_record_id !== 'string') {
-    errors.push('missing source_record_id');
-  }
-  if (!record.name || typeof record.name !== 'string') {
-    errors.push('missing name');
-  }
-  if (!record.level || typeof record.level !== 'string') {
-    errors.push('missing level (state, county, city, tract)');
-  }
-  if (!record.effective_from) {
-    errors.push('missing effective_from');
-  }
-
-  // Area validation: must be positive if present
+  if (!record.jurisdiction_id) errors.push('missing jurisdiction_id');
+  if (!record.source_id) errors.push('missing source_id');
+  if (!record.source_record_id) errors.push('missing source_record_id');
+  if (!record.name) errors.push('missing name');
+  if (!record.level) errors.push('missing level');
+  if (!record.effective_from) errors.push('missing effective_from');
   if (record.area_sq_km !== null && record.area_sq_km !== undefined) {
     if (typeof record.area_sq_km !== 'number' || record.area_sq_km < 0) {
-      errors.push('area_sq_km must be a non-negative number');
+      errors.push('area_sq_km must be non-negative');
     }
     if (record.area_sq_km === 0) {
       errors.push('area_sq_km is zero — likely invalid');
     }
   }
-
-  // Centroid validation
   if (record.centroid_lat !== null && record.centroid_lat !== undefined) {
-    if (typeof record.centroid_lat !== 'number' || record.centroid_lat < -90 || record.centroid_lat > 90) {
-      errors.push('centroid_lat must be between -90 and 90');
-    }
+    if (record.centroid_lat < -90 || record.centroid_lat > 90) errors.push('centroid_lat out of range');
   }
   if (record.centroid_lon !== null && record.centroid_lon !== undefined) {
-    if (typeof record.centroid_lon !== 'number' || record.centroid_lon < -180 || record.centroid_lon > 180) {
-      errors.push('centroid_lon must be between -180 and 180');
-    }
+    if (record.centroid_lon < -180 || record.centroid_lon > 180) errors.push('centroid_lon out of range');
   }
-
-  // FIPS validation for US jurisdictions
-  if (record.fips_code !== null && record.fips_code !== undefined) {
-    if (typeof record.fips_code !== 'string' || !/^\d{2,5}$/.test(record.fips_code)) {
-      errors.push('fips_code must be 2-5 digit string');
-    }
-  }
-
   return { valid: errors.length === 0, errors };
 }
 
 /**
- * Validate a complete geography registry. Checks for duplicates,
- * negative areas, and missing data.
+ * Validate a full geography registry (provenance format).
+ * Checks for duplicates and validates each record.
  */
 export function validateGeographyRegistry(records) {
   const errors = [];
-  const seenIds = new Set();
-  const seenSourceRecords = new Set();
-
-  for (let i = 0; i < records.length; i++) {
-    const record = records[i];
-    const recordValidation = validateGeographyRecord(record);
-
-    if (!recordValidation.valid) {
-      errors.push({ index: i, jurisdiction_id: record.jurisdiction_id, errors: recordValidation.errors });
+  const seen = new Set();
+  for (const record of records) {
+    if (seen.has(record.jurisdiction_id)) {
+      errors.push({ jurisdiction_id: record.jurisdiction_id, errors: ['duplicate jurisdiction_id'] });
     }
-
-    // Duplicate jurisdiction_id check
-    if (record.jurisdiction_id) {
-      if (seenIds.has(record.jurisdiction_id)) {
-        errors.push({ index: i, jurisdiction_id: record.jurisdiction_id, errors: ['duplicate jurisdiction_id'] });
-      }
-      seenIds.add(record.jurisdiction_id);
-    }
-
-    // Duplicate source_record_id check
-    const sourceKey = `${record.source_id}:${record.source_record_id}`;
-    if (record.source_record_id) {
-      if (seenSourceRecords.has(sourceKey)) {
-        errors.push({ index: i, jurisdiction_id: record.jurisdiction_id, errors: ['duplicate source_record_id'] });
-      }
-      seenSourceRecords.add(sourceKey);
+    seen.add(record.jurisdiction_id);
+    const result = validateGeographyRecord(record);
+    if (!result.valid) {
+      errors.push({ jurisdiction_id: record.jurisdiction_id, errors: result.errors });
     }
   }
-
-  return {
-    valid: errors.length === 0,
-    total_records: records.length,
-    errors,
-  };
+  return { valid: errors.length === 0, errors };
 }
 
 /**
- * Compute the deterministic registry hash for a set of geography records.
- * Records are sorted by jurisdiction_id to ensure stability.
+ * Compute the immutable registry hash from provenance records.
+ * Includes ALL provenance fields: source IDs, effective dates, areas, centroids,
+ * hierarchy, and adjacency. Canonical JSON sorted by jurisdiction_id.
+ *
+ * This hash IS the registry version identity.
  */
 export function computeRegistryHash(records) {
   const sorted = [...records].sort((a, b) =>
-    (a.jurisdiction_id || '').localeCompare(b.jurisdiction_id || ''),
+    a.jurisdiction_id.localeCompare(b.jurisdiction_id),
   );
-
-  const canonical = sorted.map((r) => ({
+  const payload = sorted.map((r) => ({
     jurisdiction_id: r.jurisdiction_id,
     source_id: r.source_id,
     source_record_id: r.source_record_id,
@@ -130,110 +97,68 @@ export function computeRegistryHash(records) {
     level: r.level,
     fips_code: r.fips_code || null,
     parent_jurisdiction_id: r.parent_jurisdiction_id || null,
-    area_sq_km: r.area_sq_km ?? null,
+    area_sq_km: r.area_sq_km || null,
     centroid_lat: r.centroid_lat ?? null,
     centroid_lon: r.centroid_lon ?? null,
     effective_from: r.effective_from,
     effective_to: r.effective_to || null,
+    adjacent_to: [...(r.adjacent_to || [])].sort(),
   }));
-
-  const hash = createHash('sha256')
-    .update(JSON.stringify(canonical))
-    .digest('hex');
-
-  return {
-    registry_version: GEOGRAPHY_REGISTRY_VERSION,
-    record_count: sorted.length,
-    hash,
-    computed_at: new Date().toISOString(),
-  };
+  return sha256(payload);
 }
 
 /**
- * Normalize a geographic input to its canonical jurisdiction_id.
+ * Transform provenance records into Math Engine v2.1 runtime format.
+ * Geography IDs are normalized to uppercase.
+ */
+export function toRuntimeRegistry(records, version) {
+  if (!version) throw new Error('geography registry version is required');
+  const entries = records.map((r) => ({
+    id: normalizeGeographyId(r.jurisdiction_id),
+    area_sq_km: r.area_sq_km,
+    centroid_lat: r.centroid_lat ?? null,
+    centroid_lon: r.centroid_lon ?? null,
+    adjacency: (r.adjacent_to || []).map(normalizeGeographyId).sort(),
+  }));
+  return Object.freeze({
+    version,
+    entries: Object.freeze(entries.sort((a, b) => a.id.localeCompare(b.id))),
+  });
+}
+
+/**
+ * Resolve a raw geography string to a canonical geography ID.
+ * Matches by: exact ID (case-insensitive), name, FIPS code.
  * Returns null if no match — never guesses.
  */
-export function normalizeGeography(input, registry) {
-  if (!input || typeof input !== 'string') return null;
-  const normalized = input.trim().toLowerCase();
-  if (!normalized) return null;
+export function resolveGeography(rawValue, records) {
+  if (!rawValue) return null;
+  const normalized = normalizeGeographyId(rawValue);
 
-  // Exact jurisdiction_id match
-  const exactById = registry.find(
-    (r) => r.jurisdiction_id.toLowerCase() === normalized,
-  );
-  if (exactById) return exactById.jurisdiction_id;
+  // Exact jurisdiction_id match (uppercase)
+  const byId = records.find((r) => normalizeGeographyId(r.jurisdiction_id) === normalized);
+  if (byId) return normalizeGeographyId(byId.jurisdiction_id);
 
-  // Exact name match
-  const exactByName = registry.find(
-    (r) => r.name.toLowerCase() === normalized,
-  );
-  if (exactByName) return exactByName.jurisdiction_id;
+  // Name match (case-insensitive)
+  const byName = records.find((r) => r.name && r.name.toUpperCase() === normalized);
+  if (byName) return normalizeGeographyId(byName.jurisdiction_id);
 
   // FIPS code match
-  const byFips = registry.find(
-    (r) => r.fips_code && r.fips_code === input.trim(),
-  );
-  if (byFips) return byFips.jurisdiction_id;
+  const byFips = records.find((r) => r.fips_code && r.fips_code === rawValue.trim());
+  if (byFips) return normalizeGeographyId(byFips.jurisdiction_id);
 
-  // No match — return null, never guess
   return null;
 }
 
 /**
- * Build adjacency map from explicit adjacency data.
- * Only includes adjacencies that are explicitly declared — never inferred.
+ * Build the adjacency map from provenance records.
+ * Keys are normalized (uppercase) geography IDs.
  */
 export function buildAdjacencyMap(records) {
-  const map = new Map();
-
+  const map = {};
   for (const record of records) {
-    if (!record.adjacent_to || !Array.isArray(record.adjacent_to)) continue;
-    const existing = map.get(record.jurisdiction_id) || new Set();
-    for (const adj of record.adjacent_to) {
-      existing.add(adj);
-    }
-    map.set(record.jurisdiction_id, existing);
+    const id = normalizeGeographyId(record.jurisdiction_id);
+    map[id] = (record.adjacent_to || []).map(normalizeGeographyId).sort();
   }
-
-  // Convert sets to sorted arrays for determinism
-  const result = {};
-  for (const [key, value] of map.entries()) {
-    result[key] = [...value].sort();
-  }
-  return result;
+  return map;
 }
-
-/**
- * Create a versioned geography registry snapshot.
- */
-export function createGeographyRegistry(records, metadata = {}) {
-  const validation = validateGeographyRegistry(records);
-  if (!validation.valid) {
-    return {
-      status: 'invalid',
-      validation,
-      registry: null,
-    };
-  }
-
-  const registryHash = computeRegistryHash(records);
-  const adjacency = buildAdjacencyMap(records);
-
-  return {
-    status: 'valid',
-    validation,
-    registry: {
-      version: GEOGRAPHY_REGISTRY_VERSION,
-      source_id: metadata.source_id || null,
-      source_version: metadata.source_version || null,
-      loaded_at: new Date().toISOString(),
-      record_count: records.length,
-      hash: registryHash.hash,
-      records,
-      adjacency,
-    },
-  };
-}
-
-export { GEOGRAPHY_REGISTRY_VERSION };

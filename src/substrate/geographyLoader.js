@@ -1,10 +1,12 @@
 /**
- * Atlas Geography Loader
+ * ATLAS GEOGRAPHY LOADER v2.1.0
  *
- * Loads, validates, and activates geography registries from authoritative
- * data files. Designed so any jurisdiction can be loaded without schema changes.
+ * Loads, validates, and transforms geography data files into:
+ * 1. Provenance format (full source identity, persisted to DB)
+ * 2. Runtime format (Math Engine v2.1 GeographyRegistry, used in computation)
  *
  * Washington is the bounded acceptance slice — not the completed national substrate.
+ * No wall-clock injection. No mutable state.
  */
 
 import { readFileSync } from 'node:fs';
@@ -13,35 +15,36 @@ import { fileURLToPath } from 'node:url';
 import {
   validateGeographyRegistry,
   computeRegistryHash,
-  createGeographyRegistry,
+  toRuntimeRegistry,
   buildAdjacencyMap,
+  resolveGeography,
 } from './geography.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = resolve(__dirname, '..', 'data');
 
 /**
- * Load a geography registry from a JSON file.
- * Validates all records before returning.
+ * Load a geography data file. Returns raw parsed JSON.
  */
 export function loadGeographyFile(filename) {
   const filepath = resolve(DATA_DIR, filename);
   const raw = readFileSync(filepath, 'utf-8');
   const data = JSON.parse(raw);
-
   if (!data.records || !Array.isArray(data.records)) {
     throw new Error(`Geography file ${filename} has no records array`);
   }
   if (!data.source_id) {
     throw new Error(`Geography file ${filename} has no source_id`);
   }
-
   return data;
 }
 
 /**
- * Load and validate the Washington State geography registry.
- * Returns the complete validated registry with hash.
+ * Load and validate the Washington State geography.
+ * Returns both provenance and runtime formats.
+ *
+ * The registry_hash is the immutable version identity computed from
+ * ALL provenance fields (source IDs, effective dates, areas, centroids, adjacency).
  */
 export function loadWashingtonGeography() {
   const data = loadGeographyFile('washington_geography.json');
@@ -55,25 +58,30 @@ export function loadWashingtonGeography() {
     throw new Error(`Washington geography validation failed: ${errorSummary}`);
   }
 
-  // Compute registry hash
+  // Compute the immutable registry hash (includes all provenance fields)
   const registryHash = computeRegistryHash(data.records);
+
+  // Build runtime format for Math Engine v2.1 computations
+  const runtime = toRuntimeRegistry(data.records, registryHash);
 
   // Build adjacency map
   const adjacency = buildAdjacencyMap(data.records);
 
-  return {
+  return Object.freeze({
     status: 'valid',
     jurisdiction: data.jurisdiction || 'us_wa',
     source_id: data.source_id,
     source_version: data.source_version,
     source_url: data.source_url,
-    registry_version: data.registry_version,
     record_count: data.records.length,
-    hash: registryHash.hash,
+    registry_hash: registryHash,
+    // Provenance records (full source identity, for DB persistence)
     records: data.records,
+    // Runtime registry (Math Engine v2.1 format, for computation)
+    runtime,
+    // Adjacency map (uppercase IDs)
     adjacency,
-    loaded_at: new Date().toISOString(),
-  };
+  });
 }
 
 /**
@@ -83,7 +91,6 @@ export function loadWashingtonGeography() {
 export function loadGeographyByJurisdiction(jurisdictionId) {
   const fileMap = {
     us_wa: 'washington_geography.json',
-    // Future jurisdictions added here without schema changes
   };
 
   const filename = fileMap[jurisdictionId];
@@ -92,13 +99,7 @@ export function loadGeographyByJurisdiction(jurisdictionId) {
   if (jurisdictionId === 'us_wa') {
     return loadWashingtonGeography();
   }
-
-  // Generic loader for future jurisdictions
-  const data = loadGeographyFile(filename);
-  return createGeographyRegistry(data.records, {
-    source_id: data.source_id,
-    source_version: data.source_version,
-  });
+  return null;
 }
 
 /**
@@ -113,6 +114,7 @@ export function listAvailableJurisdictions() {
       source: 'census_tiger_2024',
       file: 'washington_geography.json',
     },
-    // Future jurisdictions added here
   ];
 }
+
+export { resolveGeography };
