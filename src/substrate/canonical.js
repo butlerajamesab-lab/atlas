@@ -2,18 +2,30 @@ import { createHash } from 'node:crypto';
 
 export const ENGINE_VERSION = '2.1.0';
 
-export function canonicalJson(value) {
-  if (value === undefined) throw new Error('canonical JSON does not permit undefined');
+function canonicalPathKey(path, key) {
+  return `${path}.${JSON.stringify(key)}`;
+}
+
+function canonicalJsonAt(value, path) {
+  if (value === undefined) {
+    throw new Error(`canonical JSON does not permit undefined at ${path}`);
+  }
   if (value === null) return 'null';
   if (typeof value === 'number' && !Number.isFinite(value)) {
-    throw new Error('canonical JSON does not permit non-finite numbers');
+    throw new Error(`canonical JSON does not permit non-finite numbers at ${path}`);
   }
   if (typeof value !== 'object') return JSON.stringify(value);
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
+  if (Array.isArray(value)) {
+    return `[${value.map((entry, index) => canonicalJsonAt(entry, `${path}[${index}]`)).join(',')}]`;
+  }
   return `{${Object.keys(value)
     .sort()
-    .map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`)
+    .map((key) => `${JSON.stringify(key)}:${canonicalJsonAt(value[key], canonicalPathKey(path, key))}`)
     .join(',')}}`;
+}
+
+export function canonicalJson(value) {
+  return canonicalJsonAt(value, '$');
 }
 
 export function sha256(value) {
