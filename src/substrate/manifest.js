@@ -16,9 +16,39 @@ import { canonicalJson, sha256, ENGINE_VERSION } from './canonical.js';
 
 const MANIFEST_VERSION = '2.1.0';
 
+function appendDomainSpaceIdentity(manifest, domainSpace) {
+  const fields = [
+    'space_type',
+    'space_rule_id',
+    'space_rule_version',
+    'space_definition_hash',
+    'space_configuration_hash',
+    'coordinate_population_hash',
+  ];
+  const supplied = fields.filter((field) => domainSpace[field] !== null && domainSpace[field] !== undefined);
+  if (supplied.length === 0) return manifest;
+  if (supplied.length !== fields.length) {
+    throw new Error('manifest domain_space identity must be complete when supplied');
+  }
+  for (const field of fields) {
+    if (typeof domainSpace[field] !== 'string' || domainSpace[field].trim() === '') {
+      throw new Error(`manifest domain_space ${field} is required`);
+    }
+  }
+  return {
+    ...manifest,
+    domain_space: Object.freeze(Object.fromEntries(fields.map((field) => [field, domainSpace[field]]))),
+  };
+}
+
 /**
  * Create an immutable input manifest for a governed computation.
  * All fields are explicit — no defaults, no wall-clock injection.
+ *
+ * Domain-space identity is optional for backward compatibility. When it is
+ * omitted, the manifest object is byte-for-byte structurally identical to the
+ * pre-domain-space v2.1 manifest. When any domain-space field is supplied, all
+ * identity fields are required and become part of the manifest hash.
  */
 export function createInputManifest({
   computation_type,
@@ -34,6 +64,12 @@ export function createInputManifest({
   geography_registry_hash = null,
   signal_count,
   deduplicated_count = null,
+  space_type = null,
+  space_rule_id = null,
+  space_rule_version = null,
+  space_definition_hash = null,
+  space_configuration_hash = null,
+  coordinate_population_hash = null,
 }) {
   if (!computation_type) throw new Error('manifest requires computation_type');
   if (!as_of && as_of !== 0) throw new Error('manifest requires explicit as_of');
@@ -43,7 +79,7 @@ export function createInputManifest({
     throw new Error('manifest requires non-negative integer signal_count');
   }
 
-  return Object.freeze({
+  const legacyManifest = {
     manifest_version: MANIFEST_VERSION,
     computation_type,
     engine_version,
@@ -58,7 +94,16 @@ export function createInputManifest({
     geography_registry_hash,
     signal_count,
     deduplicated_count,
-  });
+  };
+
+  return Object.freeze(appendDomainSpaceIdentity(legacyManifest, {
+    space_type,
+    space_rule_id,
+    space_rule_version,
+    space_definition_hash,
+    space_configuration_hash,
+    coordinate_population_hash,
+  }));
 }
 
 /**
