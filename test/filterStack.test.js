@@ -1,12 +1,23 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { sha256 } from '../src/substrate/canonical.js';
+import { createInputManifest } from '../src/substrate/manifest.js';
 import {
   DEFAULT_HARDENED_FILTERS,
   FILTER_REGISTRY_VERSION,
   listAtlasFilters,
   resolveAtlasFilterStack,
 } from '../src/filters/filterStack.js';
+
+const manifestBase = Object.freeze({
+  computation_type: 'filter_stack_fixture',
+  rule_manifest_hash: 'a'.repeat(64),
+  as_of: 1_785_542_400_000,
+  configuration: { fixture: true },
+  source_population_hash: 'b'.repeat(64),
+  signal_count: 2,
+});
 
 test('registry is deterministic and Atlas-owned hardened filters are explicit', () => {
   assert.deepEqual(listAtlasFilters(), listAtlasFilters());
@@ -101,4 +112,23 @@ test('filter receipt preserves requested and effective context separately', () =
   assert.equal(result.trace.requested_filters.length, 1);
   assert.ok(result.trace.effective_filters.length > result.trace.requested_filters.length);
   assert.notEqual(result.effective_filter_hash, result.receipt_identity);
+});
+
+test('filter stack receipt identity is bound into governed manifest hash only when supplied', () => {
+  const stack = resolveAtlasFilterStack({ requested_filters: ['signal_type_scope'] });
+  const legacy = createInputManifest(manifestBase);
+  const governed = createInputManifest({
+    ...manifestBase,
+    filter_stack_receipt_identity: stack.receipt_identity,
+  });
+  assert.equal(Object.hasOwn(legacy, 'filter_stack_receipt_identity'), false);
+  assert.equal(governed.filter_stack_receipt_identity, stack.receipt_identity);
+  assert.notEqual(sha256(legacy), sha256(governed));
+});
+
+test('invalid filter stack manifest identity fails closed', () => {
+  assert.throws(() => createInputManifest({
+    ...manifestBase,
+    filter_stack_receipt_identity: 'not-a-hash',
+  }), /filter_stack_receipt_identity/);
 });
