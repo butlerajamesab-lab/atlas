@@ -41,14 +41,24 @@ function appendDomainSpaceIdentity(manifest, domainSpace) {
   };
 }
 
+function appendFilterStackIdentity(manifest, filterStackReceiptIdentity) {
+  if (filterStackReceiptIdentity === null || filterStackReceiptIdentity === undefined) return manifest;
+  if (typeof filterStackReceiptIdentity !== 'string'
+    || !/^[0-9a-f]{64}$/.test(filterStackReceiptIdentity)) {
+    throw new Error('manifest filter_stack_receipt_identity must be a 64-character lowercase sha256');
+  }
+  return {
+    ...manifest,
+    filter_stack_receipt_identity: filterStackReceiptIdentity,
+  };
+}
+
 /**
  * Create an immutable input manifest for a governed computation.
  * All fields are explicit — no defaults, no wall-clock injection.
  *
- * Domain-space identity is optional for backward compatibility. When it is
- * omitted, the manifest object is byte-for-byte structurally identical to the
- * pre-domain-space v2.1 manifest. When any domain-space field is supplied, all
- * identity fields are required and become part of the manifest hash.
+ * Domain-space and filter-stack identities are optional for backward
+ * compatibility. When omitted, the legacy v2.1 object shape is unchanged.
  */
 export function createInputManifest({
   computation_type,
@@ -70,6 +80,7 @@ export function createInputManifest({
   space_definition_hash = null,
   space_configuration_hash = null,
   coordinate_population_hash = null,
+  filter_stack_receipt_identity = null,
 }) {
   if (!computation_type) throw new Error('manifest requires computation_type');
   if (!as_of && as_of !== 0) throw new Error('manifest requires explicit as_of');
@@ -96,14 +107,15 @@ export function createInputManifest({
     deduplicated_count,
   };
 
-  return Object.freeze(appendDomainSpaceIdentity(legacyManifest, {
+  const withDomainSpace = appendDomainSpaceIdentity(legacyManifest, {
     space_type,
     space_rule_id,
     space_rule_version,
     space_definition_hash,
     space_configuration_hash,
     coordinate_population_hash,
-  }));
+  });
+  return Object.freeze(appendFilterStackIdentity(withDomainSpace, filter_stack_receipt_identity));
 }
 
 /**
