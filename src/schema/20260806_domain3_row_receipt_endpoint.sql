@@ -1,7 +1,10 @@
--- Route the governed Domain 3 transport through Lighthouse's scoped,
--- row-shaped PostgREST receipt. The canonical registration function remains
--- Lighthouse-owned. The broad historical project key is used only as the
--- Supabase gateway apikey; a separate exact token authorizes this one RPC.
+-- Route the governed Domain 3 transport through Lighthouse's bounded Render
+-- endpoint, which writes through Lighthouse's existing PostgreSQL pool.
+--
+-- Lighthouse's Supabase project has a verified PostgREST zero-row boundary:
+-- authenticated row reads return [] and RPC bodies return null/[] while direct
+-- PostgreSQL returns the authoritative result. This migration replaces only
+-- that transport hop. Canonical registration remains Lighthouse-owned.
 
 begin;
 
@@ -19,7 +22,6 @@ declare
   v_candidate record;
   v_response extensions.http_response;
   v_body jsonb;
-  v_nested jsonb;
   v_lighthouse_record_id uuid;
   v_record jsonb;
   v_bridged integer := 0;
@@ -35,7 +37,6 @@ begin
 
   select
     config.target_url,
-    config.target_service_key,
     config.enabled,
     config.config_json->>'domain3_receipt_token' as domain3_receipt_token
   into v_config
@@ -47,9 +48,8 @@ begin
     raise exception 'Atlas-to-Lighthouse bridge configuration is unavailable or disabled';
   end if;
 
-  if coalesce(v_config.target_url, '') = ''
-     or coalesce(v_config.target_service_key, '') = '' then
-    raise exception 'Atlas-to-Lighthouse bridge gateway configuration is incomplete';
+  if coalesce(v_config.target_url, '') = '' then
+    raise exception 'Atlas-to-Lighthouse target URL is missing';
   end if;
 
   if coalesce(length(v_config.domain3_receipt_token), 0) < 32 then
@@ -66,7 +66,6 @@ begin
     v_seen := v_seen + 1;
     v_lighthouse_record_id := null;
     v_body := null;
-    v_nested := null;
 
     v_record := jsonb_build_object(
       'signal_type', v_candidate.signal_type,
@@ -96,18 +95,16 @@ begin
       into v_response
       from extensions.http((
         'POST',
-        rtrim(v_config.target_url, '/') ||
-          '/rest/v1/rpc/register_live_data_signal_transport_receipt_v2',
+        rtrim(v_config.target_url, '/') || '/api/atlas-domain3/receipt',
         array[
-          extensions.http_header('apikey', v_config.target_service_key),
-          extensions.http_header('Content-Type', 'application/json'),
+          extensions.http_header(
+            'x-atlas-domain3-token',
+            v_config.domain3_receipt_token
+          ),
           extensions.http_header('Accept', 'application/json')
         ],
         'application/json',
-        jsonb_build_object(
-          'p_record', v_record,
-          'p_bridge_token', v_config.domain3_receipt_token
-        )::text
+        v_record::text
       )::extensions.http_request);
 
       if v_response.status < 200 or v_response.status >= 300 then
@@ -121,39 +118,16 @@ begin
       end if;
 
       v_body := v_response.content::jsonb;
-
-      if jsonb_typeof(v_body) = 'object' then
-        v_lighthouse_record_id := nullif(
-          coalesce(
-            v_body->>'live_data_signal_id',
-            v_body->>'register_live_data_signal_transport_receipt_v2'
-          ),
-          ''
-        )::uuid;
-      elsif jsonb_typeof(v_body) = 'array' then
-        v_lighthouse_record_id := nullif(
-          coalesce(
-            v_body#>>'{0,live_data_signal_id}',
-            v_body#>>'{0,register_live_data_signal_transport_receipt_v2}'
-          ),
-          ''
-        )::uuid;
-      elsif jsonb_typeof(v_body) = 'string' then
-        begin
-          v_nested := (v_body #>> '{}')::jsonb;
-          if jsonb_typeof(v_nested) = 'object' then
-            v_lighthouse_record_id := nullif(
-              coalesce(
-                v_nested->>'live_data_signal_id',
-                v_nested->>'register_live_data_signal_transport_receipt_v2'
-              ),
-              ''
-            )::uuid;
-          end if;
-        exception when others then
-          v_lighthouse_record_id := nullif(v_body #>> '{}', '')::uuid;
-        end;
+      if jsonb_typeof(v_body) <> 'object'
+         or coalesce((v_body->>'ok')::boolean, false) is not true then
+        raise exception 'Lighthouse registration returned a malformed receipt: %',
+          left(v_response.content, 1000);
       end if;
+
+      v_lighthouse_record_id := nullif(
+        v_body->>'live_data_signal_id',
+        ''
+      )::uuid;
 
       if v_lighthouse_record_id is null then
         raise exception 'Lighthouse registration receipt contains no live_data_signal_id: %',
@@ -178,6 +152,8 @@ begin
         'candidate_id', v_candidate.candidate_id,
         'candidate_hash', v_candidate.candidate_hash,
         'lighthouse_record_id', v_lighthouse_record_id,
+        'signal_hash', v_body->>'signal_hash',
+        'governance_status', v_body->>'governance_status',
         'status', case
           when v_candidate.lighthouse_status = 'bridged'
            and v_candidate.lighthouse_record_id = v_lighthouse_record_id
@@ -210,7 +186,7 @@ begin
     'bridged', v_bridged,
     'idempotent', v_idempotent,
     'failed', v_failed,
-    'transport', 'atlas_scoped_domain3_receipt_v2',
+    'transport', 'atlas_lighthouse_direct_postgres_receipt_v1',
     'target_project', 'lighthouse',
     'completed_at', clock_timestamp(),
     'receipts', v_receipts
@@ -224,6 +200,6 @@ grant execute on function public.bridge_live_data_signal_candidates_v1(uuid, int
   to service_role;
 
 comment on function public.bridge_live_data_signal_candidates_v1(uuid, integer) is
-  'Atlas-owned synchronous Domain 3 transport. Supabase gateway access uses the configured apikey, and one separately scoped token authorizes the Lighthouse write receipt.';
+  'Atlas-owned synchronous Domain 3 transport through the bounded Lighthouse Render route and Lighthouse direct PostgreSQL registration boundary. Canonical signal ownership remains in Lighthouse.';
 
 commit;
