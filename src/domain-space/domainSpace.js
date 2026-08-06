@@ -1,7 +1,7 @@
 import { sha256 } from '../substrate/canonical.js';
 import { haversineDistance } from '../substrate/convergence.js';
 
-export const DOMAIN_SPACE_CONTRACT_VERSION = '0.1.0';
+export const DOMAIN_SPACE_CONTRACT_VERSION = '0.2.0';
 
 export const DOMAIN_SPACE_TYPES = Object.freeze([
   'geographic',
@@ -62,6 +62,26 @@ function validateNodeCoordinate(coordinate, label) {
   if (typeof coordinate.node_id !== 'string' || coordinate.node_id.trim() === '') {
     throw new Error(`domain_space_coordinate_invalid:${label}.node_id`);
   }
+}
+
+function validateVectorCoordinate(coordinate, label, dimensionCount) {
+  assertPlainObject(coordinate, label);
+  if (!Array.isArray(coordinate.vector) || coordinate.vector.length !== dimensionCount) {
+    throw new Error(`domain_space_coordinate_invalid:${label}.vector_length`);
+  }
+  for (let index = 0; index < coordinate.vector.length; index += 1) {
+    if (!Number.isFinite(coordinate.vector[index])) {
+      throw new Error(`domain_space_coordinate_invalid:${label}.vector[${index}]`);
+    }
+  }
+}
+
+function euclideanDistance(left, right) {
+  let squared = 0;
+  for (let index = 0; index < left.length; index += 1) {
+    squared += (left[index] - right[index]) ** 2;
+  }
+  return Math.sqrt(squared);
 }
 
 function normalizeAdjacency(adjacency) {
@@ -159,6 +179,31 @@ const RULES = Object.freeze({
         distance,
         distance_unit: 'hops',
         similarity: distance === null ? null : gaussianSimilarity(distance, configuration.sigma_hops),
+      };
+    },
+  }),
+  'atlas.vector.euclidean_gaussian': Object.freeze({
+    rule_version: '1.0.0',
+    allowed_space_types: Object.freeze(['registered_extension']),
+    score_range: Object.freeze([0, 1]),
+    validate_configuration(configuration) {
+      assertPlainObject(configuration, 'domain_space.configuration');
+      if (!Number.isSafeInteger(configuration.dimension_count) || configuration.dimension_count <= 0) {
+        throw new Error('domain_space_configuration_invalid:dimension_count');
+      }
+      assertPositiveFinite(configuration.sigma, 'domain_space.configuration.sigma');
+      if (Object.keys(configuration).sort().join(',') !== 'dimension_count,sigma') {
+        throw new Error('domain_space_configuration_invalid:vector');
+      }
+    },
+    compare(left, right, configuration) {
+      validateVectorCoordinate(left, 'left', configuration.dimension_count);
+      validateVectorCoordinate(right, 'right', configuration.dimension_count);
+      const distance = euclideanDistance(left.vector, right.vector);
+      return {
+        distance,
+        distance_unit: 'normalized_vector_units',
+        similarity: gaussianSimilarity(distance, configuration.sigma),
       };
     },
   }),
