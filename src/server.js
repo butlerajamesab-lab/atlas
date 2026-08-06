@@ -12,6 +12,7 @@ import { requireBearerToken } from './lib/serviceAuth.js';
 import { luminariStreamHealthManifest } from './services/streamHealthInvestigation.js';
 import { runConvergenceAcceptanceFromEnvironment } from './services/convergenceAcceptance.js';
 import { runCivicGenomeLegislativeProjectionFromEnvironment } from './services/civicGenomeLegislativeProjectionService.js';
+import { runCivicGenomeLegislativeTraitAccountingFromEnvironment } from './services/civicGenomeLegislativeTraitAccountingService.js';
 import {
   startScheduler,
   getSchedulerStatus,
@@ -66,6 +67,7 @@ app.get('/health', (_req, res) => {
     convergence_engine_version: '2.1.0',
     civic_genome_snapshot_intake: 'atlas.civic_genome_snapshot_delivery.v1',
     civic_genome_legislative_mapping: 'atlas.civic_genome_legislative_version_observation@1.0.0',
+    civic_genome_trait_accounting: 'atlas.civic_genome_legislative_trait_binding_accounting@1.0.0',
   });
 });
 
@@ -148,6 +150,18 @@ if (process.env.NODE_ENV !== 'test') {
       })
       .catch((error) => {
         console.error('[civic-genome-legislative-projection] failed', {
+          error_class: error instanceof Error ? error.name : 'unknown',
+          error_message: error instanceof Error ? error.message : String(error),
+        });
+      });
+
+    void runCivicGenomeLegislativeTraitAccountingFromEnvironment()
+      .then((receipt) => {
+        if (!receipt) return;
+        console.log('[civic-genome-trait-accounting] completed', receipt);
+      })
+      .catch((error) => {
+        console.error('[civic-genome-trait-accounting] failed', {
           error_class: error instanceof Error ? error.name : 'unknown',
           error_message: error instanceof Error ? error.message : String(error),
         });
