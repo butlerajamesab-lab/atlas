@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { sha256 } from '../src/substrate/canonical.js';
 import { spatialSimilarityHaversine } from '../src/substrate/convergence.js';
+import { createInputManifest } from '../src/substrate/manifest.js';
 import {
   DOMAIN_SPACE_CONTRACT_VERSION,
   compareDomainSpaceCoordinates,
@@ -28,6 +30,21 @@ const lineageDefinition = Object.freeze({
   transform_rule: null,
   rule_version: '1.0.0',
   configuration: { sigma_hops: 2, directed: true },
+});
+
+const manifestBase = Object.freeze({
+  computation_type: 'domain_space_fixture',
+  rule_manifest_hash: 'a'.repeat(64),
+  as_of: 1_785_542_400_000,
+  time_window_ms: null,
+  temporal_bucket_ms: null,
+  geography_registry_version: null,
+  configuration: { fixture: 'domain-space' },
+  source_population_hash: 'b'.repeat(64),
+  deduplicated_population_hash: 'c'.repeat(64),
+  geography_registry_hash: null,
+  signal_count: 2,
+  deduplicated_count: 2,
 });
 
 test('domain-space registry is deterministic and declares only deterministic rules', () => {
@@ -145,4 +162,49 @@ test('coordinate population hash is deterministic and order-sensitive by declare
   const c = [{ node_id: 'v2' }, { node_id: 'v1' }];
   assert.equal(hashDomainSpaceCoordinatePopulation(a), hashDomainSpaceCoordinatePopulation(b));
   assert.notEqual(hashDomainSpaceCoordinatePopulation(a), hashDomainSpaceCoordinatePopulation(c));
+});
+
+test('legacy manifests retain the exact pre-domain-space object shape when no space is supplied', () => {
+  const manifest = createInputManifest(manifestBase);
+  assert.equal(Object.hasOwn(manifest, 'domain_space'), false);
+  assert.deepEqual(Object.keys(manifest), [
+    'manifest_version',
+    'computation_type',
+    'engine_version',
+    'rule_manifest_hash',
+    'as_of',
+    'time_window_ms',
+    'temporal_bucket_ms',
+    'geography_registry_version',
+    'configuration',
+    'source_population_hash',
+    'deduplicated_population_hash',
+    'geography_registry_hash',
+    'signal_count',
+    'deduplicated_count',
+  ]);
+});
+
+test('domain-space identity is complete and changes the governed manifest hash', () => {
+  const normalized = normalizeDomainSpaceDefinition(lineageDefinition);
+  const coordinates = [{ node_id: 'introduced' }, { node_id: 'enrolled' }];
+  const legacy = createInputManifest(manifestBase);
+  const governed = createInputManifest({
+    ...manifestBase,
+    space_type: normalized.space_type,
+    space_rule_id: normalized.distance_or_similarity_rule,
+    space_rule_version: normalized.rule_version,
+    space_definition_hash: normalized.definition_hash,
+    space_configuration_hash: normalized.configuration_hash,
+    coordinate_population_hash: hashDomainSpaceCoordinatePopulation(coordinates),
+  });
+  assert.equal(governed.domain_space.space_type, 'document_lineage');
+  assert.notEqual(sha256(legacy), sha256(governed));
+});
+
+test('partial domain-space manifest identity fails closed', () => {
+  assert.throws(() => createInputManifest({
+    ...manifestBase,
+    space_type: 'document_lineage',
+  }), /domain_space identity must be complete/);
 });
