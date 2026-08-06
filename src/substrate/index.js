@@ -75,6 +75,18 @@ export {
   hashDomainSpaceCoordinatePopulation,
 } from '../domain-space/domainSpace.js';
 
+// Deterministic computation-context filter stack. Hardened Atlas integrity
+// filters cannot be removed by requested exploratory scope.
+export {
+  FILTER_STACK_CONTRACT_VERSION,
+  FILTER_REGISTRY_VERSION,
+  FILTER_PERMISSION_LEVELS,
+  FILTER_CATEGORIES,
+  DEFAULT_HARDENED_FILTERS,
+  listAtlasFilters,
+  resolveAtlasFilterStack,
+} from '../filters/filterStack.js';
+
 // Immutable manifests and receipts
 export {
   createInputManifest,
