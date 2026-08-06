@@ -46,6 +46,14 @@ function normalizeWeight(value, lensId) {
   return value;
 }
 
+function normalizeBoundedScore(value) {
+  const normalized = Number(value.toFixed(15));
+  if (!Number.isFinite(normalized) || normalized < 0 || normalized > 1) {
+    throw new Error('structural_lens_blended_score_out_of_range');
+  }
+  return normalized;
+}
+
 function normalizeActivation(entry) {
   assertPlainObject(entry, 'structural_lens_activation');
   const lens_id = typeof entry.lens_id === 'string' ? entry.lens_id.trim() : '';
@@ -148,11 +156,8 @@ export function resolveStructuralLensStack({
   const notObserved = resolved.filter((entry) => entry.status === 'not_observed');
   const stack_status = unresolved.length > 0 ? 'incomplete' : 'complete';
   const blended_score = stack_status === 'complete'
-    ? resolved.reduce((total, entry) => total + (entry.weight * entry.score), 0)
+    ? normalizeBoundedScore(resolved.reduce((total, entry) => total + (entry.weight * entry.score), 0))
     : null;
-  if (blended_score !== null && (blended_score < 0 || blended_score > 1)) {
-    throw new Error('structural_lens_blended_score_out_of_range');
-  }
 
   const receiptPayload = {
     contract_version: STRUCTURAL_LENS_CONTRACT_VERSION,
