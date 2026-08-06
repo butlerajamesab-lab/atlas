@@ -47,13 +47,14 @@ Cross-module proof artifacts demonstrate the same invariant runtime across radic
 | Deterministic fingerprinting | PRESENT | SHA-256 signal fingerprint | Preserve | P0 lock |
 | Temporal similarity/windows | PRESENT/PARTIAL | First-class temporal window primitive | Reconcile | P1 |
 | Geographic normalization | PRESENT | Area-weighted normalized transforms | Preserve and verify | P0 lock |
-| Generic domain-space abstraction | PARTIAL | Geographic/network/archive/market/orbital/hybrid spaces | Pull forward as Atlas-native `domain_space` contract | P0 |
+| Generic domain-space abstraction | **PRESENT v0.1** | Geographic/network/archive/market/orbital/hybrid spaces | Atlas-native contract/runtime now live; expand through registered rules | P0 complete |
 | Convergence mathematics | PRESENT | Agnostic machine compatibility + convergence | Preserve | P0 lock |
 | Immutable source/transformed/deduplicated snapshots | PRESENT | Runtime/audit requirement | Preserve | P0 lock |
 | Atomic persistence + strict idempotency | PRESENT | Runtime/audit requirement | Preserve | P0 lock |
 | Replay from persisted source snapshots | PRESENT | Runtime/audit requirement | Preserve | P0 lock |
-| Source registry/readiness/health/fallbacks | PARTIAL | First-class source registry | Pull forward under Atlas-native authority | P1 |
-| Adapter manifests and schema/source-health receipts | PARTIAL | Replaceable adapter runtime | Pull forward under Atlas-native authority | P1 |
+| Source registry | **PRESENT** | First-class source registry | Preserve existing `connector_registry` + `schema_registry` + `streams`; do not duplicate | P1 boundary |
+| Adapter manifests / run accounting | **PRESENT/PARTIAL** | Replaceable adapter runtime | Existing `adapter_class`, schema registry, mappings, and `ingest_jobs` are canonical; add missing health/drift/fallback receipts | P1 |
+| Source readiness/health/fallback history | PARTIAL | First-class source health/readiness | Add around current registry rather than creating another registry | P1 |
 | Deterministic filter-stack resolver | FIELD-ATLAS-ONLY/PARTIAL | Executable resolver + anti-bypass rules | Pull forward, bounded to Atlas computation context | P1 |
 | Hardened filter anti-bypass | FIELD-ATLAS-ONLY | Mandatory protections and restrictive-wins | Pull forward where Atlas owns the protection; do not duplicate downstream publication policy | P1 |
 | Pattern-lens runtime | FIELD-ATLAS-ONLY/PARTIAL | Executable weighted lens stacks | Pull forward as structural lenses only | P1 |
@@ -67,84 +68,86 @@ Cross-module proof artifacts demonstrate the same invariant runtime across radic
 | Outcome learning | FIELD-ATLAS-ONLY/PARTIAL | Bounded self-healing proposals | Pull only auditable calibration proposals; no silent engine mutation | P3 |
 | Public-release controls | FIELD-ATLAS-ONLY | Hardened review/redaction | Atlas may emit sensitivity/filter receipts; downstream owners enforce public-release policy | Boundary lock |
 
-## P0 — First implementation: Atlas generic domain-space contract
+## P0 — Atlas generic domain-space contract — LIVE
 
-### Why this is first
+Production commit: `e529ac547dec6699cb9d06e9ae706434c19bc6f1`
 
-The original mathematical foundation is broader than conventional geography. Field Atlas proves that the same engine can operate over geography, networks, archives, process spaces, orbital parameter space, and mixed spaces. Atlas must not accidentally remain a GIS-shaped implementation of a more general mathematical contract.
+Render deployment: `dep-d9qe59rl550s73e46lpg` — live.
 
-### Required Atlas-native primitive
+The first pull-forward capability is active without replacing geographic behavior.
 
-```text
-domain_space_definition
-  space_type
-  coordinate_schema
-  distance_or_similarity_rule
-  normalization_rule
-  transform_rule
-  rule_version
-  configuration_hash
-```
+### Implemented
 
-### Initial supported space classes
+- Atlas-native `domain_space_definition` contract.
+- Registered geographic Haversine/Gaussian rule that reuses existing Atlas mathematics.
+- Registered graph shortest-path/Gaussian rule for:
+  - network;
+  - organizational;
+  - procedural;
+  - document lineage.
+- Deterministic definition/configuration/coordinate/context/output hashes.
+- Domain-space receipt identity.
+- Optional complete domain-space binding in Atlas v2.1 input manifests.
+- Legacy manifest shape remains unchanged when domain-space identity is absent.
+- Unknown rule, wrong rule/space pairing, incomplete manifest identity, malformed configuration, and unsupported hybrid composition fail closed.
+- A non-geographic document-lineage fixture executes without latitude/longitude.
 
-- geographic
-- network
-- organizational
-- procedural
-- document_lineage
-- hybrid
+### Still intentionally not implemented
 
-The contract must permit later registered space classes without engine mutation, including orbital or rank/skill spaces.
+- Hybrid composition rule.
+- Orbital/rank/archive-specific registered rules.
+- Any domain-specific semantics inside Atlas core.
 
-### Invariants
+## P1 — Existing Atlas source/adapter truth
 
-- Core convergence math does not contain domain-specific nouns.
-- Every non-geographic comparison declares its distance/similarity contract.
-- Scores remain bounded where declared.
-- Same universal inputs under the same space rule/configuration produce the same output.
-- Space rule/version/configuration identity is included in the run identity and receipt hash.
-- Unsupported space semantics terminate explicitly; they are never guessed.
-- Geographic behavior remains backward compatible.
+Field Atlas does **not** need to donate a second source registry. Atlas already has one.
 
-### Legislative first-use target
-
-Legislative history should be representable as a hybrid domain space composed from:
+Current Atlas production authorities include:
 
 ```text
-jurisdiction
-+ bill/version lineage
-+ amendment sequence
-+ actor/committee network
-+ procedural stage
-+ observed/effective time
+connector_registry
+  → schema_registry
+  → streams
+  → signal_events
 ```
 
-Atlas computes relationships and convergence in that declared space. It does not own the underlying legal structure or lineage identities.
+Existing registry state already carries:
 
-## P1 — Atlas-native source and adapter operating layer
-
-Pull forward the generic capabilities demonstrated by Field Atlas:
-
-- source identity;
-- source family/type;
-- owning entity;
-- jurisdiction/coverage scope;
-- access method;
-- update cadence;
-- provenance baseline;
-- readiness score/band;
-- source health and freshness;
-- schema status/drift;
-- known failure modes;
-- fallback sources;
-- adapter manifest/version;
+- source/connector identity;
+- API base URL;
+- adapter class;
+- auth type/config;
+- rate limit;
+- pagination contract;
+- refresh cadence;
+- jurisdiction filter;
+- schema binding;
+- active status;
+- last/next run timestamps;
+- schema version;
+- target table;
+- source type;
 - field mappings;
-- emitted canonical objects;
-- adapter run receipts;
-- no silent record drops.
+- validation rules;
+- transform logic;
+- entity extraction configuration;
+- signal generation configuration.
 
-Do not create a second event/signal authority. Adapters feed existing Atlas canonical signal/event substrate.
+`ingest_jobs` already preserves per-run accounting including connector/schema identity, status, start/completion times, fetched/inserted/updated/failed/deduplicated counts, cursor, errors, and metadata.
+
+### P1 pull-forward target
+
+Add only the generic capabilities that are actually missing from Field Atlas:
+
+- append-only source-health observations;
+- explicit freshness state;
+- explicit schema-drift snapshots/hashes;
+- observed latency/error/duplicate/missing-field rates;
+- fallback-source bindings;
+- deterministic source-readiness receipt derived from declared components/rules;
+- source-health identity in downstream Atlas computation receipts.
+
+Do **not** create another connector registry, schema registry, raw-record authority, or signal authority.
 
 ## P1 — Atlas deterministic filter stack
 
@@ -256,10 +259,10 @@ Do not copy these as new Atlas canonical authorities:
 
 1. [x] Recover Field Atlas reference implementation and mathematical foundation.
 2. [x] Establish capability reconciliation and ownership boundary ledger.
-3. [ ] Lock current Atlas mathematical/replay baseline with permanent source contract.
-4. [ ] Implement Atlas generic domain-space contract with geographic backward compatibility.
-5. [ ] Add domain-space identity to run/configuration/replay receipts.
-6. [ ] Add Atlas-native source registry + adapter-health contracts.
+3. [x] Lock current Atlas mathematical/replay baseline against the new optional contract by preserving legacy manifest shape and geographic math behavior.
+4. [x] Implement Atlas generic domain-space contract with geographic backward compatibility.
+5. [x] Add domain-space identity to governed manifests/receipts when invoked.
+6. [ ] Add source-health/schema-drift/fallback receipts around existing Atlas source authorities.
 7. [ ] Add deterministic Atlas filter-stack resolver.
 8. [ ] Add structural pattern-lens runtime.
 9. [ ] Add Atlas module-definition validator.
@@ -269,14 +272,12 @@ Do not copy these as new Atlas canonical authorities:
 13. [ ] Hand governed structural outputs to Kaleidoscope.
 14. [ ] Evaluate bounded outcome-calibration proposals.
 
-## First implementation acceptance gate
+## Domain-space acceptance state
 
-The domain-space change may proceed only if all are true:
-
-- existing geographic convergence fixtures remain byte/hash stable where the new contract is not invoked;
-- current replay receipts remain valid;
-- no new domain authority tables duplicate existing canonical Atlas tables;
-- a non-geographic fixture can execute using an explicit registered space rule;
-- unsupported space configuration fails closed;
-- run identity binds the space rule/configuration;
-- no Luminari platform ownership is moved into Atlas.
+- [x] Existing geographic similarity uses the same Haversine/Gaussian implementation.
+- [x] Legacy manifest object shape is unchanged when domain space is not supplied.
+- [x] No new canonical domain authority table was introduced.
+- [x] A non-geographic document-lineage fixture executes with an explicit registered rule.
+- [x] Unsupported space configuration fails closed.
+- [x] Governed manifest identity binds space rule/configuration/coordinate population when invoked.
+- [x] No Luminari platform ownership moved into Atlas.
