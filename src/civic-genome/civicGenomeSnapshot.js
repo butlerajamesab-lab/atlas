@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { sha256 } from '../substrate/canonical.js';
+import { canonicalJson, sha256 } from '../substrate/canonical.js';
 
 export const CIVIC_GENOME_SOURCE_SCHEMA_ID = 'https://luminari.org/civic-genome/contracts/external-snapshot.v1.schema.json';
 export const CIVIC_GENOME_SOURCE_CONTRACT_ID = 'civic_genome.external_snapshot.v1';
@@ -85,11 +85,11 @@ export function assertCivicGenomeSnapshot(snapshot) {
 }
 
 function signatureBasis(body,keyId){return{delivery_contract_id:ATLAS_CIVIC_GENOME_DELIVERY_CONTRACT_ID,delivery_contract_version:ATLAS_CIVIC_GENOME_DELIVERY_CONTRACT_VERSION,method:'POST',path:ATLAS_CIVIC_GENOME_DELIVERY_PATH,key_id:keyId,source_schema_id:body.source_schema_id,source_contract_id:body.source_contract_id,source_contract_version:body.source_contract_version,snapshot:body.snapshot};}
-export function signAtlasCivicGenomeDelivery(body,keyId,secret){if(Buffer.byteLength(secret,'utf8')<32) fail('secret_too_short'); return createHmac('sha256',secret).update(JSON.stringify(JSON.parse(JSON.stringify(signatureBasis(body,keyId),Object.keys(signatureBasis(body,keyId)).sort())))).digest('hex');}
 
-// Use Atlas canonical hashing semantics for HMAC basis so nested objects are sorted identically.
-import { canonicalJson } from '../substrate/canonical.js';
-export function computeAtlasCivicGenomeSignature(body,keyId,secret){if(Buffer.byteLength(secret,'utf8')<32) fail('secret_too_short');return createHmac('sha256',secret).update(canonicalJson(signatureBasis(body,keyId)),'utf8').digest('hex');}
+export function computeAtlasCivicGenomeSignature(body,keyId,secret){
+  if(Buffer.byteLength(secret,'utf8')<32) fail('secret_too_short');
+  return createHmac('sha256',secret).update(canonicalJson(signatureBasis(body,keyId)),'utf8').digest('hex');
+}
 
 export function verifyAtlasCivicGenomeDelivery({body,keyId,signature,expectedKeyId,secret}){
   if(keyId!==expectedKeyId) throw new Error('unauthorized_civic_genome_delivery:key_id_mismatch');
