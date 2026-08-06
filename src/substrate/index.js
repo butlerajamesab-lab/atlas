@@ -63,6 +63,18 @@ export {
   jointSimilarity,
 } from './convergence.js';
 
+// Generic domain-space registry and deterministic comparison receipts.
+// Geography remains backward compatible; non-geographic spaces must declare
+// an explicit registered rule and never fall back to geographic semantics.
+export {
+  DOMAIN_SPACE_CONTRACT_VERSION,
+  DOMAIN_SPACE_TYPES,
+  listDomainSpaceRules,
+  normalizeDomainSpaceDefinition,
+  compareDomainSpaceCoordinates,
+  hashDomainSpaceCoordinatePopulation,
+} from '../domain-space/domainSpace.js';
+
 // Immutable manifests and receipts
 export {
   createInputManifest,
