@@ -70,7 +70,9 @@ begin
     raise exception 'atlas_civic_genome_trait_accounting_count_mismatch';
   end if;
 
-  perform pg_advisory_xact_lock(hashtextextended(v_projection_key || ':' || p_receipt->>'accounting_rule_hash',0));
+  perform pg_advisory_xact_lock(
+    hashtextextended(v_projection_key || ':' || (p_receipt->>'accounting_rule_hash'), 0)
+  );
   select * into v_existing
   from atlas.civic_genome_legislative_trait_binding_accounting
   where projection_key=v_projection_key
