@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { sha256 } from '../src/substrate/canonical.js';
+import { createInputManifest } from '../src/substrate/manifest.js';
 import {
   listStructuralLenses,
   resolveStructuralLensStack,
@@ -17,6 +19,15 @@ const completeActivations = Object.freeze([
   { lens_id: 'contradiction', status: 'not_observed', score: 0, evidence_ids: [] },
   { lens_id: 'disconfirmation', status: 'observed', score: 0.2, evidence_ids: ['d1'] },
 ]);
+
+const manifestBase = Object.freeze({
+  computation_type: 'structural_lens_fixture',
+  rule_manifest_hash: 'a'.repeat(64),
+  as_of: 1_785_542_400_000,
+  configuration: { fixture: true },
+  source_population_hash: 'b'.repeat(64),
+  signal_count: 3,
+});
 
 test('structural lens registry is deterministic and contains structural-only lenses', () => {
   assert.deepEqual(listStructuralLenses(), listStructuralLenses());
@@ -108,4 +119,27 @@ test('activation not declared in stack is rejected rather than silently ignored'
     lenses: [{ lens_id: 'recurrence', weight: 1 }],
     activations: [{ lens_id: 'contradiction', status: 'not_observed', evidence_ids: [] }],
   }), /activation_not_in_stack/);
+});
+
+test('structural lens receipt identity binds governed manifest only when supplied', () => {
+  const lensReceipt = resolveStructuralLensStack({
+    stack_id: 'manifest_fixture',
+    lenses: stack,
+    activations: completeActivations,
+  });
+  const legacy = createInputManifest(manifestBase);
+  const governed = createInputManifest({
+    ...manifestBase,
+    structural_lens_receipt_identity: lensReceipt.receipt_identity,
+  });
+  assert.equal(Object.hasOwn(legacy, 'structural_lens_receipt_identity'), false);
+  assert.equal(governed.structural_lens_receipt_identity, lensReceipt.receipt_identity);
+  assert.notEqual(sha256(legacy), sha256(governed));
+});
+
+test('invalid structural lens manifest identity fails closed', () => {
+  assert.throws(() => createInputManifest({
+    ...manifestBase,
+    structural_lens_receipt_identity: 'bad',
+  }), /structural_lens_receipt_identity/);
 });
