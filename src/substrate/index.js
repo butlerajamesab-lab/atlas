@@ -11,7 +11,6 @@
  * values, assign placeholder scores, or hide unresolved state.
  */
 
-// Canonical serialization and hashing (the single source of truth for all identity)
 export {
   canonicalJson,
   sha256,
@@ -20,7 +19,6 @@ export {
   ENGINE_VERSION,
 } from './canonical.js';
 
-// Temporal operations (explicit as_of, bounded windows)
 export {
   normalizeTimestamp,
   createTemporalWindow,
@@ -29,7 +27,6 @@ export {
   filterByAsOf,
 } from './temporal.js';
 
-// Geography authority (versioned, source-identified, immutable)
 export {
   normalizeGeographyId,
   validateGeographyRecord,
@@ -40,14 +37,12 @@ export {
   buildAdjacencyMap,
 } from './geography.js';
 
-// Geography loader (file → provenance + runtime formats)
 export {
   loadWashingtonGeography,
   loadGeographyByJurisdiction,
   listAvailableJurisdictions,
 } from './geographyLoader.js';
 
-// Convergence engine (Math Engine v2.1 equations)
 export {
   ENGINE_EQUATIONS,
   NULL_MODEL_ID,
@@ -63,9 +58,6 @@ export {
   jointSimilarity,
 } from './convergence.js';
 
-// Generic domain-space registry and deterministic comparison receipts.
-// Geography remains backward compatible; non-geographic spaces must declare
-// an explicit registered rule and never fall back to geographic semantics.
 export {
   DOMAIN_SPACE_CONTRACT_VERSION,
   DOMAIN_SPACE_TYPES,
@@ -75,8 +67,6 @@ export {
   hashDomainSpaceCoordinatePopulation,
 } from '../domain-space/domainSpace.js';
 
-// Deterministic computation-context filter stack. Hardened Atlas integrity
-// filters cannot be removed by requested exploratory scope.
 export {
   FILTER_STACK_CONTRACT_VERSION,
   FILTER_REGISTRY_VERSION,
@@ -87,7 +77,15 @@ export {
   resolveAtlasFilterStack,
 } from '../filters/filterStack.js';
 
-// Immutable manifests and receipts
+// Structural lenses describe observed Atlas structures only. They do not own
+// downstream consequence interpretation or legal/policy meaning.
+export {
+  STRUCTURAL_LENS_CONTRACT_VERSION,
+  STRUCTURAL_LENS_REGISTRY_VERSION,
+  listStructuralLenses,
+  resolveStructuralLensStack,
+} from '../lenses/structuralLenses.js';
+
 export {
   createInputManifest,
   hashManifest,
@@ -97,13 +95,11 @@ export {
   MANIFEST_VERSION,
 } from './manifest.js';
 
-// Deterministic replay
 export {
   executeReplay,
   verifyReplayConsistency,
 } from './replay.js';
 
-// Relationship computation
 export {
   jaccardSimilarity,
   signalCoOccurrence,
