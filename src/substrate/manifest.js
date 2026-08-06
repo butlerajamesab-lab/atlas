@@ -41,24 +41,20 @@ function appendDomainSpaceIdentity(manifest, domainSpace) {
   };
 }
 
-function appendFilterStackIdentity(manifest, filterStackReceiptIdentity) {
-  if (filterStackReceiptIdentity === null || filterStackReceiptIdentity === undefined) return manifest;
-  if (typeof filterStackReceiptIdentity !== 'string'
-    || !/^[0-9a-f]{64}$/.test(filterStackReceiptIdentity)) {
-    throw new Error('manifest filter_stack_receipt_identity must be a 64-character lowercase sha256');
+function appendReceiptIdentity(manifest, fieldName, value) {
+  if (value === null || value === undefined) return manifest;
+  if (typeof value !== 'string' || !/^[0-9a-f]{64}$/.test(value)) {
+    throw new Error(`manifest ${fieldName} must be a 64-character lowercase sha256`);
   }
-  return {
-    ...manifest,
-    filter_stack_receipt_identity: filterStackReceiptIdentity,
-  };
+  return { ...manifest, [fieldName]: value };
 }
 
 /**
  * Create an immutable input manifest for a governed computation.
  * All fields are explicit — no defaults, no wall-clock injection.
  *
- * Domain-space and filter-stack identities are optional for backward
- * compatibility. When omitted, the legacy v2.1 object shape is unchanged.
+ * Domain-space, filter-stack, and structural-lens identities are optional for
+ * backward compatibility. When omitted, the legacy v2.1 object shape is unchanged.
  */
 export function createInputManifest({
   computation_type,
@@ -81,6 +77,7 @@ export function createInputManifest({
   space_configuration_hash = null,
   coordinate_population_hash = null,
   filter_stack_receipt_identity = null,
+  structural_lens_receipt_identity = null,
 }) {
   if (!computation_type) throw new Error('manifest requires computation_type');
   if (!as_of && as_of !== 0) throw new Error('manifest requires explicit as_of');
@@ -115,7 +112,16 @@ export function createInputManifest({
     space_configuration_hash,
     coordinate_population_hash,
   });
-  return Object.freeze(appendFilterStackIdentity(withDomainSpace, filter_stack_receipt_identity));
+  const withFilterStack = appendReceiptIdentity(
+    withDomainSpace,
+    'filter_stack_receipt_identity',
+    filter_stack_receipt_identity,
+  );
+  return Object.freeze(appendReceiptIdentity(
+    withFilterStack,
+    'structural_lens_receipt_identity',
+    structural_lens_receipt_identity,
+  ));
 }
 
 /**
