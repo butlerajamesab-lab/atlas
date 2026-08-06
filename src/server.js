@@ -11,6 +11,7 @@ import convergenceRouter from './routes/convergence.js';
 import { requireBearerToken } from './lib/serviceAuth.js';
 import { luminariStreamHealthManifest } from './services/streamHealthInvestigation.js';
 import { runConvergenceAcceptanceFromEnvironment } from './services/convergenceAcceptance.js';
+import { runCivicGenomeLegislativeProjectionFromEnvironment } from './services/civicGenomeLegislativeProjectionService.js';
 import {
   startScheduler,
   getSchedulerStatus,
@@ -47,8 +48,6 @@ app.use((req, res, next) => {
   return next();
 });
 
-// Family snapshots can legitimately contain many immutable legislative versions.
-// Keep the boundary explicit and bounded rather than truncating the canonical source.
 app.use(express.json({ limit: '25mb' }));
 
 export function apiError(res, status, message, details = undefined) {
@@ -66,6 +65,7 @@ app.get('/health', (_req, res) => {
     live_data_signal_engine: 'atlas.live_data_signal_exact@1.0.0',
     convergence_engine_version: '2.1.0',
     civic_genome_snapshot_intake: 'atlas.civic_genome_snapshot_delivery.v1',
+    civic_genome_legislative_mapping: 'atlas.civic_genome_legislative_version_observation@1.0.0',
   });
 });
 
@@ -111,12 +111,8 @@ app.post('/scheduler/trigger/:adapterName', async (req, res) => {
 
 const routeContext = { apiError };
 app.use(ingestRouter(routeContext));
-
-// This single server-to-server route authenticates itself with HMAC and therefore
-// is intentionally mounted before the generic control-token middleware.
 app.use(civicGenomeSnapshotsRouter(routeContext));
 
-// All remaining operational and data routes require the private control token.
 app.use(requireControl);
 app.use(streamsRouter(routeContext));
 app.use(populationRouter(routeContext));
@@ -140,6 +136,18 @@ if (process.env.NODE_ENV !== 'test') {
       })
       .catch((error) => {
         console.error('[convergence-acceptance] failed', {
+          error_class: error instanceof Error ? error.name : 'unknown',
+          error_message: error instanceof Error ? error.message : String(error),
+        });
+      });
+
+    void runCivicGenomeLegislativeProjectionFromEnvironment()
+      .then((receipt) => {
+        if (!receipt) return;
+        console.log('[civic-genome-legislative-projection] completed', receipt);
+      })
+      .catch((error) => {
+        console.error('[civic-genome-legislative-projection] failed', {
           error_class: error instanceof Error ? error.name : 'unknown',
           error_message: error instanceof Error ? error.message : String(error),
         });
