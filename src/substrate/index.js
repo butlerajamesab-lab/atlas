@@ -77,14 +77,19 @@ export {
   resolveAtlasFilterStack,
 } from '../filters/filterStack.js';
 
-// Structural lenses describe observed Atlas structures only. They do not own
-// downstream consequence interpretation or legal/policy meaning.
 export {
   STRUCTURAL_LENS_CONTRACT_VERSION,
   STRUCTURAL_LENS_REGISTRY_VERSION,
   listStructuralLenses,
   resolveStructuralLensStack,
 } from '../lenses/structuralLenses.js';
+
+// Modules are versioned assemblies over the invariant engine, never engine forks.
+export {
+  ATLAS_MODULE_CONTRACT_VERSION,
+  compileAtlasModuleDefinition,
+  validateAtlasModuleOperationalBindings,
+} from '../modules/moduleDefinition.js';
 
 export {
   createInputManifest,
