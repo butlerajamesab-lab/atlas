@@ -7,19 +7,22 @@ const migration = fs.readFileSync(
   'utf8',
 );
 
-test('transport requires separate gateway and scoped receipt credentials', () => {
-  assert.match(migration, /config\.target_service_key/);
+test('transport requires the Lighthouse target and separate scoped receipt token', () => {
+  assert.match(migration, /config\.target_url/);
   assert.match(migration, /config\.config_json->>'domain3_receipt_token'/);
   assert.match(migration, /scoped Domain 3 receipt token is missing/);
   assert.match(migration, /length\(v_config\.domain3_receipt_token\)/);
+  assert.doesNotMatch(migration, /target_service_key/);
 });
 
-test('transport calls only the scoped Lighthouse receipt endpoint', () => {
-  assert.match(migration, /register_live_data_signal_transport_receipt_v2/);
-  assert.match(migration, /'p_bridge_token', v_config\.domain3_receipt_token/);
-  assert.match(migration, /http_header\('apikey', v_config\.target_service_key\)/);
+test('transport calls only the bounded Lighthouse direct PostgreSQL route', () => {
+  assert.match(migration, /\/api\/atlas-domain3\/receipt/);
+  assert.match(migration, /x-atlas-domain3-token/);
+  assert.match(migration, /v_record::text/);
+  assert.match(migration, /atlas_lighthouse_direct_postgres_receipt_v1/);
+  assert.doesNotMatch(migration, /\/rest\/v1\/rpc\//);
+  assert.doesNotMatch(migration, /http_header\('apikey'/);
   assert.doesNotMatch(migration, /http_header\('Authorization'/);
-  assert.doesNotMatch(migration, /register_live_data_signal_receipt_v1/);
 });
 
 test('transport preserves the complete canonical candidate contract', () => {
@@ -42,6 +45,14 @@ test('transport preserves the complete canonical candidate contract', () => {
   ]) {
     assert.match(migration, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   }
+});
+
+test('transport requires an explicit canonical receipt before marking a candidate bridged', () => {
+  assert.match(migration, /coalesce\(\(v_body->>'ok'\)::boolean, false\) is not true/);
+  assert.match(migration, /v_body->>'live_data_signal_id'/);
+  assert.match(migration, /v_body->>'signal_hash'/);
+  assert.match(migration, /v_body->>'governance_status'/);
+  assert.match(migration, /lighthouse_status = 'bridged'/);
 });
 
 test('transport remains additive and service-role executed inside Atlas', () => {
