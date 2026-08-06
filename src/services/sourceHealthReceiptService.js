@@ -1,7 +1,11 @@
 import { sha256 } from '../substrate/canonical.js';
-import { supabase } from '../lib/supabaseClient.js';
 
 export const SOURCE_HEALTH_RECEIPT_VERSION = '1.0.0';
+
+async function defaultClient() {
+  const { supabase } = await import('../lib/supabaseClient.js');
+  return supabase;
+}
 
 function asNonNegativeInteger(value, fallback = 0) {
   const numeric = Number(value ?? fallback);
@@ -102,9 +106,10 @@ export function buildSourceHealthInsert(receipt) {
   });
 }
 
-export async function recordSourceHealthReceipt(receipt, client = supabase) {
+export async function recordSourceHealthReceipt(receipt, client = null) {
+  const db = client ?? await defaultClient();
   const row = buildSourceHealthInsert(receipt);
-  const { data, error } = await client
+  const { data, error } = await db
     .from('atlas_source_health_event')
     .upsert(row, {
       onConflict: 'connector_id,observed_at,source_state_hash',
@@ -123,18 +128,19 @@ export async function recordSourceHealthReceipt(receipt, client = supabase) {
   });
 }
 
-export async function recordIngestJobSourceHealth(job, client = supabase) {
+export async function recordIngestJobSourceHealth(job, client = null) {
   const receipt = deriveSourceHealthFromIngestJob(job);
   const persistence = await recordSourceHealthReceipt(receipt, client);
   return Object.freeze({ receipt, persistence });
 }
 
-export async function reconcileIngestJobSourceHealth({ limit = 1000, client = supabase } = {}) {
+export async function reconcileIngestJobSourceHealth({ limit = 1000, client = null } = {}) {
   if (!Number.isSafeInteger(limit) || limit <= 0 || limit > 10000) {
     throw new Error('source_health_reconcile_limit_invalid');
   }
+  const db = client ?? await defaultClient();
 
-  const { data, error } = await client
+  const { data, error } = await db
     .from('ingest_jobs')
     .select('id,connector_id,schema_id,status,started_at,completed_at,records_fetched,records_inserted,records_updated,records_failed,records_deduplicated,next_cursor,error_log,metadata')
     .not('connector_id', 'is', null)
@@ -145,7 +151,7 @@ export async function reconcileIngestJobSourceHealth({ limit = 1000, client = su
 
   const results = [];
   for (const job of data ?? []) {
-    results.push(await recordIngestJobSourceHealth(job, client));
+    results.push(await recordIngestJobSourceHealth(job, db));
   }
   return Object.freeze({
     jobs_seen: (data ?? []).length,
