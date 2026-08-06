@@ -7,25 +7,44 @@ const migration = fs.readFileSync(
   'utf8',
 );
 
-test('migration requires the governed bridge before changing its endpoint', () => {
-  assert.match(migration, /bridge_live_data_signal_candidates_v1\(uuid,integer\)/);
-  assert.match(migration, /governed Domain 3 bridge function is missing/);
-  assert.match(migration, /pg_get_functiondef/);
+test('transport requires separate gateway and scoped receipt credentials', () => {
+  assert.match(migration, /config\.target_service_key/);
+  assert.match(migration, /config\.config_json->>'domain3_receipt_token'/);
+  assert.match(migration, /scoped Domain 3 receipt token is missing/);
+  assert.match(migration, /length\(v_config\.domain3_receipt_token\)/);
 });
 
-test('migration changes only the Lighthouse receipt response contract', () => {
-  assert.match(migration, /register_live_data_signal_receipt_v1/);
-  assert.match(migration, /register_live_data_signal_transport_receipt_v1/);
-  assert.match(migration, /v_definition := replace/);
-  assert.doesNotMatch(migration, /insert\s+into\s+atlas\.live_data_signal_candidate/i);
-  assert.doesNotMatch(migration, /insert\s+into\s+public\.live_data_signals/i);
-  assert.doesNotMatch(migration, /detected_signals/i);
-  assert.doesNotMatch(migration, /live_signals\b/i);
+test('transport calls only the scoped Lighthouse receipt endpoint', () => {
+  assert.match(migration, /register_live_data_signal_transport_receipt_v2/);
+  assert.match(migration, /'p_bridge_token', v_config\.domain3_receipt_token/);
+  assert.match(migration, /http_header\('apikey', v_config\.target_service_key\)/);
+  assert.doesNotMatch(migration, /http_header\('Authorization'/);
+  assert.doesNotMatch(migration, /register_live_data_signal_receipt_v1/);
 });
 
-test('migration is replay-safe and service-role-only', () => {
-  assert.match(migration, /if position\('register_live_data_signal_transport_receipt_v1'/);
-  assert.match(migration, /return;/);
+test('transport preserves the complete canonical candidate contract', () => {
+  for (const token of [
+    "'source_event_refs'",
+    "'entity_ids'",
+    "'entity_resolution_status'",
+    "'severity'",
+    "'confidence_score'",
+    "'verification_state'",
+    "'supporting_statistics'",
+    "'evidence_refs'",
+    "'detection_rule_id'",
+    "'detection_rule_version'",
+    "'engine_id'",
+    "'engine_version'",
+    "'source_freshness_at'",
+    "'detected_at'",
+    "'governance_status', 'observation_candidate'",
+  ]) {
+    assert.match(migration, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  }
+});
+
+test('transport remains additive and service-role executed inside Atlas', () => {
   assert.match(
     migration,
     /revoke all on function public\.bridge_live_data_signal_candidates_v1\(uuid, integer\)[\s\S]*from public, anon, authenticated/i,
@@ -37,4 +56,5 @@ test('migration is replay-safe and service-role-only', () => {
   assert.doesNotMatch(migration, /^\s*delete\s+from\b/im);
   assert.doesNotMatch(migration, /^\s*truncate\b/im);
   assert.doesNotMatch(migration, /^\s*drop\s+(?:table|view|schema|function|trigger|index)\b/im);
+  assert.doesNotMatch(migration, /sLaqVvylvMyctybqokeDrP8j1yb42o2Mkkjh08bazaENlMiKtURCK_YHkeLuP5Ju/);
 });
