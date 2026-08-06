@@ -1,0 +1,52 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import test from 'node:test';
+
+const migration = readFileSync(
+  new URL('../src/schema/20260806_source_health_receipts.sql', import.meta.url),
+  'utf8',
+);
+
+test('source health substrate extends existing Atlas registries instead of duplicating them', () => {
+  assert.match(migration, /references public\.connector_registry\(id\)/);
+  assert.match(migration, /references public\.schema_registry\(id\)/);
+  assert.doesNotMatch(migration, /create table if not exists public\.connector_registry/i);
+  assert.doesNotMatch(migration, /create table if not exists public\.schema_registry/i);
+  assert.doesNotMatch(migration, /create table if not exists public\.signal_events/i);
+});
+
+test('source health observations are append-oriented and identity bound', () => {
+  assert.match(migration, /create table if not exists public\.atlas_source_health_event/);
+  assert.match(migration, /source_state_hash text not null/);
+  assert.match(migration, /unique \(connector_id, observed_at, source_state_hash\)/);
+  assert.doesNotMatch(migration, /on conflict[\s\S]*atlas_source_health_event/i);
+});
+
+test('schema drift snapshots preserve complete schema payload identity', () => {
+  assert.match(migration, /create table if not exists public\.atlas_source_schema_snapshot/);
+  assert.match(migration, /schema_hash text not null/);
+  assert.match(migration, /schema_payload jsonb not null/);
+  assert.match(migration, /breaking_change/);
+});
+
+test('fallback bindings cannot point to themselves and priorities are explicit', () => {
+  assert.match(migration, /atlas_source_fallback_not_self/);
+  assert.match(migration, /fallback_priority integer not null check \(fallback_priority > 0\)/);
+  assert.match(migration, /idx_atlas_source_fallback_active_priority/);
+});
+
+test('operational readiness is a deterministic state and not an invented weighted score', () => {
+  assert.match(migration, /v_atlas_source_operational_readiness_v1/);
+  assert.match(migration, /operational_readiness_state/);
+  assert.match(migration, /then 'ready'/);
+  assert.match(migration, /then 'blocked'/);
+  assert.doesNotMatch(migration, /readiness_score/);
+  assert.doesNotMatch(migration, /0\.\d+\s*\*/);
+});
+
+test('browser roles cannot write source health substrate', () => {
+  assert.match(migration, /force row level security/);
+  assert.match(migration, /revoke all on public\.atlas_source_health_event from anon, authenticated/);
+  assert.match(migration, /revoke all on public\.atlas_source_schema_snapshot from anon, authenticated/);
+  assert.match(migration, /revoke all on public\.atlas_source_fallback_binding from anon, authenticated/);
+});
