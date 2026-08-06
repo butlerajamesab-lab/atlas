@@ -6,6 +6,7 @@ import { investigationsRouter } from './routes/investigations.js';
 import { patternsRouter } from './routes/patterns.js';
 import { populationRouter } from './routes/population.js';
 import { recognitionAtlasRouter } from './routes/recognition_atlas.js';
+import { civicGenomeSnapshotsRouter } from './routes/civicGenomeSnapshots.js';
 import convergenceRouter from './routes/convergence.js';
 import { requireBearerToken } from './lib/serviceAuth.js';
 import { luminariStreamHealthManifest } from './services/streamHealthInvestigation.js';
@@ -39,14 +40,16 @@ app.use((req, res, next) => {
     res.setHeader('Vary', 'Origin');
   }
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Atlas-Civic-Genome-Key-Id,X-Atlas-Civic-Genome-Signature');
   res.setHeader('Access-Control-Max-Age', '86400');
 
   if (req.method === 'OPTIONS') return res.status(204).end();
   return next();
 });
 
-app.use(express.json({ limit: '5mb' }));
+// Family snapshots can legitimately contain many immutable legislative versions.
+// Keep the boundary explicit and bounded rather than truncating the canonical source.
+app.use(express.json({ limit: '25mb' }));
 
 export function apiError(res, status, message, details = undefined) {
   return res.status(status).json({ error: message, details });
@@ -62,6 +65,7 @@ app.get('/health', (_req, res) => {
     event_identity_version: '1.0.0',
     live_data_signal_engine: 'atlas.live_data_signal_exact@1.0.0',
     convergence_engine_version: '2.1.0',
+    civic_genome_snapshot_intake: 'atlas.civic_genome_snapshot_delivery.v1',
   });
 });
 
@@ -107,6 +111,10 @@ app.post('/scheduler/trigger/:adapterName', async (req, res) => {
 
 const routeContext = { apiError };
 app.use(ingestRouter(routeContext));
+
+// This single server-to-server route authenticates itself with HMAC and therefore
+// is intentionally mounted before the generic control-token middleware.
+app.use(civicGenomeSnapshotsRouter(routeContext));
 
 // All remaining operational and data routes require the private control token.
 app.use(requireControl);
