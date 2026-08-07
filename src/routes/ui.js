@@ -13,7 +13,9 @@ import {
 import { ATLAS_MODULE_CONTRACT_VERSION } from '../modules/moduleDefinition.js';
 
 const LEGISLATIVE_STREAM_ID = 'civic_genome_legislative_versions';
-const FRONTEND_READ_MODEL_VERSION = 'atlas.frontend_read_model.v1';
+const FRONTEND_READ_MODEL_VERSION = 'atlas.frontend_read_model.v1.1';
+const CONVERGENCE_EXPLORER_READ_MODEL_VERSION = 'atlas.convergence_explorer.v1';
+const SHA256 = /^[0-9a-f]{64}$/;
 
 async function exactCount(table, apply = null) {
   let query = supabase.from(table).select('*', { count: 'exact', head: true });
@@ -135,6 +137,29 @@ export function atlasUiRouter({ apiError }) {
     }
   });
 
+  router.get('/ui-api/convergence', async (req, res) => {
+    try {
+      const requestedRunKey = String(req.query.run_key ?? '').trim();
+      if (requestedRunKey && !SHA256.test(requestedRunKey)) {
+        return apiError(res, 400, 'Invalid convergence run key');
+      }
+      const { data, error } = await supabase.rpc('atlas_convergence_explorer_v1', {
+        p_run_key: requestedRunKey || null,
+        p_history_limit: 12,
+      });
+      if (error) throw error;
+      if (!data || data.read_model_version !== CONVERGENCE_EXPLORER_READ_MODEL_VERSION) {
+        throw new Error('convergence explorer returned an invalid read model');
+      }
+      if (requestedRunKey && !data.selected) {
+        return apiError(res, 404, 'Convergence run not found');
+      }
+      return res.json(data);
+    } catch (error) {
+      return apiError(res, 500, 'Atlas convergence explorer read failed', error instanceof Error ? error.message : String(error));
+    }
+  });
+
   router.get('/ui-api/contracts', (_req, res) => {
     res.json({
       read_model_version: FRONTEND_READ_MODEL_VERSION,
@@ -160,4 +185,8 @@ export function atlasUiRouter({ apiError }) {
   return router;
 }
 
-export { FRONTEND_READ_MODEL_VERSION, LEGISLATIVE_STREAM_ID };
+export {
+  FRONTEND_READ_MODEL_VERSION,
+  CONVERGENCE_EXPLORER_READ_MODEL_VERSION,
+  LEGISLATIVE_STREAM_ID,
+};
