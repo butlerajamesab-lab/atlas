@@ -7,6 +7,7 @@ import { patternsRouter } from './routes/patterns.js';
 import { populationRouter } from './routes/population.js';
 import { recognitionAtlasRouter } from './routes/recognition_atlas.js';
 import { civicGenomeSnapshotsRouter } from './routes/civicGenomeSnapshots.js';
+import { atlasUiRouter, FRONTEND_READ_MODEL_VERSION } from './routes/ui.js';
 import convergenceRouter from './routes/convergence.js';
 import { requireBearerToken } from './lib/serviceAuth.js';
 import { luminariStreamHealthManifest } from './services/streamHealthInvestigation.js';
@@ -68,6 +69,8 @@ app.get('/health', (_req, res) => {
     civic_genome_snapshot_intake: 'atlas.civic_genome_snapshot_delivery.v1',
     civic_genome_legislative_mapping: 'atlas.civic_genome_legislative_version_observation@1.0.0',
     civic_genome_trait_accounting: 'atlas.civic_genome_legislative_trait_binding_accounting@1.0.0',
+    frontend_read_model_version: FRONTEND_READ_MODEL_VERSION,
+    frontend_available: true,
   });
 });
 
@@ -115,6 +118,14 @@ const routeContext = { apiError };
 app.use(ingestRouter(routeContext));
 app.use(civicGenomeSnapshotsRouter(routeContext));
 
+// Atlas Frontend v1 is a bounded inspection surface. These routes expose only
+// public-safe aggregate/source metadata and the public legislative-history stream.
+// They never expose service-role credentials, connector auth configuration, or
+// generic signal payloads from complaint/benefit/enforcement streams.
+app.use(atlasUiRouter(routeContext));
+app.use(express.static('public', { etag: true, maxAge: '5m' }));
+
+// All operational and unrestricted data routes remain private control surfaces.
 app.use(requireControl);
 app.use(streamsRouter(routeContext));
 app.use(populationRouter(routeContext));
