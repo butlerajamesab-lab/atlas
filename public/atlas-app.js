@@ -138,13 +138,13 @@ async function renderLegislative() {
   const first = observations[0]?.payload?.version;
   const sourceBillId = first?.source_bill_id ?? '—';
   const familyId = observations[0]?.payload?.family_id ?? '—';
-  view.innerHTML = `${pageHeader('DOCUMENT LINEAGE','Legislative history as a governed space','Each node is one canonical Civic Genome bill version. Adopted, failed, and superseding generations remain independently source-bound; Atlas does not infer legislative consequence here.', data.read_model_version)}
+  view.innerHTML = `${pageHeader('DOCUMENT LINEAGE','Legislative history as a governed space','Each node is one canonical Civic Genome bill version. Failed amendments remain first-class history. Source-native Prism/Rosetta states are preserved rather than collapsed, and Atlas does not infer legislative consequence here.', data.read_model_version)}
     ${metrics([
       {label:'Bill',value:String(sourceBillId),note:'source bill identity'},
       {label:'Versions',value:number(data.observation_count),note:'one observation per generation'},
       {label:'Verified',value:number(data.processing_state_counts.verified),note:'source-bound'},
       {label:'With Findings',value:number(data.processing_state_counts.verified_with_findings),note:'verification findings preserved'},
-      {label:'Failed',value:number(data.processing_state_counts.failed),note:'historical attempts retained'},
+      {label:'Failed',value:number(data.processing_state_counts.failed),note:'failed amendments retained'},
     ])}
     <div class="section-note"><strong>Family:</strong> <span style="font-family:var(--mono)">${esc(familyId)}</span><br>${esc(data.semantics)}</div>
     <div class="timeline-summary">${Object.entries(data.processing_state_counts).map(([key,value]) => `<span class="badge badge-${stateBadgeClass(key)}">${esc(key)} ${number(value)}</span>`).join('')}</div>
