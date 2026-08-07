@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#071219" />
+  <title>Atlas — Deterministic Convergence Engine</title>
+  <link rel="stylesheet" href="/atlas.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand-block">
+        <div class="brand-mark">A</div>
+        <div>
+          <div class="brand-name">ATLAS</div>
+          <div class="brand-subtitle">DETERMINISTIC SIGNAL ENGINE</div>
+        </div>
+      </div>
+
+      <nav class="nav" aria-label="Atlas sections">
+        <button class="nav-item active" data-view="overview"><span>01</span>Overview</button>
+        <button class="nav-item" data-view="sources"><span>02</span>Source Registry</button>
+        <button class="nav-item" data-view="legislative"><span>03</span>Legislative History</button>
+        <button class="nav-item" data-view="contracts"><span>04</span>Spaces & Lenses</button>
+        <button class="nav-item" data-view="boundary"><span>05</span>Boundary</button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="determinism-light"><i></i><span>DETERMINISTIC</span></div>
+        <small>No hidden inference</small>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <span class="crumb">ATLAS / OBSERVATION → CONVERGENCE</span>
+        </div>
+        <div class="top-status">
+          <span id="connectionDot" class="status-dot"></span>
+          <span id="connectionText">CONNECTING</span>
+        </div>
+      </header>
+
+      <section id="view" class="view" aria-live="polite">
+        <div class="loading-screen">
+          <div class="loading-orbit"><i></i></div>
+          <div>Loading Atlas receipts…</div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="/atlas-app.js"></script>
+</body>
+</html>
