@@ -1,0 +1,75 @@
+name: Atlas Frontend Production Acceptance
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: atlas-frontend-production-acceptance
+  cancel-in-progress: true
+
+jobs:
+  public-surface:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Wait for deployed Atlas frontend
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://atlas.columbiacitycustomllc.com"
+          for attempt in $(seq 1 36); do
+            code="$(curl -sS -o /tmp/atlas-root.html -w '%{http_code}' --connect-timeout 5 --max-time 15 "$base/" || true)"
+            if [[ "$code" == "200" ]] && grep -q "ATLAS" /tmp/atlas-root.html; then
+              echo "Atlas frontend is live on attempt $attempt"
+              exit 0
+            fi
+            echo "Attempt $attempt: root returned ${code:-transport_error}; waiting for Render deployment"
+            sleep 5
+          done
+          echo "Atlas frontend did not become healthy"
+          cat /tmp/atlas-root.html || true
+          exit 1
+
+      - name: Verify bounded public read models
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://atlas.columbiacitycustomllc.com"
+          curl -fsS --connect-timeout 5 --max-time 30 "$base/ui-api/overview" -o /tmp/overview.json
+          curl -fsS --connect-timeout 5 --max-time 30 "$base/ui-api/legislative-history?limit=100" -o /tmp/legislative.json
+          curl -fsS --connect-timeout 5 --max-time 30 "$base/ui-api/contracts" -o /tmp/contracts.json
+          node <<'NODE'
+          const fs = require('node:fs');
+          const overview = JSON.parse(fs.readFileSync('/tmp/overview.json', 'utf8'));
+          const legislative = JSON.parse(fs.readFileSync('/tmp/legislative.json', 'utf8'));
+          const contracts = JSON.parse(fs.readFileSync('/tmp/contracts.json', 'utf8'));
+          if (overview.read_model_version !== 'atlas.frontend_read_model.v1') throw new Error('overview_read_model_version_mismatch');
+          if (overview.counts.legislative_version_observations < 34) throw new Error('legislative_overview_count_regressed');
+          if (legislative.stream_id !== 'civic_genome_legislative_versions') throw new Error('legislative_stream_mismatch');
+          if (legislative.observation_count < 34) throw new Error('legislative_observation_count_regressed');
+          if (!legislative.observations.some(row => row.payload?.version?.processing_state === 'failed')) throw new Error('failed_amendment_history_missing');
+          if (!contracts.module_contract_version) throw new Error('module_contract_missing');
+          if (contracts.ownership_boundary?.atlas?.includes('convergence') !== true) throw new Error('atlas_boundary_missing');
+          console.log(JSON.stringify({
+            read_model_version: overview.read_model_version,
+            streams: overview.counts.streams,
+            signal_events: overview.counts.signal_events,
+            legislative_version_observations: legislative.observation_count,
+            failed_versions: legislative.processing_state_counts.failed ?? 0,
+            module_contract_version: contracts.module_contract_version,
+          }, null, 2));
+          NODE
+
+      - name: Verify private control boundary remains private
+        shell: bash
+        run: |
+          set -euo pipefail
+          code="$(curl -sS -o /tmp/private-response.txt -w '%{http_code}' --connect-timeout 5 --max-time 15 https://atlas.columbiacitycustomllc.com/streams || true)"
+          if [[ "$code" != "401" && "$code" != "403" ]]; then
+            echo "Expected private control route to reject unauthenticated request; got $code"
+            cat /tmp/private-response.txt || true
+            exit 1
+          fi
+          echo "Private control boundary remains closed ($code)"
