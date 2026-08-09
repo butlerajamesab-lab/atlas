@@ -39,6 +39,7 @@ test('aggregate views are invoker-secured and do not expose payload fields', () 
 
 test('compiled adapter mapping is explicit and database stream status gates execution', () => {
   assert.match(scheduler, /ADAPTER_STREAM_IDS/);
+  assert.match(scheduler, /name: 'openstates',[\s\S]*args: \{ jurisdiction: STATE\.toLowerCase\(\) \}/);
   assert.match(scheduler, /\.from\('streams'\)/);
   assert.match(scheduler, /stream\.status !== 'active'/);
   assert.match(scheduler, /event_delta/);
