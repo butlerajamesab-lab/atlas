@@ -41,10 +41,18 @@ test('frontend preserves Atlas constitutional ownership boundaries', () => {
 });
 
 test('frontend provides the planned inspection surfaces', () => {
-  for (const view of ['overview','sources','legislative','contracts','boundary']) {
+  for (const view of ['overview','sources','streams','substrate','legislative','contracts','boundary','operations']) {
     assert.match(html, new RegExp(`data-view="${view}"`));
   }
   assert.match(app, /one observation per generation/i);
   assert.match(app, /failed amendments/i);
   assert.match(app, /source-native Prism\/Rosetta states/i);
+});
+
+test('live frontend refreshes retrieved state and never persists the operator token', () => {
+  assert.match(app, /cache: 'no-store'/);
+  assert.match(app, /setInterval/);
+  assert.match(app, /authorization = `Bearer/);
+  assert.doesNotMatch(app, /localStorage/);
+  assert.doesNotMatch(app, /sessionStorage/);
 });
