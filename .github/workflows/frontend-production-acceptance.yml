@@ -20,16 +20,17 @@ jobs:
           set -euo pipefail
           base="https://atlas.columbiacitycustomllc.com"
           for attempt in $(seq 1 36); do
-            code="$(curl -sS -o /tmp/atlas-root.html -w '%{http_code}' --connect-timeout 5 --max-time 15 "$base/" || true)"
-            if [[ "$code" == "200" ]] && grep -q "ATLAS" /tmp/atlas-root.html; then
-              echo "Atlas frontend is live on attempt $attempt"
+            code="$(curl -sS -o /tmp/atlas-health.json -w '%{http_code}' --connect-timeout 5 --max-time 15 "$base/health" || true)"
+            if [[ "$code" == "200" ]] && jq -e '.ok == true and .frontend_read_model_version == "atlas.frontend_read_model.v3"' /tmp/atlas-health.json >/dev/null; then
+              echo "Atlas frontend v3 is live on attempt $attempt"
               exit 0
             fi
-            echo "Attempt $attempt: root returned ${code:-transport_error}; waiting for Render deployment"
+            observed_version="$(jq -r '.frontend_read_model_version // "unavailable"' /tmp/atlas-health.json 2>/dev/null || true)"
+            echo "Attempt $attempt: health returned ${code:-transport_error}, read model ${observed_version:-unavailable}; waiting for Render deployment"
             sleep 5
           done
           echo "Atlas frontend did not become healthy"
-          cat /tmp/atlas-root.html || true
+          cat /tmp/atlas-health.json || true
           exit 1
 
       - name: Verify bounded public read models
