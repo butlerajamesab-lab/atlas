@@ -45,6 +45,8 @@ test('compact UI reads preserve service-role boundaries and one database round t
   assert.match(compactReadMigration, /revoke all on public\.v_atlas_ui_overview_v2 from public, anon, authenticated/);
   assert.match(ui, /from\('v_atlas_ui_overview_v2'\)/);
   assert.match(ui, /from\('v_atlas_ui_signal_substrate_v2'\)/);
+  assert.match(ui, /PUBLIC_READ_CACHE_TTL_MS = 15_000/);
+  assert.match(ui, /existing\.expiresAt === null/);
 });
 
 test('compiled adapter mapping is explicit and database stream status gates execution', () => {

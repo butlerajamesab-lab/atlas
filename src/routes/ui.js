@@ -15,6 +15,7 @@ import { ADAPTER_REGISTRY, ADAPTER_STREAM_IDS } from '../services/scheduler.js';
 
 const LEGISLATIVE_STREAM_ID = 'civic_genome_legislative_versions';
 const FRONTEND_READ_MODEL_VERSION = 'atlas.frontend_read_model.v2';
+const PUBLIC_READ_CACHE_TTL_MS = 15_000;
 
 const ADAPTERS_BY_STREAM = new Map(ADAPTER_REGISTRY.map((adapter) => [
   ADAPTER_STREAM_IDS[adapter.name],
@@ -72,46 +73,73 @@ function safeSourceRow(row) {
   };
 }
 
+function createPublicReadCache(ttlMs = PUBLIC_READ_CACHE_TTL_MS) {
+  const entries = new Map();
+  return async function cachedRead(key, loader) {
+    const existing = entries.get(key);
+    if (existing && (existing.expiresAt === null || existing.expiresAt > Date.now())) {
+      return existing.promise;
+    }
+    const entry = { expiresAt: null, promise: null };
+    entry.promise = Promise.resolve()
+      .then(loader)
+      .then((value) => {
+        entry.expiresAt = Date.now() + ttlMs;
+        return value;
+      })
+      .catch((error) => {
+        if (entries.get(key) === entry) entries.delete(key);
+        throw error;
+      });
+    entries.set(key, entry);
+    return entry.promise;
+  };
+}
+
 export function atlasUiRouter({ apiError }) {
   const router = express.Router();
+  const cachedRead = createPublicReadCache();
 
   router.get('/ui-api/overview', async (_req, res) => {
     try {
-      const { data, error } = await supabase
-        .from('v_atlas_ui_overview_v2')
-        .select('*')
-        .single();
-      if (error) throw error;
+      const payload = await cachedRead('overview', async () => {
+        const { data, error } = await supabase
+          .from('v_atlas_ui_overview_v2')
+          .select('*')
+          .single();
+        if (error) throw error;
 
-      const streams = (data.streams ?? []).map(safeRuntimeStream);
-      const sources = (data.sources ?? []).map(safeSourceRow);
-      const substrate = data.substrate;
-      const legislativeStream = streams.find((row) => row.stream_id === LEGISLATIVE_STREAM_ID);
-      res.json({
-        read_model_version: FRONTEND_READ_MODEL_VERSION,
-        platform: 'Atlas',
-        observed_at: substrate.observed_at,
-        boundary: 'Deterministic observation, normalization, relationship, convergence, and receipt engine. No legal interpretation or consequence ownership.',
-        counts: {
-          streams: streams.length,
-          active_streams: streams.filter((row) => row.status === 'active').length,
-          runnable_streams: streams.filter((row) => row.runnable).length,
-          producing_streams: Number(substrate.producing_streams ?? 0),
-          zero_event_streams: streams.filter((row) => Number(row.event_count) === 0).length,
-          signal_events: Number(substrate.signal_events ?? 0),
-          identity_bound_events: Number(substrate.identity_bound_events ?? 0),
-          signal_types: Number(substrate.signal_types ?? 0),
-          prime_patterns: Number(substrate.prime_patterns ?? 0),
-          investigative_jobs: Number(substrate.investigative_jobs ?? 0),
-          legislative_version_observations: Number(legislativeStream?.event_count ?? 0),
-          sources: sources.length,
-        },
-        latest_signal_at: substrate.latest_signal_at,
-        latest_ingested_at: substrate.latest_ingested_at,
-        source_readiness: readinessSummary(sources),
-        streams,
-        sources,
+        const streams = (data.streams ?? []).map(safeRuntimeStream);
+        const sources = (data.sources ?? []).map(safeSourceRow);
+        const substrate = data.substrate;
+        const legislativeStream = streams.find((row) => row.stream_id === LEGISLATIVE_STREAM_ID);
+        return {
+          read_model_version: FRONTEND_READ_MODEL_VERSION,
+          platform: 'Atlas',
+          observed_at: substrate.observed_at,
+          boundary: 'Deterministic observation, normalization, relationship, convergence, and receipt engine. No legal interpretation or consequence ownership.',
+          counts: {
+            streams: streams.length,
+            active_streams: streams.filter((row) => row.status === 'active').length,
+            runnable_streams: streams.filter((row) => row.runnable).length,
+            producing_streams: Number(substrate.producing_streams ?? 0),
+            zero_event_streams: streams.filter((row) => Number(row.event_count) === 0).length,
+            signal_events: Number(substrate.signal_events ?? 0),
+            identity_bound_events: Number(substrate.identity_bound_events ?? 0),
+            signal_types: Number(substrate.signal_types ?? 0),
+            prime_patterns: Number(substrate.prime_patterns ?? 0),
+            investigative_jobs: Number(substrate.investigative_jobs ?? 0),
+            legislative_version_observations: Number(legislativeStream?.event_count ?? 0),
+            sources: sources.length,
+          },
+          latest_signal_at: substrate.latest_signal_at,
+          latest_ingested_at: substrate.latest_ingested_at,
+          source_readiness: readinessSummary(sources),
+          streams,
+          sources,
+        };
       });
+      res.json(payload);
     } catch (error) {
       apiError(res, 500, 'Atlas frontend overview failed', error instanceof Error ? error.message : String(error));
     }
@@ -119,18 +147,20 @@ export function atlasUiRouter({ apiError }) {
 
   router.get('/ui-api/streams', async (_req, res) => {
     try {
-      const { data, error } = await supabase
-        .from('v_atlas_stream_runtime_summary_v1')
-        .select('*')
-        .order('stream_id');
-      if (error) throw error;
-      const streams = (data ?? []).map(safeRuntimeStream);
-      return res.json({
-        read_model_version: FRONTEND_READ_MODEL_VERSION,
-        observed_at: new Date().toISOString(),
-        streams,
-        semantics: 'Registered is a database contract. Runnable means a compiled adapter is bound. Producing means at least one canonical signal event exists. None of these states is inferred from another.',
+      const payload = await cachedRead('streams', async () => {
+        const { data, error } = await supabase
+          .from('v_atlas_stream_runtime_summary_v1')
+          .select('*')
+          .order('stream_id');
+        if (error) throw error;
+        return {
+          read_model_version: FRONTEND_READ_MODEL_VERSION,
+          observed_at: new Date().toISOString(),
+          streams: (data ?? []).map(safeRuntimeStream),
+          semantics: 'Registered is a database contract. Runnable means a compiled adapter is bound. Producing means at least one canonical signal event exists. None of these states is inferred from another.',
+        };
       });
+      return res.json(payload);
     } catch (error) {
       return apiError(res, 500, 'Atlas stream runtime read failed', error instanceof Error ? error.message : String(error));
     }
@@ -138,17 +168,20 @@ export function atlasUiRouter({ apiError }) {
 
   router.get('/ui-api/signal-substrate', async (_req, res) => {
     try {
-      const { data, error } = await supabase
-        .from('v_atlas_ui_signal_substrate_v2')
-        .select('*')
-        .single();
-      if (error) throw error;
-      return res.json({
-        read_model_version: FRONTEND_READ_MODEL_VERSION,
-        summary: data.summary,
-        signal_types: data.signal_types ?? [],
-        semantics: 'Signal events are observations. Prime patterns are persisted deterministic investigation outputs. Neither is a legal interpretation or projected consequence.',
+      const payload = await cachedRead('signal-substrate', async () => {
+        const { data, error } = await supabase
+          .from('v_atlas_ui_signal_substrate_v2')
+          .select('*')
+          .single();
+        if (error) throw error;
+        return {
+          read_model_version: FRONTEND_READ_MODEL_VERSION,
+          summary: data.summary,
+          signal_types: data.signal_types ?? [],
+          semantics: 'Signal events are observations. Prime patterns are persisted deterministic investigation outputs. Neither is a legal interpretation or projected consequence.',
+        };
       });
+      return res.json(payload);
     } catch (error) {
       return apiError(res, 500, 'Atlas signal substrate read failed', error instanceof Error ? error.message : String(error));
     }
