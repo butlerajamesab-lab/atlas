@@ -1,0 +1,29 @@
+name: Atlas Esquire bridge contract
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  esquire-bridge:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: node --check src/routes/esquireBridge.js
+      - run: node --test test/esquireBridgeContract.test.js
+      - run: npm run build
+      - name: Boundary guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q "app.use(requireControl)" src/server.js
+          grep -q "app.use(esquireBridgeRouter())" src/server.js
+          grep -q "service_name: 'esquire'" src/routes/esquireBridge.js
+          ! grep -q "from.*supabase" src/routes/esquireBridge.js

@@ -8,6 +8,7 @@ import { populationRouter } from './routes/population.js';
 import { recognitionAtlasRouter } from './routes/recognition_atlas.js';
 import { civicGenomeSnapshotsRouter } from './routes/civicGenomeSnapshots.js';
 import { atlasUiRouter, FRONTEND_READ_MODEL_VERSION } from './routes/ui.js';
+import { esquireBridgeRouter } from './routes/esquireBridge.js';
 import convergenceRouter from './routes/convergence.js';
 import { requireBearerToken } from './lib/serviceAuth.js';
 import { luminariStreamHealthManifest } from './services/streamHealthInvestigation.js';
@@ -125,8 +126,9 @@ app.use(civicGenomeSnapshotsRouter(routeContext));
 app.use(atlasUiRouter(routeContext));
 app.use(express.static('public', { etag: true, maxAge: '5m' }));
 
-// All operational and unrestricted data routes remain private control surfaces.
+// All operational, unrestricted data, and case bridge routes remain private control surfaces.
 app.use(requireControl);
+app.use(esquireBridgeRouter());
 app.use(streamsRouter(routeContext));
 app.use(populationRouter(routeContext));
 app.use(investigationsRouter(routeContext));
