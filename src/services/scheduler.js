@@ -32,7 +32,7 @@ const ADAPTER_REGISTRY = [
     name: 'openstates',
     module: '../adapters/openStatesAdapter.js',
     fn: 'ingestOpenStatesSignals',
-    args: {},
+    args: { jurisdiction: STATE.toLowerCase() },
     intervalMs: 6 * 60 * 60 * 1000,
     priority: 'high',
   },
