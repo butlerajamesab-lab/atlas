@@ -11,16 +11,25 @@ import {
   STRUCTURAL_LENS_REGISTRY_VERSION,
 } from '../lenses/structuralLenses.js';
 import { ATLAS_MODULE_CONTRACT_VERSION } from '../modules/moduleDefinition.js';
+import { ADAPTER_REGISTRY, ADAPTER_STREAM_IDS } from '../services/scheduler.js';
 
 const LEGISLATIVE_STREAM_ID = 'civic_genome_legislative_versions';
-const FRONTEND_READ_MODEL_VERSION = 'atlas.frontend_read_model.v1';
+const FRONTEND_READ_MODEL_VERSION = 'atlas.frontend_read_model.v2';
 
-async function exactCount(table, apply = null) {
-  let query = supabase.from(table).select('*', { count: 'exact', head: true });
-  if (apply) query = apply(query);
-  const { count, error } = await query;
-  if (error) throw error;
-  return count ?? 0;
+const ADAPTERS_BY_STREAM = new Map(ADAPTER_REGISTRY.map((adapter) => [
+  ADAPTER_STREAM_IDS[adapter.name],
+  adapter,
+]));
+
+function safeRuntimeStream(row) {
+  const adapter = ADAPTERS_BY_STREAM.get(row.stream_id);
+  return {
+    ...row,
+    runnable: Boolean(adapter),
+    adapter_name: adapter?.name ?? null,
+    schedule_priority: adapter?.priority ?? null,
+    interval_hours: adapter ? Math.round(adapter.intervalMs / 3600_000) : null,
+  };
 }
 
 function readinessSummary(rows) {
@@ -68,40 +77,94 @@ export function atlasUiRouter({ apiError }) {
 
   router.get('/ui-api/overview', async (_req, res) => {
     try {
-      const [streamsResult, readinessResult, totalEvents, legislativeEvents] = await Promise.all([
+      const [streamsResult, readinessResult, substrateResult] = await Promise.all([
         supabase
-          .from('streams')
-          .select('stream_id,source_id,jurisdiction_id,module_hint,throughput_profile,safety_profile,governance_contract_id,status')
+          .from('v_atlas_stream_runtime_summary_v1')
+          .select('*')
           .order('stream_id'),
         supabase
           .from('v_atlas_source_operational_readiness_v1')
           .select('*')
           .order('source_name'),
-        exactCount('signal_events'),
-        exactCount('signal_events', (query) => query.eq('stream_id', LEGISLATIVE_STREAM_ID)),
+        supabase.from('v_atlas_signal_substrate_summary_v1').select('*').single(),
       ]);
       if (streamsResult.error) throw streamsResult.error;
       if (readinessResult.error) throw readinessResult.error;
+      if (substrateResult.error) throw substrateResult.error;
 
-      const streams = streamsResult.data ?? [];
+      const streams = (streamsResult.data ?? []).map(safeRuntimeStream);
       const sources = (readinessResult.data ?? []).map(safeSourceRow);
+      const substrate = substrateResult.data;
+      const legislativeStream = streams.find((row) => row.stream_id === LEGISLATIVE_STREAM_ID);
       res.json({
         read_model_version: FRONTEND_READ_MODEL_VERSION,
         platform: 'Atlas',
+        observed_at: substrate.observed_at,
         boundary: 'Deterministic observation, normalization, relationship, convergence, and receipt engine. No legal interpretation or consequence ownership.',
         counts: {
           streams: streams.length,
           active_streams: streams.filter((row) => row.status === 'active').length,
-          signal_events: totalEvents,
-          legislative_version_observations: legislativeEvents,
+          runnable_streams: streams.filter((row) => row.runnable).length,
+          producing_streams: Number(substrate.producing_streams ?? 0),
+          zero_event_streams: streams.filter((row) => Number(row.event_count) === 0).length,
+          signal_events: Number(substrate.signal_events ?? 0),
+          identity_bound_events: Number(substrate.identity_bound_events ?? 0),
+          signal_types: Number(substrate.signal_types ?? 0),
+          prime_patterns: Number(substrate.prime_patterns ?? 0),
+          investigative_jobs: Number(substrate.investigative_jobs ?? 0),
+          legislative_version_observations: Number(legislativeStream?.event_count ?? 0),
           sources: sources.length,
         },
+        latest_signal_at: substrate.latest_signal_at,
+        latest_ingested_at: substrate.latest_ingested_at,
         source_readiness: readinessSummary(sources),
         streams,
         sources,
       });
     } catch (error) {
       apiError(res, 500, 'Atlas frontend overview failed', error instanceof Error ? error.message : String(error));
+    }
+  });
+
+  router.get('/ui-api/streams', async (_req, res) => {
+    try {
+      const { data, error } = await supabase
+        .from('v_atlas_stream_runtime_summary_v1')
+        .select('*')
+        .order('stream_id');
+      if (error) throw error;
+      const streams = (data ?? []).map(safeRuntimeStream);
+      return res.json({
+        read_model_version: FRONTEND_READ_MODEL_VERSION,
+        observed_at: new Date().toISOString(),
+        streams,
+        semantics: 'Registered is a database contract. Runnable means a compiled adapter is bound. Producing means at least one canonical signal event exists. None of these states is inferred from another.',
+      });
+    } catch (error) {
+      return apiError(res, 500, 'Atlas stream runtime read failed', error instanceof Error ? error.message : String(error));
+    }
+  });
+
+  router.get('/ui-api/signal-substrate', async (_req, res) => {
+    try {
+      const [summaryResult, typeResult] = await Promise.all([
+        supabase.from('v_atlas_signal_substrate_summary_v1').select('*').single(),
+        supabase
+          .from('v_atlas_signal_type_summary_v1')
+          .select('*')
+          .order('event_count', { ascending: false })
+          .limit(250),
+      ]);
+      if (summaryResult.error) throw summaryResult.error;
+      if (typeResult.error) throw typeResult.error;
+      return res.json({
+        read_model_version: FRONTEND_READ_MODEL_VERSION,
+        summary: summaryResult.data,
+        signal_types: typeResult.data ?? [],
+        semantics: 'Signal events are observations. Prime patterns are persisted deterministic investigation outputs. Neither is a legal interpretation or projected consequence.',
+      });
+    } catch (error) {
+      return apiError(res, 500, 'Atlas signal substrate read failed', error instanceof Error ? error.message : String(error));
     }
   });
 

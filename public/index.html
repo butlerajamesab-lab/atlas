@@ -21,9 +21,12 @@
       <nav class="nav" aria-label="Atlas sections">
         <button class="nav-item active" data-view="overview"><span>01</span>Overview</button>
         <button class="nav-item" data-view="sources"><span>02</span>Source Registry</button>
-        <button class="nav-item" data-view="legislative"><span>03</span>Legislative History</button>
-        <button class="nav-item" data-view="contracts"><span>04</span>Spaces & Lenses</button>
-        <button class="nav-item" data-view="boundary"><span>05</span>Boundary</button>
+        <button class="nav-item" data-view="streams"><span>03</span>Streams</button>
+        <button class="nav-item" data-view="substrate"><span>04</span>Signal Substrate</button>
+        <button class="nav-item" data-view="legislative"><span>05</span>Legislative History</button>
+        <button class="nav-item" data-view="contracts"><span>06</span>Spaces & Lenses</button>
+        <button class="nav-item" data-view="boundary"><span>07</span>Boundary</button>
+        <button class="nav-item" data-view="operations"><span>08</span>Operations</button>
       </nav>
 
       <div class="sidebar-footer">
@@ -38,8 +41,12 @@
           <span class="crumb">ATLAS / OBSERVATION → CONVERGENCE</span>
         </div>
         <div class="top-status">
-          <span id="connectionDot" class="status-dot"></span>
-          <span id="connectionText">CONNECTING</span>
+          <div class="connection-state">
+            <span id="connectionDot" class="status-dot"></span>
+            <span id="connectionText">CONNECTING</span>
+          </div>
+          <button id="refreshButton" class="top-button" type="button">Refresh</button>
+          <button id="operatorButton" class="top-button" type="button">Unlock controls</button>
         </div>
       </header>
 
@@ -51,6 +58,22 @@
       </section>
     </main>
   </div>
+
+  <dialog id="operatorDialog" class="operator-dialog">
+    <form id="operatorForm" method="dialog">
+      <div class="eyebrow">GOVERNED OPERATOR ACCESS</div>
+      <h2>Unlock Atlas controls</h2>
+      <p>The control token is sent only to Atlas for verification and is kept in memory for this page session. It is not written to browser storage.</p>
+      <label for="operatorToken">Atlas control token</label>
+      <input id="operatorToken" class="input" type="password" autocomplete="off" required />
+      <div id="operatorError" class="form-error" hidden></div>
+      <div class="dialog-actions">
+        <button id="operatorCancel" class="button secondary" type="button">Cancel</button>
+        <button class="button" type="submit">Verify and unlock</button>
+      </div>
+    </form>
+  </dialog>
+  <div id="toast" class="toast" hidden></div>
 
   <script type="module" src="/atlas-app.js"></script>
 </body>

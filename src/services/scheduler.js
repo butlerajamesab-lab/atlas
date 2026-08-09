@@ -12,6 +12,8 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
+import { supabase } from '../lib/supabaseClient.js';
+import { countStreamEvents, recordActionReceipt } from './actionReceiptService.js';
 import { runLiveDataSignalBridge } from './liveDataSignalBridgeService.js';
 
 const STATE = process.env.ATLAS_STATE || 'WA';
@@ -164,6 +166,27 @@ const ADAPTER_REGISTRY = [
   },
 ];
 
+const ADAPTER_STREAM_IDS = Object.freeze({
+  courtlistener: 'court_listener',
+  openstates: 'open_states',
+  propublica: 'pro_publica',
+  cfpb_complaints: 'cfpb_complaints',
+  regulations_gov: 'regulations_gov',
+  grants_gov: 'grants_gov',
+  osha_inspections: 'osha_inspections',
+  epa_echo: 'epa_echo',
+  census_acs: 'census_acs',
+  usda_snap: 'usda_snap',
+  hud_fmr: 'hud_housing',
+  bls_employment: 'bls_employment',
+  fec_campaign_finance: 'fec_campaign_finance',
+  sec_edgar: 'sec_edgar',
+  usa_spending: 'usa_spending',
+  irs_exempt_orgs: 'irs_exempt_orgs',
+  opensecrets_lda: 'open_secrets',
+  fara_foreign_agents: 'fara_foreign_agents',
+});
+
 const adapterState = new Map();
 let schedulerRunning = false;
 let schedulerStartedAt = null;
@@ -174,8 +197,29 @@ let domain3State = {
   errors: 0,
 };
 
-async function runAdapter(adapter) {
+function summarizeAdapterResult(result) {
+  return {
+    ingested_count: Number(result?.ingested_count ?? result?.events_inserted ?? result?.count ?? 0),
+    replayed_count: Number(result?.replayed_count ?? result?.replays_suppressed ?? 0),
+    source_count: Number(result?.source_count ?? result?.records_fetched ?? result?.fetched_count ?? 0),
+    status: result?.status ?? null,
+  };
+}
+
+async function persistRunReceipt(params) {
+  try {
+    return await recordActionReceipt(params);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`[scheduler] [RECEIPT] ${params.targetId} — ${message.slice(0, 180)}`);
+    return { action_receipt_hash: null, receipt_error: message.slice(0, 500) };
+  }
+}
+
+async function runAdapter(adapter, { initiator = 'scheduler' } = {}) {
   const start = Date.now();
+  const requestedAt = new Date(start).toISOString();
+  const streamId = ADAPTER_STREAM_IDS[adapter.name];
   const state = adapterState.get(adapter.name) || {
     running: false,
     lastRun: null,
@@ -191,27 +235,91 @@ async function runAdapter(adapter) {
   state.running = true;
   adapterState.set(adapter.name, state);
 
+  let beforeEventCount = null;
   try {
+    if (!streamId) throw new Error(`Adapter ${adapter.name} has no canonical stream binding`);
+    const { data: stream, error: streamError } = await supabase
+      .from('streams')
+      .select('stream_id,status')
+      .eq('stream_id', streamId)
+      .maybeSingle();
+    if (streamError) throw streamError;
+
+    if (!stream || stream.status !== 'active') {
+      beforeEventCount = stream ? await countStreamEvents(streamId) : null;
+      const completedAt = new Date().toISOString();
+      const result = {
+        status: 'skipped',
+        outcome: stream ? `stream_${stream.status}` : 'stream_not_registered',
+        stream_id: streamId,
+        elapsed: Date.now() - start,
+      };
+      const receipt = await persistRunReceipt({
+        actionType: 'adapter_run',
+        initiator,
+        targetId: streamId,
+        requestedAt,
+        completedAt,
+        outcomeStatus: 'skipped',
+        beforeEventCount,
+        afterEventCount: beforeEventCount,
+        request: { adapter_name: adapter.name },
+        result,
+      });
+      state.lastRun = completedAt;
+      state.lastResult = { ...result, action_receipt_hash: receipt.action_receipt_hash, receipt_error: receipt.receipt_error ?? null };
+      return state.lastResult;
+    }
+
+    beforeEventCount = await countStreamEvents(streamId);
     const mod = await import(adapter.module);
     const fn = mod[adapter.fn];
     if (!fn) throw new Error(`Function ${adapter.fn} not found in ${adapter.module}`);
 
-    const result = await fn(adapter.args || {});
+    const adapterResult = await fn(adapter.args || {});
     const elapsed = Date.now() - start;
-    const inserted = Number(result?.ingested_count ?? result?.events_inserted ?? result?.count ?? 0);
-    const replayed = Number(result?.replayed_count ?? result?.replays_suppressed ?? 0);
-    const outcome = inserted > 0
+    const afterEventCount = await countStreamEvents(streamId);
+    const eventDelta = afterEventCount - beforeEventCount;
+    const summary = summarizeAdapterResult(adapterResult);
+    const inserted = summary.ingested_count;
+    const replayed = summary.replayed_count;
+    const outcome = eventDelta > 0
       ? 'productive'
       : replayed > 0
         ? 'completed_no_change'
         : 'unexpectedly_zero';
 
     console.log(
-      `[scheduler] [OK]   ${adapter.name} — inserted=${inserted} replayed=${replayed} outcome=${outcome} (${elapsed}ms)`,
+      `[scheduler] [OK]   ${adapter.name} — reported_inserted=${inserted} event_delta=${eventDelta} replayed=${replayed} outcome=${outcome} (${elapsed}ms)`,
     );
 
-    state.lastRun = new Date().toISOString();
-    state.lastResult = { inserted, replayed, elapsed, status: 'ok', outcome };
+    const completedAt = new Date().toISOString();
+    const result = {
+      status: 'ok',
+      outcome,
+      stream_id: streamId,
+      reported_inserted: inserted,
+      reported_replayed: replayed,
+      source_count: summary.source_count,
+      before_event_count: beforeEventCount,
+      after_event_count: afterEventCount,
+      event_delta: eventDelta,
+      elapsed,
+    };
+    const receipt = await persistRunReceipt({
+      actionType: 'adapter_run',
+      initiator,
+      targetId: streamId,
+      requestedAt,
+      completedAt,
+      outcomeStatus: 'completed',
+      beforeEventCount,
+      afterEventCount,
+      request: { adapter_name: adapter.name },
+      result,
+    });
+    state.lastRun = completedAt;
+    state.lastResult = { ...result, action_receipt_hash: receipt.action_receipt_hash, receipt_error: receipt.receipt_error ?? null };
     state.errors = 0;
     return state.lastResult;
   } catch (err) {
@@ -219,8 +327,36 @@ async function runAdapter(adapter) {
     const message = err instanceof Error ? err.message : String(err);
     console.error(`[scheduler] [FAIL] ${adapter.name} — ${message.slice(0, 120)} (${elapsed}ms)`);
 
-    state.lastRun = new Date().toISOString();
-    state.lastResult = { status: 'error', error: message.slice(0, 500), elapsed, outcome: 'failed' };
+    const completedAt = new Date().toISOString();
+    let afterEventCount = null;
+    if (beforeEventCount !== null && streamId) {
+      try {
+        afterEventCount = await countStreamEvents(streamId);
+      } catch {
+        afterEventCount = beforeEventCount;
+      }
+    }
+    const result = {
+      status: 'error',
+      error: message.slice(0, 500),
+      stream_id: streamId ?? null,
+      elapsed,
+      outcome: 'failed',
+    };
+    const receipt = await persistRunReceipt({
+      actionType: 'adapter_run',
+      initiator,
+      targetId: streamId ?? adapter.name,
+      requestedAt,
+      completedAt,
+      outcomeStatus: 'failed',
+      beforeEventCount,
+      afterEventCount,
+      request: { adapter_name: adapter.name },
+      result,
+    });
+    state.lastRun = completedAt;
+    state.lastResult = { ...result, action_receipt_hash: receipt.action_receipt_hash, receipt_error: receipt.receipt_error ?? null };
     state.errors = (state.errors || 0) + 1;
     return state.lastResult;
   } finally {
@@ -333,6 +469,7 @@ export function getSchedulerStatus() {
     state: STATE,
     adapters: ADAPTER_REGISTRY.map((adapter) => ({
       name: adapter.name,
+      stream_id: ADAPTER_STREAM_IDS[adapter.name] ?? null,
       priority: adapter.priority,
       interval_hours: Math.round(adapter.intervalMs / 3600_000),
       ...adapterState.get(adapter.name),
@@ -346,10 +483,10 @@ export function getSchedulerStatus() {
   };
 }
 
-export function triggerAdapterNow(adapterName) {
+export function triggerAdapterNow(adapterName, options = {}) {
   const adapter = ADAPTER_REGISTRY.find((candidate) => candidate.name === adapterName);
   if (!adapter) throw new Error(`Unknown adapter: ${adapterName}`);
-  return runAdapter(adapter);
+  return runAdapter(adapter, { initiator: options.initiator ?? 'operator' });
 }
 
-export { ADAPTER_REGISTRY };
+export { ADAPTER_REGISTRY, ADAPTER_STREAM_IDS };
