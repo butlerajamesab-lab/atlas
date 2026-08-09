@@ -14,7 +14,7 @@ import { ATLAS_MODULE_CONTRACT_VERSION } from '../modules/moduleDefinition.js';
 import { ADAPTER_REGISTRY, ADAPTER_STREAM_IDS } from '../services/scheduler.js';
 
 const LEGISLATIVE_STREAM_ID = 'civic_genome_legislative_versions';
-const FRONTEND_READ_MODEL_VERSION = 'atlas.frontend_read_model.v2';
+const FRONTEND_READ_MODEL_VERSION = 'atlas.frontend_read_model.v3';
 const PUBLIC_READ_CACHE_TTL_MS = 15_000;
 
 const ADAPTERS_BY_STREAM = new Map(ADAPTER_REGISTRY.map((adapter) => [
@@ -25,7 +25,22 @@ const ADAPTERS_BY_STREAM = new Map(ADAPTER_REGISTRY.map((adapter) => [
 function safeRuntimeStream(row) {
   const adapter = ADAPTERS_BY_STREAM.get(row.stream_id);
   return {
-    ...row,
+    stream_id: row.stream_id,
+    source_id: row.source_id,
+    jurisdiction_id: row.jurisdiction_id,
+    module_hint: row.module_hint,
+    throughput_profile: row.throughput_profile,
+    safety_profile: row.safety_profile,
+    governance_contract_id: row.governance_contract_id,
+    status: row.status,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    observation_count: Number(row.event_count ?? 0),
+    identity_bound_observation_count: Number(row.identity_count ?? 0),
+    observation_classification_count: Number(row.signal_type_count ?? 0),
+    first_observed_at: row.first_event_at,
+    latest_observed_at: row.latest_event_at,
+    latest_ingested_at: row.latest_ingested_at,
     runnable: Boolean(adapter),
     adapter_name: adapter?.name ?? null,
     schedule_priority: adapter?.priority ?? null,
@@ -100,40 +115,79 @@ export function atlasUiRouter({ apiError }) {
   const router = express.Router();
   const cachedRead = createPublicReadCache();
 
+  async function signalDerivationRead() {
+    return cachedRead('signal-derivation', async () => {
+      const { data, error } = await supabase
+        .from('v_atlas_ui_signal_derivation_v3')
+        .select('*')
+        .single();
+      if (error) throw error;
+      return {
+        read_model_version: FRONTEND_READ_MODEL_VERSION,
+        summary: data.summary,
+        observation_classifications: data.observation_classifications ?? [],
+        canonical_signal_types: data.canonical_signal_types ?? [],
+        candidate_rules: data.candidate_rules ?? [],
+        convergence_runs: data.convergence_runs ?? [],
+        semantics: {
+          observations: 'Rows in the legacy-named public.signal_events store are normalized source observations. An observation is not automatically a civic signal.',
+          signals: 'A civic signal exists only after a declared, versioned derivation with source identity, rule identity, provenance, and a reproducible output.',
+          candidates: 'Signal candidates remain distinct from canonical atlas.signals and from Lighthouse-governed findings.',
+          convergence: 'Convergence receipts record the bounded source population, transformed signal population, deduplicated signal population, rules, configuration, and output hash.',
+          legacy_outputs: 'Legacy prime_patterns are shown separately. Stream-health alerts are operational diagnostics, not civic convergence conclusions.',
+        },
+      };
+    });
+  }
+
   router.get('/ui-api/overview', async (_req, res) => {
     try {
       const payload = await cachedRead('overview', async () => {
         const { data, error } = await supabase
-          .from('v_atlas_ui_overview_v2')
+          .from('v_atlas_ui_overview_v3')
           .select('*')
           .single();
         if (error) throw error;
 
         const streams = (data.streams ?? []).map(safeRuntimeStream);
         const sources = (data.sources ?? []).map(safeSourceRow);
-        const substrate = data.substrate;
+        const derivation = data.derivation;
         const legislativeStream = streams.find((row) => row.stream_id === LEGISLATIVE_STREAM_ID);
         return {
           read_model_version: FRONTEND_READ_MODEL_VERSION,
           platform: 'Atlas',
-          observed_at: substrate.observed_at,
-          boundary: 'Deterministic observation, normalization, relationship, convergence, and receipt engine. No legal interpretation or consequence ownership.',
+          observed_at: derivation.observed_at,
+          boundary: 'Deterministic source observation, governed signal derivation, relationship, convergence, and receipt engine. No legal interpretation or consequence ownership.',
           counts: {
             streams: streams.length,
             active_streams: streams.filter((row) => row.status === 'active').length,
             runnable_streams: streams.filter((row) => row.runnable).length,
-            producing_streams: Number(substrate.producing_streams ?? 0),
-            zero_event_streams: streams.filter((row) => Number(row.event_count) === 0).length,
-            signal_events: Number(substrate.signal_events ?? 0),
-            identity_bound_events: Number(substrate.identity_bound_events ?? 0),
-            signal_types: Number(substrate.signal_types ?? 0),
-            prime_patterns: Number(substrate.prime_patterns ?? 0),
-            investigative_jobs: Number(substrate.investigative_jobs ?? 0),
-            legislative_version_observations: Number(legislativeStream?.event_count ?? 0),
+            streams_with_observations: Number(derivation.streams_with_observations ?? 0),
+            zero_observation_streams: streams.filter((row) => row.observation_count === 0).length,
+            normalized_observations: Number(derivation.normalized_observations ?? 0),
+            identity_bound_observations: Number(derivation.identity_bound_observations ?? 0),
+            observation_classifications: Number(derivation.observation_classifications ?? 0),
+            canonical_signals: Number(derivation.canonical_signals ?? 0),
+            canonical_signal_types: Number(derivation.canonical_signal_types ?? 0),
+            receipted_canonical_signals: Number(derivation.receipted_canonical_signals ?? 0),
+            unreceipted_canonical_signals: Number(derivation.unreceipted_canonical_signals ?? 0),
+            signal_candidates: Number(derivation.signal_candidates ?? 0),
+            verified_signal_candidates: Number(derivation.verified_signal_candidates ?? 0),
+            active_signal_rules: Number(derivation.active_signal_rules ?? 0),
+            convergence_runs: Number(derivation.convergence_runs ?? 0),
+            convergence_receipts: Number(derivation.convergence_receipts ?? 0),
+            convergence_events: Number(derivation.convergence_events ?? 0),
+            legacy_investigation_outputs: Number(derivation.legacy_investigation_outputs ?? 0),
+            stream_health_alerts: Number(derivation.stream_health_alerts ?? 0),
+            legacy_investigation_jobs: Number(derivation.legacy_investigation_jobs ?? 0),
+            legislative_version_observations: Number(legislativeStream?.observation_count ?? 0),
             sources: sources.length,
           },
-          latest_signal_at: substrate.latest_signal_at,
-          latest_ingested_at: substrate.latest_ingested_at,
+          latest_observation_at: derivation.latest_observation_at,
+          latest_observation_ingested_at: derivation.latest_observation_ingested_at,
+          latest_canonical_signal_at: derivation.latest_canonical_signal_at,
+          latest_signal_candidate_at: derivation.latest_signal_candidate_at,
+          latest_convergence_at: derivation.latest_convergence_at,
           source_readiness: readinessSummary(sources),
           streams,
           sources,
@@ -157,7 +211,7 @@ export function atlasUiRouter({ apiError }) {
           read_model_version: FRONTEND_READ_MODEL_VERSION,
           observed_at: new Date().toISOString(),
           streams: (data ?? []).map(safeRuntimeStream),
-          semantics: 'Registered is a database contract. Runnable means a compiled adapter is bound. Producing means at least one canonical signal event exists. None of these states is inferred from another.',
+          semantics: 'Registered is a database contract. Runnable means a compiled adapter is bound. Observed means at least one normalized source observation exists. Signal derivation is measured separately and is never inferred from observation volume.',
         };
       });
       return res.json(payload);
@@ -166,24 +220,23 @@ export function atlasUiRouter({ apiError }) {
     }
   });
 
+  router.get('/ui-api/signal-derivation', async (_req, res) => {
+    try {
+      return res.json(await signalDerivationRead());
+    } catch (error) {
+      return apiError(res, 500, 'Atlas signal derivation read failed', error instanceof Error ? error.message : String(error));
+    }
+  });
+
   router.get('/ui-api/signal-substrate', async (_req, res) => {
     try {
-      const payload = await cachedRead('signal-substrate', async () => {
-        const { data, error } = await supabase
-          .from('v_atlas_ui_signal_substrate_v2')
-          .select('*')
-          .single();
-        if (error) throw error;
-        return {
-          read_model_version: FRONTEND_READ_MODEL_VERSION,
-          summary: data.summary,
-          signal_types: data.signal_types ?? [],
-          semantics: 'Signal events are observations. Prime patterns are persisted deterministic investigation outputs. Neither is a legal interpretation or projected consequence.',
-        };
+      return res.json({
+        ...(await signalDerivationRead()),
+        deprecated_alias: '/ui-api/signal-substrate',
+        canonical_route: '/ui-api/signal-derivation',
       });
-      return res.json(payload);
     } catch (error) {
-      return apiError(res, 500, 'Atlas signal substrate read failed', error instanceof Error ? error.message : String(error));
+      return apiError(res, 500, 'Atlas signal derivation compatibility read failed', error instanceof Error ? error.message : String(error));
     }
   });
 
@@ -228,7 +281,7 @@ export function atlasUiRouter({ apiError }) {
       structural_lenses: listStructuralLenses(),
       module_contract_version: ATLAS_MODULE_CONTRACT_VERSION,
       ownership_boundary: {
-        atlas: 'observations, domain-space comparison, structural relationships, convergence math, deterministic receipts',
+        atlas: 'source-bound observations, governed civic-signal derivation, domain-space comparison, structural relationships, convergence math, deterministic receipts',
         docket: 'official legislative retrieval and history',
         rosetta: 'legal decomposition and source truth',
         civic_genome: 'bill/family identity, versions, lineage, events, momentum',
