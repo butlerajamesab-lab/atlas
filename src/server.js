@@ -66,7 +66,7 @@ app.get('/health', (_req, res) => {
     function_id: luminariStreamHealthManifest.function_id,
     scheduler_enabled: SCHEDULER_ENABLED,
     event_identity_version: '1.0.0',
-    live_data_signal_engine: 'atlas.live_data_signal_exact@1.0.0',
+    live_data_signal_engine: 'atlas.live_data_signal_exact@1.1.0',
     convergence_engine_version: '2.1.0',
     civic_genome_snapshot_intake: 'atlas.civic_genome_snapshot_delivery.v1',
     civic_genome_legislative_mapping: 'atlas.civic_genome_legislative_version_observation@1.0.0',
