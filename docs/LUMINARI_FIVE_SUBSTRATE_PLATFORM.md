@@ -1,6 +1,8 @@
-# Luminari Five-Substrate Platform Model
+# Historical Luminari Five-Substrate Recovery Model
 
 Date: 2026-05-12
+
+> **Superseded ownership model.** This file is retained as historical recovery context. It does not control current platform ownership or the signal ontology. The current Atlas boundary is governed by `ATLAS_SIGNAL_ONTOLOGY_CONTRACT.md`: Atlas owns source-bound observations, governed civic-signal derivation, structural relationships, convergence mathematics, and deterministic receipts; Lighthouse owns public presentation and does not silently reinterpret Atlas outputs. Do not use the older assignments below to move signal detection or interpretation ownership into Lighthouse.
 
 ## Platform Thesis
 
