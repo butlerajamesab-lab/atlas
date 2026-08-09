@@ -33,7 +33,7 @@ test('overview exposes source readiness without connector secrets', () => {
 });
 
 test('frontend preserves Atlas constitutional ownership boundaries', () => {
-  assert.match(ui, /atlas: 'observations, domain-space comparison, structural relationships, convergence math, deterministic receipts'/);
+  assert.match(ui, /atlas: 'source-bound observations, governed civic-signal derivation, domain-space comparison, structural relationships, convergence math, deterministic receipts'/);
   assert.match(ui, /rosetta: 'legal decomposition and source truth'/);
   assert.match(ui, /prism: 'verification and contradiction\/incompleteness receipts'/);
   assert.match(ui, /kaleidoscope: 'generation comparison and consequence projection'/);
@@ -47,6 +47,7 @@ test('frontend provides the planned inspection surfaces', () => {
   assert.match(app, /one observation per generation/i);
   assert.match(app, /failed amendments/i);
   assert.match(app, /source-native Prism\/Rosetta states/i);
+  assert.match(app, /Observation is not signal/);
 });
 
 test('live frontend refreshes retrieved state and never persists the operator token', () => {

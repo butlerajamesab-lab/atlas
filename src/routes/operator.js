@@ -23,10 +23,14 @@ function requiredText(value, field, pattern = null) {
 }
 
 async function substrateDetail() {
-  const [summaryResult, streamResult, typeResult, patternResult, jobResult, receiptResult] = await Promise.all([
-    supabase.from('v_atlas_signal_substrate_summary_v1').select('*').single(),
+  const [derivationResult, streamResult, candidateResult, patternResult, jobResult, receiptResult] = await Promise.all([
+    supabase.from('v_atlas_ui_signal_derivation_v3').select('*').single(),
     supabase.from('v_atlas_stream_runtime_summary_v1').select('*').order('stream_id'),
-    supabase.from('v_atlas_signal_type_summary_v1').select('*').order('event_count', { ascending: false }).limit(250),
+    supabase
+      .from('v_atlas_signal_candidate_detail_v1')
+      .select('*')
+      .order('detected_at', { ascending: false })
+      .limit(100),
     supabase
       .from('prime_patterns')
       .select('pattern_id,pattern_type,module,jurisdiction,stream_id,job_id,confidence,severity,detected_at,summary,created_at')
@@ -43,15 +47,19 @@ async function substrateDetail() {
       .order('completed_at', { ascending: false })
       .limit(100),
   ]);
-  for (const result of [summaryResult, streamResult, typeResult, patternResult, jobResult, receiptResult]) {
+  for (const result of [derivationResult, streamResult, candidateResult, patternResult, jobResult, receiptResult]) {
     if (result.error) throw result.error;
   }
   return {
-    summary: summaryResult.data,
+    summary: derivationResult.data.summary,
     streams: streamResult.data ?? [],
-    signal_types: typeResult.data ?? [],
-    prime_patterns: patternResult.data ?? [],
-    investigative_jobs: jobResult.data ?? [],
+    observation_classifications: derivationResult.data.observation_classifications ?? [],
+    canonical_signal_types: derivationResult.data.canonical_signal_types ?? [],
+    candidate_rules: derivationResult.data.candidate_rules ?? [],
+    signal_candidates: candidateResult.data ?? [],
+    convergence_runs: derivationResult.data.convergence_runs ?? [],
+    legacy_prime_patterns: patternResult.data ?? [],
+    legacy_investigative_jobs: jobResult.data ?? [],
     action_receipts: receiptResult.data ?? [],
     observed_at: new Date().toISOString(),
   };
@@ -104,9 +112,9 @@ export function atlasOperatorRouter({ apiError }) {
       const completedAt = new Date().toISOString();
       const outcomeStatus = result?.status === 'error' ? 'failed' : result?.status === 'already_running' ? 'skipped' : 'completed';
       const receipt = await recordActionReceipt({
-        actionType: 'live_data_signal_bridge_run',
+        actionType: 'signal_candidate_derivation_run',
         initiator: 'operator',
-        targetId: 'atlas.live_data_signal_exact@1.0.0',
+        targetId: 'atlas.live_data_signal_exact@1.1.0',
         requestedAt,
         completedAt,
         outcomeStatus,

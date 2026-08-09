@@ -1,6 +1,6 @@
 # Atlas Unified Streaming Engine
 
-Atlas is implemented here as **one integrated Node.js/Express service** backed by the Atlas Supabase project `bjdjjgnkhxblnpdrjqtw`. The repository now represents both the existing Atlas database state and the new streaming engine upgrade in one deployable project. The streaming endpoints are Atlas endpoints, the adapters feed Atlas ingest directly, and the investigation functions run as Atlas services.
+Atlas is implemented here as **one integrated Node.js/Express service** backed by the Atlas Supabase project `bjdjjgnkhxblnpdrjqtw`. The repository represents both the existing Atlas database state and the streaming-engine upgrade in one deployable project. Adapters preserve normalized source observations; separate, declared engines derive civic signals and convergence receipts. See `docs/ATLAS_SIGNAL_ONTOLOGY_CONTRACT.md`.
 
 The implementation intentionally keeps secrets out of version control. Runtime credentials are supplied through a local `.env` file or deployment environment variables, using `.env.example` as the non-secret template.
 
@@ -11,7 +11,7 @@ The implementation intentionally keeps secrets out of version control. Runtime c
 | `src/server.js` | Single Atlas Express app and deployment entry point. |
 | `src/routes/` | Atlas route modules for ingest, stream events/cursors, investigations, and prime-pattern queries. |
 | `src/services/` | Shared Atlas service logic, including `luminari_stream_health_v1` and stream persistence helpers. |
-| `src/adapters/` | Provided adapter code plus the integrated OpenStates API source wrapper that sends signals through Atlas ingest. |
+| `src/adapters/` | Source adapters that submit normalized observations through the legacy-named ingest contract. |
 | `src/lib/` | Supabase client and JSON-schema validation helpers. |
 | `src/schema/` | Atlas schema inventory, current data-state export, JSON schemas, the streaming table migration, and the Lighthouse bridge RPC migration. |
 | `scripts/` | Operational scripts for schema application, state export, stream registration, and e2e verification. |
@@ -41,11 +41,11 @@ The public tables currently include the pre-existing Atlas data structures and t
 | `ingest_jobs` | 19 | Existing Atlas ingest job state. |
 | `investigative_jobs` | 1 | Streaming investigation execution state. |
 | `jurisdictions` | 79 | Existing Atlas jurisdiction catalog. |
-| `prime_patterns` | 1 | Detected streaming pattern output. |
+| `prime_patterns` | 1 | Legacy investigation output; stream-health alerts are operational diagnostics. |
 | `raw_records` | 40 | Existing Atlas raw record state. |
 | `schema_registry` | 25 | Existing Atlas schema registry state. |
 | `signal_definitions` | 2 | Existing Atlas signal definitions. |
-| `signal_events` | 4 | Streaming event log. |
+| `signal_events` | 4 | Compatibility-named normalized observation event log. |
 | `statutes` | 20 | Existing Atlas statute state. |
 | `streams` | 4 | Registered adapter-backed streams. |
 
@@ -56,10 +56,10 @@ The streaming migration is in `src/schema/001_streaming_tables.sql`. It creates 
 | Table | Primary purpose |
 |---|---|
 | `streams` | Registry of adapter-backed streams, including jurisdiction, module, throughput profile, and safety profile. |
-| `signal_events` | Append-oriented event log for normalized adapter signals with provenance and offset tracking. |
+| `signal_events` | Append-oriented compatibility store for normalized source observations with provenance and offset tracking. A row is not automatically a civic signal. |
 | `cursors` | Named consumer cursor state per stream. |
 | `investigative_jobs` | Execution records for internal Atlas investigation functions. |
-| `prime_patterns` | Queryable detected patterns emitted by investigations. |
+| `prime_patterns` | Queryable legacy investigation outputs; operational health alerts remain distinct from civic convergence. |
 
 ## API surface
 
@@ -67,7 +67,7 @@ The unified Express app exposes the required streaming API as Atlas endpoints. T
 
 | Method | Endpoint | Implementation | Purpose |
 |---|---|---|---|
-| `POST` | `/v1/ingest/signals` | `src/routes/ingest.js` | Batch ingest normalized signals with provenance tracking. |
+| `POST` | `/v1/ingest/signals` | `src/routes/ingest.js` | Compatibility route that persists normalized source observations with provenance tracking. |
 | `GET` | `/v1/streams/:stream_id/events` | `src/routes/streams.js` | Retrieve events with cursor-style offset pagination. |
 | `POST` | `/v1/streams/:stream_id/cursors` | `src/routes/streams.js` | Create named stream cursors. |
 | `POST` | `/internal/investigations/run` | `src/routes/investigations.js` | Trigger internal Atlas investigation jobs. |
@@ -75,16 +75,16 @@ The unified Express app exposes the required streaming API as Atlas endpoints. T
 
 ## Adapters and connectors
 
-The provided adapter source files are integrated under `src/adapters/`. All JavaScript external-source adapters now use the shared `src/adapters/ingestClient.js` helper and submit normalized official records to `POST /v1/ingest/signals` rather than writing directly to raw tables. Each record becomes a `signal_event` with agency provenance, official-record confidence, jurisdiction-derived spacetime, and a source URL back to the originating filing, complaint, opinion, bill, grant, or congressional record.
+The provided adapter source files are integrated under `src/adapters/`. JavaScript external-source adapters use the shared `src/adapters/ingestClient.js` helper and submit normalized official records to the compatibility route `POST /v1/ingest/signals` rather than writing directly to raw tables. Each record becomes a normalized observation in the legacy-named `signal_events` store with agency provenance, jurisdiction-derived spacetime, and a source URL. Signal derivation occurs later under a declared rule; ingestion alone does not create a civic signal.
 
 | Adapter or connector | Location | Current integration role |
 |---|---|---|
-| CourtListener | `src/adapters/courtListenerAdapter.js` | Emits `court_opinion` signal events through unified ingest. |
-| OpenStates | `src/adapters/openStatesAdapter.js` | Emits `legislative_activity` signal events through unified ingest. |
+| CourtListener | `src/adapters/courtListenerAdapter.js` | Emits `court_opinion` source observations through unified ingest. |
+| OpenStates | `src/adapters/openStatesAdapter.js` | Emits `legislative_activity` source observations through unified ingest. |
 | OpenStates API source wrapper | `src/adapters/openStatesApiSource.js` | Emits normalized OpenStates API records through unified ingest with official-record provenance. |
-| Grants.gov | `src/adapters/grantsGovAdapter.js` | Emits `grant_opportunity` signal events through unified ingest. |
-| ProPublica | `src/adapters/proPublicaAdapter.js` | Emits `congressional_activity` signal events through unified ingest. |
-| Official agency records | `src/adapters/officialAgencyRecordsAdapter.js` | Emits CFPB, EEOC, DOL-WHD, and OSHA records as official government `signal_event` streams with `provenance.confidence = 1.0`. |
+| Grants.gov | `src/adapters/grantsGovAdapter.js` | Emits `grant_opportunity` source observations through unified ingest. |
+| ProPublica | `src/adapters/proPublicaAdapter.js` | Emits `congressional_activity` source observations through unified ingest. |
+| Official agency records | `src/adapters/officialAgencyRecordsAdapter.js` | Emits CFPB, EEOC, DOL-WHD, and OSHA records as official-government observation streams in the legacy `signal_event` transport contract, with `provenance.confidence = 1.0`. |
 | Socrata | `src/adapters/socrata-adapter.ts` | Existing TypeScript adapter code included for Socrata-style civic datasets. |
 | Dataset connector service | `src/services/dataset-connector-service.ts` | Existing Atlas connector service included with the unified service source tree. |
 | Dataset connector router | `src/routes/dataset-connector-router.ts` | Existing router included with the unified service source tree. |
@@ -106,9 +106,9 @@ The `scripts/register-streams.mjs` script registers the adapter-backed streams i
 
 ## Investigation service
 
-Atlas includes one manifest-pattern investigation function: `luminari_stream_health_v1`. It accepts `signal_event` inputs and emits `stream_health_alert` and `prime_pattern` outputs. The implementation lives at `src/services/streamHealthInvestigation.js`.
+Atlas includes one legacy stream-health investigation function: `luminari_stream_health_v1`. It accepts compatibility `signal_event` observation inputs and emits operational `stream_health_alert` outputs into `prime_patterns`. The implementation lives at `src/services/streamHealthInvestigation.js`; these outputs are not civic convergence conclusions.
 
-The function checks **stream staleness**, **signal frequency**, and **confidence-score distribution**. During the verification cycle, it emitted one `stream_health_alert` prime pattern for the `open_states` stream after ingesting test signals with mixed confidence values. When investigations emit prime patterns, `src/routes/investigations.js` now immediately calls `src/services/bridgeHook.js`. The hook deterministically gates on confidence, records provenance flags that no AI extraction, fuzzy matching, or synthetic signals were used, and then calls the public bridge RPC to enqueue verified patterns for Lighthouse.
+The function checks **stream staleness**, **observation frequency**, and **confidence-score distribution**. During the verification cycle, it emitted one `stream_health_alert` diagnostic for the `open_states` stream after ingesting test observations with mixed confidence values. When investigations emit legacy `prime_patterns` rows, `src/routes/investigations.js` now immediately calls `src/services/bridgeHook.js`. The hook deterministically gates on confidence, records provenance flags that no AI extraction, fuzzy matching, or synthetic signals were used, and then calls the public bridge RPC to enqueue verified diagnostics for Lighthouse.
 
 ## Local setup
 
@@ -163,4 +163,4 @@ The unified service was tested locally against Atlas Supabase. The ingest → cu
 
 ## Deployment model
 
-This repository is structured as a **single Atlas deployment**. There is one root `package.json`, one Express app, one `src/` tree, one Supabase project target, and one runtime environment. The streaming engine is not a sidecar service; it is the Atlas service surface for ingesting signals, managing stream cursors, running investigations, and querying detected prime patterns.
+This repository is structured as a **single Atlas deployment**. There is one root `package.json`, one Express app, one `src/` tree, one Supabase project target, and one runtime environment. The streaming engine is not a sidecar service; it is the Atlas service surface for ingesting source observations, managing stream cursors, deriving governed signal candidates, running investigations, and querying canonical signals, convergence outputs, and legacy health diagnostics.

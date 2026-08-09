@@ -163,10 +163,11 @@ async function renderOverview() {
   const readiness = data.source_readiness;
   view.innerHTML = `${pageHeader('ATLAS / OPERATING SURFACE','Observe and operate the machine.','Every number below is retrieved from the Atlas read model. Registered, runnable, producing, healthy, and verified remain separate states.', data.read_model_version, data.observed_at)}
     ${metrics([
-      { label:'Stream Contracts', value:number(data.counts.active_streams), note:`${data.counts.runnable_streams} runnable · ${data.counts.producing_streams} producing` },
-      { label:'Signal Events', value:number(data.counts.signal_events), note:`${percent(data.counts.identity_bound_events, data.counts.signal_events)} identity-bound` },
-      { label:'Signal Types', value:number(data.counts.signal_types), note:`latest ${dateTime(data.latest_signal_at)}` },
-      { label:'Deterministic Patterns', value:number(data.counts.prime_patterns), note:`${number(data.counts.investigative_jobs)} investigation jobs` },
+      { label:'Stream Contracts', value:number(data.counts.active_streams), note:`${data.counts.runnable_streams} runnable · ${data.counts.streams_with_observations} observed` },
+      { label:'Normalized Observations', value:number(data.counts.normalized_observations), note:`${percent(data.counts.identity_bound_observations, data.counts.normalized_observations)} identity-bound` },
+      { label:'Canonical Signals', value:number(data.counts.canonical_signals), note:`${number(data.counts.canonical_signal_types)} governed types · ${number(data.counts.receipted_canonical_signals)} receipted` },
+      { label:'Signal Candidates', value:number(data.counts.verified_signal_candidates), note:`${number(data.counts.active_signal_rules)} active derivation rule` },
+      { label:'Convergence Receipts', value:number(data.counts.convergence_receipts), note:`${number(data.counts.convergence_events)} persisted convergence events` },
       { label:'Ready / Degraded', value:`${readiness.ready} / ${readiness.degraded}`, note:`${readiness.unknown} unknown · ${readiness.not_active} inactive` },
     ])}
     <div class="grid-2">
@@ -174,10 +175,10 @@ async function renderOverview() {
         ${data.sources.filter((row) => row.connector_active).slice(0,12).map((row) => `<div class="readiness-row"><div><strong>${esc(row.source_name)}</strong><small>${esc(row.adapter_class)}${row.health_observed_at ? ` · ${esc(new Date(row.health_observed_at).toLocaleDateString())}` : ''}</small></div>${badge(row.operational_readiness_state)}</div>`).join('')}
       </div></section>
       <section class="panel"><div class="panel-header"><div><div class="eyebrow">STREAM RUNTIME</div><h2>Contracts versus production</h2></div>${actionButton('Open streams','data-go-view="streams"','secondary')}</div><div class="panel-body"><div class="stream-list">
-        ${data.streams.slice(0,14).map((row) => `<button class="stream-card interactive" data-go-view="streams" type="button"><strong>${esc(row.stream_id)}</strong><small>${number(row.event_count)} events · ${row.runnable ? 'runnable' : 'no runtime adapter'}</small></button>`).join('')}
+        ${data.streams.slice(0,14).map((row) => `<button class="stream-card interactive" data-go-view="streams" type="button"><strong>${esc(row.stream_id)}</strong><small>${number(row.observation_count)} observations · ${row.runnable ? 'runnable' : 'no runtime adapter'}</small></button>`).join('')}
       </div></div></section>
     </div>
-    <div class="section-note"><strong>Observed state:</strong> ${number(data.counts.zero_event_streams)} registered streams currently contain zero signal events. That is shown as absence, not success and not failure. Run receipts and adapter errors are available under Operations.</div>`;
+    <div class="section-note"><strong>Ontology:</strong> source pulls and normalized observations do not become civic signals merely because they were ingested. ${number(data.counts.unreceipted_canonical_signals)} older canonical signal rows currently have no matching extraction receipt; that absence remains visible. ${number(data.counts.zero_observation_streams)} registered streams currently contain zero observations.</div>`;
   bindNavigationActions();
 }
 
@@ -218,10 +219,10 @@ function streamDetail(row) {
   return `<div class="detail-grid">
     <div><span>Contract status</span><strong>${esc(row.status)}</strong></div>
     <div><span>Runtime adapter</span><strong>${esc(row.adapter_name ?? 'not compiled')}</strong></div>
-    <div><span>Event count</span><strong>${number(row.event_count)}</strong></div>
-    <div><span>Identity coverage</span><strong>${percent(row.identity_count, row.event_count)}</strong></div>
-    <div><span>Signal types</span><strong>${number(row.signal_type_count)}</strong></div>
-    <div><span>Latest event</span><strong>${dateTime(row.latest_event_at)}</strong></div>
+    <div><span>Observation count</span><strong>${number(row.observation_count)}</strong></div>
+    <div><span>Identity coverage</span><strong>${percent(row.identity_bound_observation_count, row.observation_count)}</strong></div>
+    <div><span>Observation classifications</span><strong>${number(row.observation_classification_count)}</strong></div>
+    <div><span>Latest observation</span><strong>${dateTime(row.latest_observed_at)}</strong></div>
     <div><span>Jurisdiction</span><strong>${esc(row.jurisdiction_id)}</strong></div>
     <div><span>Module</span><strong>${esc(row.module_hint)}</strong></div>
     <div><span>Governance contract</span><strong>${esc(row.governance_contract_id)}</strong></div>
@@ -238,22 +239,22 @@ async function renderStreams() {
   const streams = data.streams;
   setConnection(true, data.observed_at);
   const runnable = streams.filter((row) => row.runnable).length;
-  const producing = streams.filter((row) => Number(row.event_count) > 0).length;
-  const zero = streams.filter((row) => Number(row.event_count) === 0).length;
+  const observed = streams.filter((row) => Number(row.observation_count) > 0).length;
+  const zero = streams.filter((row) => Number(row.observation_count) === 0).length;
   const unavailable = streams.filter((row) => !row.runnable).length;
-  view.innerHTML = `${pageHeader('STREAM CONTROL','Every stream state, separately.','Inspect contract registration, runtime availability, canonical event production, identity coverage, and the latest observation. Operator actions produce persistent receipts.', data.read_model_version, data.observed_at)}
+  view.innerHTML = `${pageHeader('STREAM CONTROL','Every stream state, separately.','Inspect contract registration, runtime availability, normalized observation persistence, identity coverage, and the latest observation. Signal derivation is measured on its own surface.', data.read_model_version, data.observed_at)}
     ${metrics([
       {label:'Registered',value:number(streams.length),note:'database contracts'},
       {label:'Runnable',value:number(runnable),note:'compiled adapters'},
-      {label:'Producing',value:number(producing),note:'one or more events'},
-      {label:'Zero Events',value:number(zero),note:'absence retained'},
+      {label:'Observed',value:number(observed),note:'one or more observations'},
+      {label:'Zero Observations',value:number(zero),note:'absence retained'},
       {label:'No Runtime',value:number(unavailable),note:'declared only'},
     ])}
     <div class="section-note">${esc(data.semantics)}</div>
     <section id="streamDetail" class="panel detail-panel" hidden></section>
     <section class="panel"><div class="panel-header"><div><div class="eyebrow">RUNTIME MATRIX</div><h2>Stream contracts and production</h2></div>${operatorToken ? badge('operator unlocked') : actionButton('Unlock controls','data-unlock','secondary')}</div><div class="panel-body">
       <div class="source-toolbar"><input id="streamSearch" class="input" placeholder="Filter by stream, source, jurisdiction, module, or status…" /></div>
-      <div class="table-scroll"><table class="source-table"><thead><tr><th>Stream</th><th>Status</th><th>Runtime</th><th>Events</th><th>Identity</th><th>Latest event</th><th></th></tr></thead><tbody id="streamBody"></tbody></table></div>
+      <div class="table-scroll"><table class="source-table"><thead><tr><th>Stream</th><th>Status</th><th>Runtime</th><th>Observations</th><th>Identity</th><th>Latest observation</th><th></th></tr></thead><tbody id="streamBody"></tbody></table></div>
     </div></section>`;
   const renderRows = (query = '') => {
     const needle = query.trim().toLowerCase();
@@ -262,9 +263,9 @@ async function renderStreams() {
       <td><strong>${esc(row.stream_id)}</strong><small>${esc(row.module_hint)}</small></td>
       <td>${badge(row.status)}</td>
       <td>${row.runnable ? badge('runnable') : badge('declared only')}</td>
-      <td>${number(row.event_count)}</td>
-      <td>${percent(row.identity_count,row.event_count)}</td>
-      <td>${dateTime(row.latest_event_at)}</td>
+      <td>${number(row.observation_count)}</td>
+      <td>${percent(row.identity_bound_observation_count,row.observation_count)}</td>
+      <td>${dateTime(row.latest_observed_at)}</td>
       <td>${actionButton('Inspect',`data-inspect-stream="${esc(row.stream_id)}"`,'secondary')}</td>
     </tr>`).join('');
     document.querySelectorAll('[data-inspect-stream]').forEach((button) => button.addEventListener('click', () => {
@@ -282,21 +283,30 @@ async function renderStreams() {
 }
 
 async function renderSubstrate() {
-  const data = await requestJson('/ui-api/signal-substrate');
+  const data = await requestJson('/ui-api/signal-derivation');
   const summary = data.summary;
   setConnection(true, summary.observed_at);
-  view.innerHTML = `${pageHeader('SIGNAL SUBSTRATE','Observe what Atlas produced.','This surface shows canonical observations by stream and type, identity coverage, investigation activity, and persisted deterministic pattern counts.', data.read_model_version, summary.observed_at)}
+  view.innerHTML = `${pageHeader('SIGNAL DERIVATION','See what Atlas observed—and what it actually derived.','Observation volume, canonical signals, governed candidates, convergence runs, and legacy investigation outputs remain separate populations.', data.read_model_version, summary.observed_at)}
     ${metrics([
-      {label:'Signal Events',value:number(summary.signal_events),note:`${number(summary.producing_streams)} producing streams`},
-      {label:'Identity Bound',value:percent(summary.identity_bound_events,summary.signal_events),note:`${number(summary.identity_bound_events)} events`},
-      {label:'Signal Types',value:number(summary.signal_types),note:'observed classifications'},
-      {label:'Prime Patterns',value:number(summary.prime_patterns),note:`latest ${dateTime(summary.latest_pattern_at)}`},
-      {label:'Investigations',value:number(summary.investigative_jobs),note:`${number(summary.failed_investigative_jobs)} failed`},
+      {label:'Observations',value:number(summary.normalized_observations),note:`${number(summary.streams_with_observations)} streams · ${number(summary.observation_classifications)} classifications`},
+      {label:'Canonical Signals',value:number(summary.canonical_signals),note:`${number(summary.receipted_canonical_signals)} receipted · ${number(summary.unreceipted_canonical_signals)} unreceipted`},
+      {label:'Verified Candidates',value:number(summary.verified_signal_candidates),note:`${number(summary.bridged_signal_candidates)} bridged · ${number(summary.pending_signal_candidates)} pending`},
+      {label:'Convergence Runs',value:number(summary.convergence_runs),note:`${number(summary.convergence_receipts)} immutable receipts`},
+      {label:'Convergence Events',value:number(summary.convergence_events),note:`latest run derived ${number(summary.latest_convergence_deduplicated_signals)} signals`},
     ])}
-    <div class="section-note">${esc(data.semantics)}</div>
+    <div class="section-note"><strong>Observation:</strong> ${esc(data.semantics.observations)}<br><strong>Signal:</strong> ${esc(data.semantics.signals)}<br><strong>Convergence:</strong> ${esc(data.semantics.convergence)}</div>
     <section id="deterministicOutput" class="panel detail-panel" hidden></section>
-    <section class="panel"><div class="panel-header"><div><div class="eyebrow">DISTRIBUTION</div><h2>Observed signal types</h2></div>${operatorToken ? actionButton('Load deterministic outputs','data-load-outputs') : actionButton('Unlock pattern details','data-unlock','secondary')}</div><div class="panel-body">
-      <div class="table-scroll"><table class="source-table"><thead><tr><th>Signal type</th><th>Stream</th><th>Module</th><th>Jurisdiction</th><th>Events</th><th>Identity</th><th>Latest</th></tr></thead><tbody>${data.signal_types.map((row) => `<tr><td><strong>${esc(row.signal_type)}</strong></td><td>${esc(row.stream_id)}</td><td>${esc(row.module_hint)}</td><td>${esc(row.jurisdiction_id)}</td><td>${number(row.event_count)}</td><td>${percent(row.identity_count,row.event_count)}</td><td>${dateTime(row.latest_event_at)}</td></tr>`).join('')}</tbody></table></div>
+    <section class="panel"><div class="panel-header"><div><div class="eyebrow">DERIVED SIGNAL REGISTRY</div><h2>Canonical normalized signals</h2></div>${operatorToken ? actionButton('Load derivation details','data-load-outputs') : actionButton('Unlock derivation details','data-unlock','secondary')}</div><div class="panel-body">
+      <div class="table-scroll"><table class="source-table"><thead><tr><th>Signal type</th><th>Method</th><th>Source</th><th>Signals</th><th>Receipted</th><th>Confidence</th><th>Latest</th></tr></thead><tbody>${data.canonical_signal_types.map((row) => `<tr><td><strong>${esc(row.signal_type_name)}</strong><small>${esc(row.signal_type_code)}</small></td><td>${esc(row.detection_method)}</td><td>${esc(row.source_domain)} · ${esc(row.source_table)}</td><td>${number(row.signal_count)}</td><td>${number(row.receipted_signal_count)}</td><td>${esc(row.mean_confidence ?? '—')}</td><td>${dateTime(row.latest_detected_at)}</td></tr>`).join('')}</tbody></table></div>
+    </div></section>
+    <section class="panel"><div class="panel-header"><div><div class="eyebrow">RULE-DERIVED CANDIDATES</div><h2>Declared signal rules</h2></div><small>candidate ≠ finding</small></div><div class="panel-body">
+      <div class="table-scroll"><table class="source-table"><thead><tr><th>Rule</th><th>Engine</th><th>Active</th><th>Candidates</th><th>Verified</th><th>Bridge state</th><th>Latest</th></tr></thead><tbody>${data.candidate_rules.map((row) => `<tr><td><strong>${esc(row.rule_id)}</strong><small>v${esc(row.rule_version)} · ${esc(row.signal_type)}</small></td><td>${esc(row.engine_id)} · ${esc(row.engine_version)}</td><td>${badge(row.is_active ? 'active' : 'superseded')}</td><td>${number(row.candidate_count)}</td><td>${number(row.verified_candidate_count)}</td><td>${number(row.bridged_candidate_count)} bridged · ${number(row.pending_candidate_count)} pending · ${number(row.failed_candidate_count)} failed</td><td>${dateTime(row.latest_detected_at)}</td></tr>`).join('')}</tbody></table></div>
+    </div></section>
+    <section class="panel"><div class="panel-header"><div><div class="eyebrow">CONVERGENCE RECEIPTS</div><h2>Source rows transformed into bounded signals</h2></div><small>no record-count substitution</small></div><div class="panel-body">
+      <div class="table-scroll"><table class="source-table"><thead><tr><th>Run</th><th>Source rows</th><th>Transformed signals</th><th>Deduplicated signals</th><th>Detected convergence</th><th>Engine</th><th>Persisted</th></tr></thead><tbody>${data.convergence_runs.map((row) => `<tr><td class="mono">${compactHash(row.run_key)}</td><td>${number(row.total_source_rows)}</td><td>${number(row.transformed_signal_count)}</td><td>${number(row.deduplicated_signal_count)}</td><td>${number(row.detected_convergence_count)}</td><td>${esc(row.engine_version)}</td><td>${dateTime(row.persisted_at)}</td></tr>`).join('')}</tbody></table></div>
+    </div></section>
+    <section class="panel"><div class="panel-header"><div><div class="eyebrow">OBSERVATION DISTRIBUTION</div><h2>Adapter classifications—not derived signal counts</h2></div><small>legacy column name preserved</small></div><div class="panel-body">
+      <div class="table-scroll"><table class="source-table"><thead><tr><th>Observation classification</th><th>Stream</th><th>Module</th><th>Jurisdiction</th><th>Observations</th><th>Identity</th><th>Latest</th></tr></thead><tbody>${data.observation_classifications.map((row) => `<tr><td><strong>${esc(row.observation_classification)}</strong></td><td>${esc(row.stream_id)}</td><td>${esc(row.module_hint)}</td><td>${esc(row.jurisdiction_id)}</td><td>${number(row.observation_count)}</td><td>${percent(row.identity_bound_observation_count,row.observation_count)}</td><td>${dateTime(row.latest_observed_at)}</td></tr>`).join('')}</tbody></table></div>
     </div></section>`;
   bindOperatorActions();
 }
@@ -366,7 +376,7 @@ async function renderBoundary() {
   const order = ['docket','rosetta','civic_genome','atlas','prism','kaleidoscope','lighthouse'];
   view.innerHTML = `${pageHeader('OPERATING CONSTITUTION','Ownership stays where truth originates.','Atlas may bind governed identities from other platforms, but it cannot silently take ownership of their canonical fields.', data.read_model_version)}
     <div class="boundary-flow">${order.map((key) => `<details class="boundary-node ${key === 'atlas' ? 'atlas' : ''}"><summary>${esc(key.replace('_',' ').toUpperCase())}</summary><p>${esc(boundary[key])}</p></details>`).join('')}</div>
-    <div class="boundary-rule">SOURCE → NORMALIZE → OBSERVE → RELATE → CONVERGE → RECEIPT<br><br>Atlas stops before legal interpretation, verification ownership, consequence projection, or action dispatch. Every governed computation must remain replayable from declared source identity, rules, filters, domain space, engine version, and complete output hash.</div>`;
+    <div class="boundary-rule">SOURCE → NORMALIZE → OBSERVE → DERIVE SIGNAL → RELATE → CONVERGE → RECEIPT<br><br>Observation is not signal. Convergence is not causation. Atlas stops before legal interpretation, verification ownership, consequence projection, or action dispatch. Every governed computation must remain replayable from declared source identity, rules, filters, domain space, engine version, and complete output hash.</div>`;
 }
 
 function receiptRows(receipts) {
@@ -392,7 +402,7 @@ async function renderOperations() {
   const running = adapters.filter((row) => row.running).length;
   const registered = new Set(streamsData.streams.map((row) => row.stream_id));
   const missing = adapters.filter((row) => row.stream_id && !registered.has(row.stream_id));
-  view.innerHTML = `${pageHeader('OPERATOR CONTROL','Run, verify, and retain the receipt.','Every manual action returns a content hash and measured event delta. Adapter-reported counts are retained separately from canonical database deltas.', 'atlas.action_receipt.v1', status.observed_at)}
+  view.innerHTML = `${pageHeader('OPERATOR CONTROL','Run, verify, and retain the receipt.','Every manual source action returns a content hash and measured observation delta. Signal derivation runs remain separate from adapter production.', 'atlas.action_receipt.v1', status.observed_at)}
     ${metrics([
       {label:'Scheduler',value:status.scheduler.running ? 'RUNNING' : 'STOPPED',note:`started ${dateTime(status.scheduler.started_at)}`},
       {label:'Compiled Adapters',value:number(adapters.length),note:`${running} running now`},
@@ -401,14 +411,14 @@ async function renderOperations() {
       {label:'Recent Receipts',value:number(status.recent_receipts.length),note:'latest governed actions'},
     ])}
     <section class="panel"><div class="panel-header"><div><div class="eyebrow">ENGINE ACTIONS</div><h2>Deterministic production controls</h2></div>${badge('operator unlocked')}</div><div class="panel-body detail-actions">
-      ${actionButton('Run signal detector','data-run-signals')}
+      ${actionButton('Run signal derivation','data-run-signals')}
       ${actionButton('Reconcile source health','data-reconcile-health','secondary')}
       ${actionButton('Refresh receipts','data-refresh-current','secondary')}
       ${actionButton('Lock controls','data-lock','danger')}
     </div></section>
-    <section class="panel"><div class="panel-header"><div><div class="eyebrow">ADAPTER RUNTIME</div><h2>Compiled stream runners</h2></div><small>database delta is authoritative</small></div><div class="panel-body"><div class="table-scroll"><table class="source-table"><thead><tr><th>Adapter</th><th>Stream</th><th>Priority</th><th>Last run</th><th>Outcome</th><th>Delta</th><th></th></tr></thead><tbody>${adapters.map((row) => `<tr><td><strong>${esc(row.name)}</strong></td><td>${esc(row.stream_id ?? 'unbound')}</td><td>${esc(row.priority)}</td><td>${dateTime(row.lastRun)}</td><td>${badge(row.lastResult?.outcome ?? 'not run since start')}${row.lastResult?.error ? `<small class="runtime-error">${esc(row.lastResult.error)}</small>` : ''}</td><td>${row.lastResult?.event_delta === undefined ? '—' : number(row.lastResult.event_delta)}</td><td>${row.stream_id ? actionButton('Run',`data-run-adapter="${esc(row.name)}" data-stream-id="${esc(row.stream_id)}"`) : ''}</td></tr>`).join('')}</tbody></table></div></div></section>
+    <section class="panel"><div class="panel-header"><div><div class="eyebrow">ADAPTER RUNTIME</div><h2>Compiled stream runners</h2></div><small>observation delta is authoritative</small></div><div class="panel-body"><div class="table-scroll"><table class="source-table"><thead><tr><th>Adapter</th><th>Stream</th><th>Priority</th><th>Last run</th><th>Outcome</th><th>Observation delta</th><th></th></tr></thead><tbody>${adapters.map((row) => `<tr><td><strong>${esc(row.name)}</strong></td><td>${esc(row.stream_id ?? 'unbound')}</td><td>${esc(row.priority)}</td><td>${dateTime(row.lastRun)}</td><td>${badge(row.lastResult?.outcome ?? 'not run since start')}${row.lastResult?.error ? `<small class="runtime-error">${esc(row.lastResult.error)}</small>` : ''}</td><td>${row.lastResult?.event_delta === undefined ? '—' : number(row.lastResult.event_delta)}</td><td>${row.stream_id ? actionButton('Run',`data-run-adapter="${esc(row.name)}" data-stream-id="${esc(row.stream_id)}"`) : ''}</td></tr>`).join('')}</tbody></table></div></div></section>
     <section class="panel"><div class="panel-header"><div><div class="eyebrow">STREAM REGISTRATION</div><h2>Add compiled streams</h2></div><small>${number(missing.length)} available</small></div><div class="panel-body">${missing.length ? `<form id="streamRegistrationForm" class="registration-form"><select id="registerAdapter" class="input" required>${missing.map((row) => `<option value="${esc(row.name)}" data-stream-id="${esc(row.stream_id)}">${esc(row.name)} → ${esc(row.stream_id)}</option>`).join('')}</select><input id="registerSource" class="input" placeholder="source_id" required /><input id="registerJurisdiction" class="input" placeholder="jurisdiction_id" required /><input id="registerModule" class="input" placeholder="module_hint" required /><select id="registerThroughput" class="input"><option>medium</option><option>low</option><option>high</option><option>ultra</option></select><select id="registerSafety" class="input"><option>default</option><option>restricted</option><option>critical</option></select><input id="registerGovernance" class="input" placeholder="governance_contract_id" required /><button class="button" type="submit">Register stream</button></form>` : '<div class="section-note">All compiled adapters already have registered stream contracts. A source that has no compiled adapter cannot be mislabeled as runnable from this UI.</div>'}</div></section>
-    <section class="panel"><div class="panel-header"><div><div class="eyebrow">ACTION RECEIPTS</div><h2>Recent governed actions</h2></div><small>persistent · hash-bound</small></div><div class="panel-body"><div class="table-scroll"><table class="source-table"><thead><tr><th>Completed</th><th>Action</th><th>Outcome</th><th>Event delta</th><th>Receipt</th></tr></thead><tbody>${receiptRows(status.recent_receipts)}</tbody></table></div></div></section>`;
+    <section class="panel"><div class="panel-header"><div><div class="eyebrow">ACTION RECEIPTS</div><h2>Recent governed actions</h2></div><small>persistent · hash-bound</small></div><div class="panel-body"><div class="table-scroll"><table class="source-table"><thead><tr><th>Completed</th><th>Action</th><th>Outcome</th><th>Observation delta</th><th>Receipt</th></tr></thead><tbody>${receiptRows(status.recent_receipts)}</tbody></table></div></div></section>`;
   bindOperatorActions();
   const form = document.getElementById('streamRegistrationForm');
   if (form) form.addEventListener('submit', registerStream);
@@ -453,7 +463,7 @@ async function runAdapter(adapterName, streamId, button) {
   button.textContent = 'Running…';
   try {
     const result = await requestJson(`/operator-api/streams/${encodeURIComponent(adapterName)}/run`, { operator: true, method: 'POST', body: {} });
-    showToast(`${streamId}: ${result.outcome} · event delta ${number(result.event_delta)} · receipt ${compactHash(result.action_receipt_hash)}`, result.status === 'error' ? 'error' : 'ok');
+    showToast(`${streamId}: ${result.outcome} · observation delta ${number(result.event_delta)} · receipt ${compactHash(result.action_receipt_hash)}`, result.status === 'error' ? 'error' : 'ok');
     await navigate(currentView);
   } catch (error) {
     showToast(`${streamId}: ${error.message}`, 'error');
@@ -496,12 +506,12 @@ async function runSignalDetector(button) {
   button.textContent = 'Running…';
   try {
     const result = await requestJson('/operator-api/live-data-signals/run', { operator: true, method: 'POST', body: {} });
-    showToast(`Signal detector: ${result.status} · bridged ${number(result.bridged)} · receipt ${compactHash(result.action_receipt_hash)}`);
+    showToast(`Signal derivation: ${result.status} · bridged candidates ${number(result.bridged)} · receipt ${compactHash(result.action_receipt_hash)}`);
     await navigate(currentView);
   } catch (error) {
     showToast(error.message, 'error');
     button.disabled = false;
-    button.textContent = 'Run signal detector';
+    button.textContent = 'Run signal derivation';
   }
 }
 
@@ -513,14 +523,19 @@ async function loadDeterministicOutputs(button) {
     const data = await requestJson('/operator-api/substrate', { operator: true });
     const output = document.getElementById('deterministicOutput');
     output.hidden = false;
-    output.innerHTML = `<div class="panel-header"><div><div class="eyebrow">DETERMINISTIC OUTPUTS</div><h2>Persisted patterns and investigations</h2></div><small>${dateTime(data.observed_at)}</small></div><div class="panel-body"><div class="output-grid"><div><h3>Prime patterns</h3>${data.prime_patterns.length ? data.prime_patterns.map((row) => `<article class="output-card"><div>${badge(row.severity)} ${badge(row.pattern_type)}</div><h4>${esc(row.summary)}</h4><small>${esc(row.stream_id ?? 'cross-stream')} · confidence ${esc(row.confidence)} · ${dateTime(row.detected_at)}</small><div class="mono">${esc(row.pattern_id)}</div></article>`).join('') : '<p>No prime patterns persisted.</p>'}</div><div><h3>Investigation jobs</h3>${data.investigative_jobs.length ? data.investigative_jobs.map((row) => `<article class="output-card"><div>${badge(row.status)}</div><h4>${esc(row.function_id ?? row.job_type)}</h4><small>${esc(row.stream_id ?? 'cross-stream')} · ${dateTime(row.completed_at ?? row.created_at)}</small><div class="mono">${esc(row.job_id)}</div>${row.error ? `<p class="form-error">${esc(row.error)}</p>` : ''}</article>`).join('') : '<p>No investigation jobs persisted.</p>'}</div></div></div>`;
+    output.innerHTML = `<div class="panel-header"><div><div class="eyebrow">DERIVATION RECEIPTS</div><h2>Signals, convergence, and legacy diagnostics</h2></div><small>${dateTime(data.observed_at)}</small></div><div class="panel-body"><div class="output-grid">
+      <div><h3>Governed signal candidates</h3>${data.signal_candidates.length ? data.signal_candidates.map((row) => `<article class="output-card"><div>${badge(row.verification_state)} ${badge(row.lighthouse_status)}</div><h4>${esc(row.title)}</h4><p>${esc(row.description)}</p><small>${esc(row.rule_id)} v${esc(row.rule_version)} · ${esc(row.engine_id)} v${esc(row.engine_version)}</small><div class="mono">${compactHash(row.candidate_hash)}</div></article>`).join('') : '<p>No governed signal candidates persisted.</p>'}</div>
+      <div><h3>Convergence runs</h3>${data.convergence_runs.length ? data.convergence_runs.map((row) => `<article class="output-card"><div>${badge(`${number(row.detected_convergence_count)} detected`)}</div><h4>${number(row.total_source_rows)} observations → ${number(row.deduplicated_signal_count)} signals</h4><small>engine ${esc(row.engine_version)} · ${number(row.receipt_count)} receipts · ${dateTime(row.persisted_at)}</small><div class="mono">${compactHash(row.output_hash)}</div></article>`).join('') : '<p>No convergence runs persisted.</p>'}</div>
+      <div><h3>Legacy investigation outputs</h3><p class="section-note">These are classified separately because stream-health alerts are operational diagnostics, not civic convergence conclusions.</p>${data.legacy_prime_patterns.length ? data.legacy_prime_patterns.map((row) => `<article class="output-card"><div>${badge(row.severity)} ${badge(row.pattern_type)}</div><h4>${esc(row.summary)}</h4><small>${esc(row.stream_id ?? 'cross-stream')} · ${dateTime(row.detected_at)}</small><div class="mono">${esc(row.pattern_id)}</div></article>`).join('') : '<p>No legacy investigation outputs persisted.</p>'}</div>
+      <div><h3>Legacy investigation jobs</h3>${data.legacy_investigative_jobs.length ? data.legacy_investigative_jobs.map((row) => `<article class="output-card"><div>${badge(row.status)}</div><h4>${esc(row.function_id ?? row.job_type)}</h4><small>${esc(row.stream_id ?? 'cross-stream')} · ${dateTime(row.completed_at ?? row.created_at)}</small><div class="mono">${esc(row.job_id)}</div>${row.error ? `<p class="form-error">${esc(row.error)}</p>` : ''}</article>`).join('') : '<p>No legacy investigation jobs persisted.</p>'}</div>
+    </div></div>`;
     output.scrollIntoView({ behavior: 'smooth', block: 'start' });
     button.disabled = false;
-    button.textContent = 'Reload deterministic outputs';
+    button.textContent = 'Reload derivation details';
   } catch (error) {
     showToast(error.message, 'error');
     button.disabled = false;
-    button.textContent = 'Load deterministic outputs';
+    button.textContent = 'Load derivation details';
   }
 }
 
