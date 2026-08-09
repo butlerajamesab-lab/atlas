@@ -16,7 +16,7 @@ Atlas remains the canonical domain-agnostic signal/convergence substrate. Existi
 - Docket owns official legislative retrieval/history.
 - Rosetta owns deterministic legal decomposition and source-bound structural objects.
 - Civic Genome owns bill/family identity, version lineage, events, traits, and momentum.
-- Atlas owns observations, normalization, relationship/convergence mathematics, domain-space transforms, and deterministic computation receipts.
+- Atlas owns source-bound observations, governed civic-signal derivation, normalization, relationship/convergence mathematics, domain-space transforms, and deterministic computation receipts.
 - Prism owns verification status, contradiction/incompleteness, and replay verification receipts.
 - Kaleidoscope owns cross-generation comparison/projection and consequence outputs.
 - Lighthouse receives and presents without silently taking upstream ownership.
@@ -108,7 +108,9 @@ Current Atlas production authorities include:
 connector_registry
   → schema_registry
   → streams
-  → signal_events
+  → signal_events [compatibility observation event store]
+  → governed signal derivation
+  → relationships / convergence / receipts
 ```
 
 Existing registry state already carries:
@@ -131,7 +133,7 @@ Existing registry state already carries:
 - validation rules;
 - transform logic;
 - entity extraction configuration;
-- signal generation configuration.
+- observation normalization and signal-derivation configuration.
 
 `ingest_jobs` already preserves per-run accounting including connector/schema identity, status, start/completion times, fetched/inserted/updated/failed/deduplicated counts, cursor, errors, and metadata.
 
