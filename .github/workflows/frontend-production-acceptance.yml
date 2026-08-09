@@ -38,14 +38,23 @@ jobs:
           set -euo pipefail
           base="https://atlas.columbiacitycustomllc.com"
           curl -fsS --connect-timeout 5 --max-time 30 "$base/ui-api/overview" -o /tmp/overview.json
+          curl -fsS --connect-timeout 5 --max-time 30 "$base/ui-api/signal-derivation" -o /tmp/derivation.json
           curl -fsS --connect-timeout 5 --max-time 30 "$base/ui-api/legislative-history?limit=100" -o /tmp/legislative.json
           curl -fsS --connect-timeout 5 --max-time 30 "$base/ui-api/contracts" -o /tmp/contracts.json
           node <<'NODE'
           const fs = require('node:fs');
           const overview = JSON.parse(fs.readFileSync('/tmp/overview.json', 'utf8'));
+          const derivation = JSON.parse(fs.readFileSync('/tmp/derivation.json', 'utf8'));
           const legislative = JSON.parse(fs.readFileSync('/tmp/legislative.json', 'utf8'));
           const contracts = JSON.parse(fs.readFileSync('/tmp/contracts.json', 'utf8'));
-          if (overview.read_model_version !== 'atlas.frontend_read_model.v1') throw new Error('overview_read_model_version_mismatch');
+          if (overview.read_model_version !== 'atlas.frontend_read_model.v3') throw new Error('overview_read_model_version_mismatch');
+          if (derivation.read_model_version !== 'atlas.frontend_read_model.v3') throw new Error('derivation_read_model_version_mismatch');
+          if (overview.counts.normalized_observations <= overview.counts.canonical_signals) throw new Error('observation_signal_ontology_collapsed');
+          if (derivation.summary.normalized_observations !== overview.counts.normalized_observations) throw new Error('observation_count_mismatch');
+          if (derivation.summary.canonical_signals !== overview.counts.canonical_signals) throw new Error('canonical_signal_count_mismatch');
+          if (!Array.isArray(derivation.canonical_signal_types)) throw new Error('canonical_signal_types_missing');
+          if (!Array.isArray(derivation.candidate_rules)) throw new Error('candidate_rules_missing');
+          if (!Array.isArray(derivation.convergence_runs)) throw new Error('convergence_runs_missing');
           if (overview.counts.legislative_version_observations < 34) throw new Error('legislative_overview_count_regressed');
           if (legislative.stream_id !== 'civic_genome_legislative_versions') throw new Error('legislative_stream_mismatch');
           if (legislative.observation_count < 34) throw new Error('legislative_observation_count_regressed');
@@ -55,7 +64,10 @@ jobs:
           console.log(JSON.stringify({
             read_model_version: overview.read_model_version,
             streams: overview.counts.streams,
-            signal_events: overview.counts.signal_events,
+            normalized_observations: overview.counts.normalized_observations,
+            canonical_signals: overview.counts.canonical_signals,
+            signal_candidates: overview.counts.signal_candidates,
+            convergence_receipts: overview.counts.convergence_receipts,
             legislative_version_observations: legislative.observation_count,
             failed_versions: legislative.processing_state_counts.failed ?? 0,
             module_contract_version: contracts.module_contract_version,
