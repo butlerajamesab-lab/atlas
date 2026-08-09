@@ -4,6 +4,8 @@ import test from 'node:test';
 
 const migration = readFileSync(new URL('../src/schema/20260809_live_operator_surface.sql', import.meta.url), 'utf8');
 const securityMigration = readFileSync(new URL('../src/schema/20260809_live_operator_surface_security.sql', import.meta.url), 'utf8');
+const compactReadMigration = readFileSync(new URL('../src/schema/20260809_live_operator_surface_compact_reads.sql', import.meta.url), 'utf8');
+const ui = readFileSync(new URL('../src/routes/ui.js', import.meta.url), 'utf8');
 const server = readFileSync(new URL('../src/server.js', import.meta.url), 'utf8');
 const operator = readFileSync(new URL('../src/routes/operator.js', import.meta.url), 'utf8');
 const scheduler = readFileSync(new URL('../src/services/scheduler.js', import.meta.url), 'utf8');
@@ -35,6 +37,14 @@ test('aggregate views are invoker-secured and do not expose payload fields', () 
   assert.match(migration, /v_atlas_signal_substrate_summary_v1[\s\S]*security_invoker = true/);
   assert.doesNotMatch(migration, /event\.payload/);
   assert.doesNotMatch(migration, /event\.provenance/);
+});
+
+test('compact UI reads preserve service-role boundaries and one database round trip per surface', () => {
+  assert.match(compactReadMigration, /v_atlas_ui_overview_v2[\s\S]*security_invoker = true/);
+  assert.match(compactReadMigration, /v_atlas_ui_signal_substrate_v2[\s\S]*security_invoker = true/);
+  assert.match(compactReadMigration, /revoke all on public\.v_atlas_ui_overview_v2 from public, anon, authenticated/);
+  assert.match(ui, /from\('v_atlas_ui_overview_v2'\)/);
+  assert.match(ui, /from\('v_atlas_ui_signal_substrate_v2'\)/);
 });
 
 test('compiled adapter mapping is explicit and database stream status gates execution', () => {

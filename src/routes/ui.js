@@ -77,24 +77,15 @@ export function atlasUiRouter({ apiError }) {
 
   router.get('/ui-api/overview', async (_req, res) => {
     try {
-      const [streamsResult, readinessResult, substrateResult] = await Promise.all([
-        supabase
-          .from('v_atlas_stream_runtime_summary_v1')
-          .select('*')
-          .order('stream_id'),
-        supabase
-          .from('v_atlas_source_operational_readiness_v1')
-          .select('*')
-          .order('source_name'),
-        supabase.from('v_atlas_signal_substrate_summary_v1').select('*').single(),
-      ]);
-      if (streamsResult.error) throw streamsResult.error;
-      if (readinessResult.error) throw readinessResult.error;
-      if (substrateResult.error) throw substrateResult.error;
+      const { data, error } = await supabase
+        .from('v_atlas_ui_overview_v2')
+        .select('*')
+        .single();
+      if (error) throw error;
 
-      const streams = (streamsResult.data ?? []).map(safeRuntimeStream);
-      const sources = (readinessResult.data ?? []).map(safeSourceRow);
-      const substrate = substrateResult.data;
+      const streams = (data.streams ?? []).map(safeRuntimeStream);
+      const sources = (data.sources ?? []).map(safeSourceRow);
+      const substrate = data.substrate;
       const legislativeStream = streams.find((row) => row.stream_id === LEGISLATIVE_STREAM_ID);
       res.json({
         read_model_version: FRONTEND_READ_MODEL_VERSION,
@@ -147,20 +138,15 @@ export function atlasUiRouter({ apiError }) {
 
   router.get('/ui-api/signal-substrate', async (_req, res) => {
     try {
-      const [summaryResult, typeResult] = await Promise.all([
-        supabase.from('v_atlas_signal_substrate_summary_v1').select('*').single(),
-        supabase
-          .from('v_atlas_signal_type_summary_v1')
-          .select('*')
-          .order('event_count', { ascending: false })
-          .limit(250),
-      ]);
-      if (summaryResult.error) throw summaryResult.error;
-      if (typeResult.error) throw typeResult.error;
+      const { data, error } = await supabase
+        .from('v_atlas_ui_signal_substrate_v2')
+        .select('*')
+        .single();
+      if (error) throw error;
       return res.json({
         read_model_version: FRONTEND_READ_MODEL_VERSION,
-        summary: summaryResult.data,
-        signal_types: typeResult.data ?? [],
+        summary: data.summary,
+        signal_types: data.signal_types ?? [],
         semantics: 'Signal events are observations. Prime patterns are persisted deterministic investigation outputs. Neither is a legal interpretation or projected consequence.',
       });
     } catch (error) {
