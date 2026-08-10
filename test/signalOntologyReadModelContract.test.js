@@ -79,7 +79,8 @@ test('deprecated signal-substrate route preserves the complete v2 response contr
   assert.match(ui, /summary: data\.summary/);
   assert.match(ui, /signal_types: data\.signal_types \?\? \[\]/);
   assert.match(ui, /semantics: 'Signal events are observations\./);
-  assert.match(ui, /res\.set\('Deprecation', 'true'\)/);
+  assert.match(ui, /LEGACY_SIGNAL_SUBSTRATE_DEPRECATED_AT = '@1786295808'/);
+  assert.match(ui, /res\.set\('Deprecation', LEGACY_SIGNAL_SUBSTRATE_DEPRECATED_AT\)/);
   assert.match(ui, /rel="successor-version"/);
   assert.doesNotMatch(ui, /\.\.\.\(await signalDerivationRead\(\)\)/);
   assert.doesNotMatch(ui, /deprecated_alias:/);
