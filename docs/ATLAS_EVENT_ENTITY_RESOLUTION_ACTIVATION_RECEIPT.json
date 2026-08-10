@@ -1,0 +1,79 @@
+{
+  "schema": "atlas.event_entity_resolution.activation_receipt.v1",
+  "verified_at_utc": "2026-08-10T18:45:00Z",
+  "target": {
+    "repository": "butlerajamesab-lab/atlas",
+    "supabase_project": "bjdjjgnkhxblnpdrjqtw",
+    "render_service_id": "srv-d845j5vaqgkc73acfgeg"
+  },
+  "resolver": {
+    "resolver_id": "atlas.signal_event_entity_exact",
+    "resolver_version": "1.0.0",
+    "rule_manifest_hash": "d6c15b4bae26b4fb9c87f4173fcd8f880e59b1ff17e0d2e046aaeedaee9695dd",
+    "canonical_packet_patch_sha256": "383d3a46474b0aeb6c10a11f849d1a372afd54e6b4b066919d95f8054d52b38f",
+    "canonical_packet_followup": "Repository commit 21ed924 quotes the reserved signal_events offset identifier without changing the resolver contract."
+  },
+  "database": {
+    "project_status": "ACTIVE_HEALTHY",
+    "postgres_version": "17.6.1.111",
+    "migration_receipts": [
+      {
+        "version": "20260730194805",
+        "name": "20260726_event_entity_resolution"
+      },
+      {
+        "version": "20260730195601",
+        "name": "20260730_event_entity_resolution_usaspending_extraction_fix"
+      }
+    ],
+    "active_entity_count": 586,
+    "accepted_exact_alias_count": 0,
+    "resolution_ledger_rows": 54
+  },
+  "current_dry_run": {
+    "writes_performed": 0,
+    "stream_id": "cfpb_complaints",
+    "batch_size": 100,
+    "max_batches": 1,
+    "source_event_count": 54,
+    "resolution_rows": 54,
+    "resolved": 0,
+    "ambiguous": 0,
+    "unresolved": 54,
+    "ignored": 0,
+    "entity_index_hash": "f499c9c7fe88b3fdb30be7c60703cd7341c219c5f6738c4678fece52f47eb086"
+  },
+  "bounded_write_and_replay": {
+    "entity_index_hash": "d5229efeaf370505029260cc74b22f5f74e8d26dd6fe153d8ac1a79f295dba5e",
+    "manifest_hash": "7c2dd6b17d3e215045fe869cdf5e2161336a189b998114e5ae537de9a52283e0",
+    "last_stream_id": "cfpb_complaints",
+    "last_offset": 1778372879521222,
+    "first_run": {
+      "run_id": "b8dc682f-d529-4b40-b417-8c397d1329d0",
+      "status": "completed",
+      "processed_event_count": 54,
+      "inserted_count": 54,
+      "idempotent_count": 0,
+      "resolved_count": 0,
+      "ambiguous_count": 0,
+      "unresolved_count": 54,
+      "ignored_count": 0
+    },
+    "exact_replay": {
+      "run_id": "08ae4573-d311-4d08-9af8-12ea0268c14b",
+      "status": "completed",
+      "processed_event_count": 54,
+      "inserted_count": 0,
+      "idempotent_count": 54,
+      "resolved_count": 0,
+      "ambiguous_count": 0,
+      "unresolved_count": 54,
+      "ignored_count": 0
+    }
+  },
+  "interpretation": {
+    "verified": "The deterministic resolver is deployed, write-tested, and replay-idempotent.",
+    "preserved_unknown": "All 54 bounded CFPB candidates remain unresolved because no exact canonical identifier, name, or accepted alias matched.",
+    "not_claimed": "No entity match, fuzzy resolution, entity creation, or civic-signal derivation is inferred from these outcomes."
+  }
+}
