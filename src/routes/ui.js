@@ -16,6 +16,7 @@ import { ADAPTER_REGISTRY, ADAPTER_STREAM_IDS } from '../services/scheduler.js';
 const LEGISLATIVE_STREAM_ID = 'civic_genome_legislative_versions';
 const FRONTEND_READ_MODEL_VERSION = 'atlas.frontend_read_model.v3';
 const LEGACY_SIGNAL_SUBSTRATE_READ_MODEL_VERSION = 'atlas.frontend_read_model.v2';
+const LEGACY_SIGNAL_SUBSTRATE_DEPRECATED_AT = '@1786295808';
 const PUBLIC_READ_CACHE_TTL_MS = 15_000;
 
 const ADAPTERS_BY_STREAM = new Map(ADAPTER_REGISTRY.map((adapter) => [
@@ -247,7 +248,7 @@ export function atlasUiRouter({ apiError }) {
 
   router.get('/ui-api/signal-substrate', async (_req, res) => {
     try {
-      res.set('Deprecation', 'true');
+      res.set('Deprecation', LEGACY_SIGNAL_SUBSTRATE_DEPRECATED_AT);
       res.set('Link', '</ui-api/signal-derivation>; rel="successor-version"');
       return res.json(await legacySignalSubstrateRead());
     } catch (error) {
