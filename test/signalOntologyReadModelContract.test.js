@@ -73,6 +73,19 @@ test('public Atlas surface uses the v3 ontology instead of event-count substitut
   assert.match(app, /Adapter classifications—not derived signal counts/);
 });
 
+test('deprecated signal-substrate route preserves the complete v2 response contract', () => {
+  assert.match(ui, /LEGACY_SIGNAL_SUBSTRATE_READ_MODEL_VERSION = 'atlas\.frontend_read_model\.v2'/);
+  assert.match(ui, /from\('v_atlas_ui_signal_substrate_v2'\)/);
+  assert.match(ui, /summary: data\.summary/);
+  assert.match(ui, /signal_types: data\.signal_types \?\? \[\]/);
+  assert.match(ui, /semantics: 'Signal events are observations\./);
+  assert.match(ui, /res\.set\('Deprecation', 'true'\)/);
+  assert.match(ui, /rel="successor-version"/);
+  assert.doesNotMatch(ui, /\.\.\.\(await signalDerivationRead\(\)\)/);
+  assert.doesNotMatch(ui, /deprecated_alias:/);
+  assert.doesNotMatch(ui, /canonical_route:/);
+});
+
 test('canonical documentation states the non-equivalence contract', () => {
   assert.match(contract, /source record[\s\S]*!= normalized observation[\s\S]*!= derived civic signal/);
   assert.match(contract, /One row is not automatically a civic signal/);
