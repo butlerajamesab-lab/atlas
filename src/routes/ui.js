@@ -15,6 +15,7 @@ import { ADAPTER_REGISTRY, ADAPTER_STREAM_IDS } from '../services/scheduler.js';
 
 const LEGISLATIVE_STREAM_ID = 'civic_genome_legislative_versions';
 const FRONTEND_READ_MODEL_VERSION = 'atlas.frontend_read_model.v3';
+const LEGACY_SIGNAL_SUBSTRATE_READ_MODEL_VERSION = 'atlas.frontend_read_model.v2';
 const PUBLIC_READ_CACHE_TTL_MS = 15_000;
 
 const ADAPTERS_BY_STREAM = new Map(ADAPTER_REGISTRY.map((adapter) => [
@@ -140,6 +141,22 @@ export function atlasUiRouter({ apiError }) {
     });
   }
 
+  async function legacySignalSubstrateRead() {
+    return cachedRead('signal-substrate-legacy', async () => {
+      const { data, error } = await supabase
+        .from('v_atlas_ui_signal_substrate_v2')
+        .select('*')
+        .single();
+      if (error) throw error;
+      return {
+        read_model_version: LEGACY_SIGNAL_SUBSTRATE_READ_MODEL_VERSION,
+        summary: data.summary,
+        signal_types: data.signal_types ?? [],
+        semantics: 'Signal events are observations. Prime patterns are persisted deterministic investigation outputs. Neither is a legal interpretation or projected consequence.',
+      };
+    });
+  }
+
   router.get('/ui-api/overview', async (_req, res) => {
     try {
       const payload = await cachedRead('overview', async () => {
@@ -230,13 +247,11 @@ export function atlasUiRouter({ apiError }) {
 
   router.get('/ui-api/signal-substrate', async (_req, res) => {
     try {
-      return res.json({
-        ...(await signalDerivationRead()),
-        deprecated_alias: '/ui-api/signal-substrate',
-        canonical_route: '/ui-api/signal-derivation',
-      });
+      res.set('Deprecation', 'true');
+      res.set('Link', '</ui-api/signal-derivation>; rel="successor-version"');
+      return res.json(await legacySignalSubstrateRead());
     } catch (error) {
-      return apiError(res, 500, 'Atlas signal derivation compatibility read failed', error instanceof Error ? error.message : String(error));
+      return apiError(res, 500, 'Atlas signal substrate compatibility read failed', error instanceof Error ? error.message : String(error));
     }
   });
 
