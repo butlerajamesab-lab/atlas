@@ -4,6 +4,7 @@ import {
   executeLiveDataSignalCycle,
   resolveLiveDataSignalBridgeConfiguration,
 } from './liveDataSignalBridgeService.js';
+import { deriveDomain3PopulationCandidates } from './domain3PopulationDetectorService.js';
 
 const emptyPopulationDetector = async () => ({
   engine_id: 'atlas.domain3_population_exact',
@@ -205,4 +206,35 @@ test('Domain 3 cycle bridges each population detector run independently', async 
   assert.deepEqual(bridgedRunIds, ['seed-run', 'population-a', 'population-b']);
   assert.equal(result.bridge.candidates_seen, 3);
   assert.equal(result.bridge.bridged, 3);
+});
+
+test('Domain 3 population detector derives repeat and cross-category signals from canonical observations', () => {
+  const rows = [];
+  let offset = 1;
+  const makeEvent = ({ category, entity, city = 'Seattle' }) => ({
+    stream_id: 'cfpb_complaints',
+    offset: offset++,
+    timestamp: '2025-01-01T00:00:00.000Z',
+    ingested_at: '2025-01-02T00:00:00.000Z',
+    signal_type: category,
+    spacetime: { jurisdiction: 'WA', city },
+    payload: { category, company: entity },
+    event_identity_hash: String(offset).padStart(64, '0').slice(-64),
+    jurisdiction_id: 'WA',
+  });
+
+  for (let i = 0; i < 40; i += 1) rows.push(makeEvent({ category: `category_${i % 4}`, entity: 'Dominant Corp' }));
+  for (let entityIndex = 0; entityIndex < 12; entityIndex += 1) {
+    for (let i = 0; i < 2; i += 1) rows.push(makeEvent({ category: `other_${entityIndex % 3}`, entity: `Other ${entityIndex}`, city: `City ${entityIndex % 4}` }));
+  }
+
+  const candidates = deriveDomain3PopulationCandidates(rows);
+  const repeat = candidates.find((candidate) => candidate.signal_type === 'repeat_entity' && candidate.title.includes('Dominant Corp'));
+  const cross = candidates.find((candidate) => candidate.signal_type === 'cross_category_entity' && candidate.title.includes('Dominant Corp'));
+
+  assert.ok(repeat);
+  assert.ok(cross);
+  assert.equal(repeat.verification_state, 'unverified');
+  assert.equal(repeat.entity_resolution_status, 'unresolved_exact_match_required');
+  assert.ok(repeat.source_event_refs.length <= 25);
 });
