@@ -20,6 +20,6 @@ export function normalizeNyc311(record) {
   });
 }
 
-export function ingestNyc311ServiceRequests({ limit = 5000, apiBaseUrl } = {}) {
-  return ingestSocrataObservations({ apiUrl: NYC_311_API_URL, sourceId: 'nyc_311', jurisdictionId: 'us_city_nyc', moduleHint: 'municipal_services', normalize: normalizeNyc311, limit, order: 'created_date DESC', apiBaseUrl });
+export function ingestNyc311ServiceRequests({ limit = 1000, apiBaseUrl } = {}) {
+  return ingestSocrataObservations({ apiUrl: NYC_311_API_URL, sourceId: 'nyc_311', jurisdictionId: 'us_city_nyc', moduleHint: 'municipal_services', normalize: normalizeNyc311, limit, pageSize: 1000, apiBaseUrl });
 }
