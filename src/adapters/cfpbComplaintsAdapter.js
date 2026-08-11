@@ -3,7 +3,9 @@ import dotenv from 'dotenv';
 import { postSignalsToAtlas, toIsoTimestamp } from './ingestClient.js';
 dotenv.config();
 
-const CFPB_API_URL = process.env.CFPB_API_URL || 'https://api.consumerfinance.gov/data-research/consumer-complaints/search.json';
+// Canonical server declared by the CFPB ccdb5-api OpenAPI contract.
+const CFPB_API_URL = process.env.CFPB_API_URL || 'https://www.consumerfinance.gov/data-research/consumer-complaints/search/api/v1/';
+const CFPB_PAGE_SIZE = 100;
 
 export function normalizeComplaint(complaint) {
   const id = complaint.complaint_id || complaint._id || complaint.id || '';
@@ -21,9 +23,38 @@ export function normalizeComplaint(complaint) {
   return {
     signal_type: 'consumer_complaint',
     timestamp: toIsoTimestamp(dateReceived),
-    spacetime: { region: state ? `us_state_${String(state).toLowerCase()}` : 'us_federal', jurisdiction: state ? `us_state_${String(state).toLowerCase()}` : 'us_federal', state, zip: complaint.zip_code || null },
-    provenance: { channel: 'cfpb', source_system: 'cfpb_complaints_database', confidence: 1.0, source_url: `https://www.consumerfinance.gov/data-research/consumer-complaints/search/detail/${id}` },
-    payload: { external_id: `cfpb_${id}`, complaint_id: id, product, sub_product: subProduct, issue, sub_issue: complaint.sub_issue || null, company, company_response: response, state, date_received: dateReceived, date_sent_to_company: complaint.date_sent_to_company || null, submitted_via: complaint.submitted_via || null, timely_response: timely === 'Yes', consumer_disputed: complaint.consumer_disputed === 'Yes', company_public_response: complaint.company_public_response || null, narrative: narrative ? narrative.slice(0, 2000) : null, disclaimer: 'A published consumer complaint is not by itself evidence of wrongdoing.' },
+    spacetime: {
+      region: state ? `us_state_${String(state).toLowerCase()}` : 'us_federal',
+      jurisdiction: state ? `us_state_${String(state).toLowerCase()}` : 'us_federal',
+      state,
+      zip: complaint.zip_code || null,
+    },
+    provenance: {
+      channel: 'cfpb',
+      source_system: 'cfpb_complaints_database',
+      confidence: 1.0,
+      source_url: `https://www.consumerfinance.gov/data-research/consumer-complaints/search/detail/${id}`,
+    },
+    payload: {
+      external_id: `cfpb_${id}`,
+      complaint_id: id,
+      product,
+      sub_product: subProduct,
+      issue,
+      sub_issue: complaint.sub_issue || null,
+      company,
+      company_response: response,
+      state,
+      zip_code: complaint.zip_code || null,
+      date_received: dateReceived,
+      date_sent_to_company: complaint.date_sent_to_company || null,
+      submitted_via: complaint.submitted_via || null,
+      timely_response: timely === 'Yes',
+      company_public_response: complaint.company_public_response || null,
+      tags: complaint.tags || null,
+      narrative: narrative ? narrative.slice(0, 2000) : null,
+      disclaimer: 'A published consumer complaint is not by itself evidence of wrongdoing.',
+    },
   };
 }
 
@@ -34,20 +65,53 @@ function extractHits(data) {
   return [];
 }
 
-export async function fetchComplaints({ state = null, product = null, minDate = null, limit = 1000 } = {}) {
-  const params = { size: Math.min(Math.max(Number(limit) || 1000, 1), 5000), sort: 'created_date_desc', no_aggs: true };
+async function fetchComplaintPage({ state, product, minDate, frm, size }) {
+  const params = {
+    frm,
+    size,
+    sort: 'created_date_desc',
+    no_aggs: true,
+  };
   if (state) params.state = state;
   if (product) params.product = product;
   if (minDate) params.date_received_min = minDate;
-  else params.date_received_min = new Date(Date.now() - 180 * 86400000).toISOString().slice(0, 10);
-  const response = await axios.get(CFPB_API_URL, { params, timeout: 30000, headers: { Accept: 'application/json' } });
-  return extractHits(response.data).map(normalizeComplaint);
+
+  const response = await axios.get(CFPB_API_URL, {
+    params,
+    timeout: 30000,
+    headers: { Accept: 'application/json' },
+  });
+  return extractHits(response.data);
+}
+
+export async function fetchComplaints({ state = null, product = null, minDate = null, limit = 1000 } = {}) {
+  const desired = Math.min(Math.max(Number(limit) || 1000, 1), 10000);
+  const effectiveMinDate = minDate || new Date(Date.now() - 180 * 86400000).toISOString().slice(0, 10);
+  const complaints = [];
+
+  for (let frm = 0; frm < desired; frm += CFPB_PAGE_SIZE) {
+    const pageSize = Math.min(CFPB_PAGE_SIZE, desired - frm);
+    const page = await fetchComplaintPage({ state, product, minDate: effectiveMinDate, frm, size: pageSize });
+    if (!page.length) break;
+    complaints.push(...page);
+    if (page.length < pageSize) break;
+  }
+
+  return complaints.map(normalizeComplaint);
 }
 
 export async function ingestCfpbSignals({ state = null, product = null, limit = 1000, apiBaseUrl } = {}) {
   const signals = await fetchComplaints({ state, product, limit });
-  if (!signals.length) return { accepted: true, ingested_count: 0, source_count: 0, note: 'No CFPB complaints returned' };
-  const result = await postSignalsToAtlas({ sourceId: 'cfpb_complaints', jurisdictionId: state ? `us_state_${String(state).toLowerCase()}` : 'us_federal', moduleHint: 'consumer_protection', signals, apiBaseUrl });
+  if (!signals.length) {
+    return { accepted: true, ingested_count: 0, source_count: 0, note: 'No CFPB complaints returned' };
+  }
+  const result = await postSignalsToAtlas({
+    sourceId: 'cfpb_complaints',
+    jurisdictionId: state ? `us_state_${String(state).toLowerCase()}` : 'us_federal',
+    moduleHint: 'consumer_protection',
+    signals,
+    apiBaseUrl,
+  });
   return { ...result, source_count: signals.length };
 }
 
