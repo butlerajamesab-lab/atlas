@@ -7,6 +7,7 @@ const bridge = readFileSync(new URL('../src/services/liveDataSignalBridgeService
 const ingestClient = readFileSync(new URL('../src/adapters/ingestClient.js', import.meta.url), 'utf8');
 const streamStore = readFileSync(new URL('../src/services/streamStore.js', import.meta.url), 'utf8');
 const persistenceMigration = readFileSync(new URL('../src/schema/20260811_domain3_population_persistence_rpc.sql', import.meta.url), 'utf8');
+const lighthouseProjectionMigration = readFileSync(new URL('../src/schema/20260811_domain3_lighthouse_state_projection.sql', import.meta.url), 'utf8');
 const signalSchema = JSON.parse(readFileSync(new URL('../src/schema/json/signal_event.json', import.meta.url), 'utf8'));
 
 test('Domain 3 full replay scans the current bounded observation substrate and persists per-rule runs', () => {
@@ -46,12 +47,24 @@ test('narrow ProPublica seed cannot gate full population replay', () => {
   assert.doesNotMatch(bridge, /throw new Error\(`Atlas Domain 3 detection returned no completed run receipt/);
 });
 
-test('adapter ingress is batched and emits upstream Atlas validation detail', () => {
-  assert.match(ingestClient, /DEFAULT_INGEST_BATCH_SIZE = 200/);
+test('adapter ingress uses bounded replay-friendly batches and emits upstream Atlas validation detail', () => {
+  assert.match(ingestClient, /DEFAULT_INGEST_BATCH_SIZE = 100/);
   assert.match(ingestClient, /MAX_INGEST_BATCH_SIZE = 500/);
+  assert.match(ingestClient, /DEFAULT_INGEST_TIMEOUT_MS = 60_000/);
+  assert.match(ingestClient, /MAX_INGEST_TIMEOUT_MS = 180_000/);
+  assert.match(ingestClient, /ATLAS_INGEST_TIMEOUT_MS/);
   assert.match(ingestClient, /atlas_ingest_failed batch=/);
   assert.match(ingestClient, /records_failed/);
   assert.match(ingestClient, /partial_completion/);
+});
+
+test('Lighthouse projection preserves uncertainty rather than promoting unverified candidates', () => {
+  assert.match(lighthouseProjectionMigration, /else 'unresolved'/);
+  assert.match(lighthouseProjectionMigration, /atlas_candidate_verification_state/);
+  assert.match(lighthouseProjectionMigration, /atlas_candidate_entity_resolution_status/);
+  assert.match(lighthouseProjectionMigration, /'governance_status', 'observation_candidate'/);
+  assert.match(lighthouseProjectionMigration, /state_projection/);
+  assert.match(lighthouseProjectionMigration, /atlas_candidate_to_lighthouse_governed_state_v1/);
 });
 
 test('provenance channel accepts governed source-native channel identities', () => {
