@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 /**
  * Run All Atlas Adapters
- * 
- * Executes all 15 data stream adapters sequentially, collecting results.
+ *
+ * Executes the runnable source-adapter registry sequentially and reports
+ * normalized observation persistence. Adapter output is not a civic-signal count.
  * Usage: node scripts/run-all-adapters.mjs [--state WA] [--dry-run]
  */
 import dotenv from 'dotenv';
@@ -12,18 +13,15 @@ const STATE = process.argv.find((a, i) => process.argv[i - 1] === '--state') || 
 const DRY_RUN = process.argv.includes('--dry-run');
 
 const adapters = [
-  // Existing 4
   { name: 'courtlistener', module: '../src/adapters/courtListenerAdapter.js', fn: 'runIngestCourtListener' },
   { name: 'openstates', module: '../src/adapters/openStatesAdapter.js', fn: 'ingestOpenStatesSignals' },
   { name: 'grants_gov', module: '../src/adapters/grantsGovAdapter.js', fn: 'ingestGrantsGovSignals' },
   { name: 'propublica', module: '../src/adapters/proPublicaAdapter.js', fn: 'runIngestProPublica' },
-  // Backbone 5
   { name: 'census_acs', module: '../src/adapters/censusAcsAdapter.js', fn: 'ingestCensusSignals', args: { state: STATE === 'WA' ? '53' : STATE } },
   { name: 'usda_snap', module: '../src/adapters/usdaSnapAdapter.js', fn: 'ingestSnapSignals', args: { state: STATE } },
   { name: 'hud_fmr', module: '../src/adapters/hudHousingAdapter.js', fn: 'ingestHudSignals', args: { stateCode: STATE === 'WA' ? '53' : STATE } },
   { name: 'bls_employment', module: '../src/adapters/blsEmploymentAdapter.js', fn: 'ingestBlsSignals' },
   { name: 'regulations_gov', module: '../src/adapters/regulationsGovAdapter.js', fn: 'ingestRegulationsSignals' },
-  // Follow the money 6
   { name: 'fec_campaign_finance', module: '../src/adapters/fecCampaignFinanceAdapter.js', fn: 'ingestFecSignals', args: { state: STATE } },
   { name: 'sec_edgar', module: '../src/adapters/secEdgarAdapter.js', fn: 'ingestSecSignals' },
   { name: 'usa_spending', module: '../src/adapters/usaSpendingAdapter.js', fn: 'ingestUsaSpendingSignals', args: { state: STATE } },
@@ -36,7 +34,7 @@ const adapters = [
 ];
 
 console.log(`\n═══════════════════════════════════════════════════`);
-console.log(`  ATLAS STREAMING ENGINE — ALL ADAPTERS`);
+console.log(`  ATLAS STREAMING ENGINE — RUNNABLE ADAPTERS`);
 console.log(`  State: ${STATE} | Dry Run: ${DRY_RUN}`);
 console.log(`  Adapters: ${adapters.length}`);
 console.log(`═══════════════════════════════════════════════════\n`);
@@ -67,15 +65,16 @@ for (const adapter of adapters) {
 
     const result = await fn(adapter.args || {});
     const elapsed = Date.now() - start;
-    const count = result?.ingested_count ?? result?.accepted ?? '?';
-    console.log(`  [OK]   ${adapter.name} — ${count} signals (${elapsed}ms)`);
+    const inserted = Number(result?.ingested_count ?? result?.events_inserted ?? 0);
+    const replayed = Number(result?.replayed_count ?? result?.replays_suppressed ?? 0);
+    console.log(`  [OK]   ${adapter.name} — observations_inserted=${inserted} replayed=${replayed} (${elapsed}ms)`);
     success++;
-    results.push({ name: adapter.name, status: 'ok', ingested: count, ms: elapsed });
+    results.push({ name: adapter.name, status: 'ok', observations_inserted: inserted, replayed, ms: elapsed });
   } catch (e) {
     const elapsed = Date.now() - start;
-    console.log(`  [FAIL] ${adapter.name} — ${e.message?.slice(0, 80)} (${elapsed}ms)`);
+    console.log(`  [FAIL] ${adapter.name} — ${e.message?.slice(0, 160)} (${elapsed}ms)`);
     failed++;
-    results.push({ name: adapter.name, status: 'error', error: e.message?.slice(0, 200), ms: elapsed });
+    results.push({ name: adapter.name, status: 'error', error: e.message?.slice(0, 500), ms: elapsed });
   }
 }
 
@@ -85,7 +84,7 @@ console.log(`══════════════════════�
 
 if (failed > 0) {
   console.log('Failed adapters:');
-  results.filter(r => r.status === 'error').forEach(r => {
+  results.filter((r) => r.status === 'error').forEach((r) => {
     console.log(`  - ${r.name}: ${r.error}`);
   });
 }
