@@ -1,0 +1,1 @@
+Runtime verification: source endpoint reachable; non-zero source count when expected; governed ingest succeeds; replay is idempotent; canonical stream count changes only on new observations; Domain 3 candidates remain separate from source observations.
