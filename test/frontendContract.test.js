@@ -6,6 +6,7 @@ const server = readFileSync(new URL('../src/server.js', import.meta.url), 'utf8'
 const ui = readFileSync(new URL('../src/routes/ui.js', import.meta.url), 'utf8');
 const html = readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
 const app = readFileSync(new URL('../public/atlas-app.js', import.meta.url), 'utf8');
+const drilldown = readFileSync(new URL('../public/atlas-drilldown.js', import.meta.url), 'utf8');
 
 test('Atlas frontend is served by the existing Atlas service before the private control boundary', () => {
   const uiMount = server.indexOf('app.use(atlasUiRouter(routeContext))');
@@ -48,6 +49,18 @@ test('frontend provides the planned inspection surfaces', () => {
   assert.match(app, /failed amendments/i);
   assert.match(app, /source-native Prism\/Rosetta states/i);
   assert.match(app, /Observation is not signal/);
+});
+
+test('click-through inspection exposes public detail and protected receipts without persisting credentials', () => {
+  assert.match(html, /atlas-drilldown\.js/);
+  assert.match(drilldown, /INSPECTION RECEIPT/);
+  assert.match(drilldown, /\/ui-api\/signal-derivation/);
+  assert.match(drilldown, /\/ui-api\/legislative-history/);
+  assert.match(drilldown, /\/operator-api\/substrate/);
+  assert.match(drilldown, /source_event_refs|candidate evidence/);
+  assert.match(drilldown, /action_receipts/);
+  assert.doesNotMatch(drilldown, /localStorage/);
+  assert.doesNotMatch(drilldown, /sessionStorage/);
 });
 
 test('live frontend refreshes retrieved state and never persists the operator token', () => {
