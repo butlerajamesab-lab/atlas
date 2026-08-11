@@ -5,6 +5,8 @@ import test from 'node:test';
 const replay = readFileSync(new URL('../src/services/domain3PopulationReplayService.js', import.meta.url), 'utf8');
 const bridge = readFileSync(new URL('../src/services/liveDataSignalBridgeService.js', import.meta.url), 'utf8');
 const ingestClient = readFileSync(new URL('../src/adapters/ingestClient.js', import.meta.url), 'utf8');
+const streamStore = readFileSync(new URL('../src/services/streamStore.js', import.meta.url), 'utf8');
+const persistenceMigration = readFileSync(new URL('../src/schema/20260811_domain3_population_persistence_rpc.sql', import.meta.url), 'utf8');
 const signalSchema = JSON.parse(readFileSync(new URL('../src/schema/json/signal_event.json', import.meta.url), 'utf8'));
 
 test('Domain 3 full replay scans the current bounded observation substrate and persists per-rule runs', () => {
@@ -14,9 +16,26 @@ test('Domain 3 full replay scans the current bounded observation substrate and p
   assert.match(replay, /atlas\.domain3\.cross_jurisdiction_recurrence/);
   assert.match(replay, /minimum_jurisdictions: 2/);
   assert.match(replay, /not misconduct, causation, or legal finding/);
-  assert.match(replay, /live_data_signal_rule/);
-  assert.match(replay, /live_data_signal_run/);
-  assert.match(replay, /live_data_signal_candidate/);
+  assert.match(replay, /register_domain3_population_rules_v1/);
+  assert.match(replay, /persist_domain3_population_run_v1/);
+  assert.doesNotMatch(replay, /\.schema\('atlas'\)/);
+});
+
+test('Domain 3 internal tables stay behind service-role RPC boundaries', () => {
+  assert.match(persistenceMigration, /security definer/);
+  assert.match(persistenceMigration, /revoke all on function public\.register_domain3_population_rules_v1\(jsonb\) from public, anon, authenticated/);
+  assert.match(persistenceMigration, /grant execute on function public\.register_domain3_population_rules_v1\(jsonb\) to service_role/);
+  assert.match(persistenceMigration, /revoke all on function public\.persist_domain3_population_run_v1\(jsonb,uuid,bigint,jsonb\) from public, anon, authenticated/);
+  assert.match(persistenceMigration, /atlas\.live_data_signal_candidate/);
+});
+
+test('canonical stream registry resolves transport aliases without inventing duplicate identity', () => {
+  assert.match(streamStore, /recognizes source_id when it is actually the registered stream_id/);
+  assert.match(streamStore, /No uniquely registered stream found/);
+  assert.match(streamStore, /stream_contract_id: stream\.stream_id/);
+  assert.match(streamStore, /source_id: stream\.source_id/);
+  assert.match(streamStore, /jurisdiction_id: stream\.jurisdiction_id/);
+  assert.match(streamStore, /module_hint: stream\.module_hint/);
 });
 
 test('narrow ProPublica seed cannot gate full population replay', () => {

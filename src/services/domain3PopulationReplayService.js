@@ -138,8 +138,8 @@ async function loadCanonicalObservations(atlasClient, limit) {
   return rows;
 }
 
-async function ensureRules(atlasClient) {
-  const rows = RULES.map((rule) => {
+function materializeRuleRows() {
+  return RULES.map((rule) => {
     const ruleContract = {
       ...rule.rule_contract,
       engine_id: ENGINE_ID,
@@ -156,87 +156,41 @@ async function ensureRules(atlasClient) {
       is_active: true,
     };
   });
-  const { error } = await atlasClient.schema('atlas').from('live_data_signal_rule').upsert(rows, {
-    onConflict: 'rule_id,rule_version',
+}
+
+async function ensureRules(atlasClient) {
+  const rows = materializeRuleRows();
+  const { data, error } = await atlasClient.rpc('register_domain3_population_rules_v1', {
+    p_rules: rows,
   });
   if (error) throw new Error(`Domain 3 rule registration failed: ${error.message}`);
+  if (!data || Number(data.rules_registered ?? 0) !== rows.length) {
+    throw new Error(`Domain 3 rule registration returned an invalid receipt: ${JSON.stringify(data ?? null)}`);
+  }
   return new Map(rows.map((row) => [row.rule_id, row]));
 }
 
 async function persistRuleRun({ atlasClient, rule, observationsScanned, candidates }) {
   const runId = crypto.randomUUID();
-  const startedAt = new Date().toISOString();
-  const { error: runError } = await atlasClient.schema('atlas').from('live_data_signal_run').insert({
+  const { data, error } = await atlasClient.rpc('persist_domain3_population_run_v1', {
+    p_rule: rule,
+    p_run_id: runId,
+    p_observations_scanned: observationsScanned,
+    p_candidates: candidates,
+  });
+  if (error) {
+    throw new Error(`Domain 3 persistence failed for ${rule.rule_id}: ${error.message}`);
+  }
+  if (!data || data.status !== 'completed' || data.run_id !== runId) {
+    throw new Error(`Domain 3 persistence returned an invalid receipt for ${rule.rule_id}: ${JSON.stringify(data ?? null)}`);
+  }
+  return {
     run_id: runId,
     rule_id: rule.rule_id,
-    rule_version: rule.rule_version,
-    rule_contract_hash: rule.rule_contract_hash,
-    status: 'running',
-    canonical_events_scanned: observationsScanned,
-    entities_evaluated: candidates.filter((candidate) => candidate.supporting_statistics?.entity_name).length,
-    candidates_produced: 0,
-    started_at: startedAt,
-  });
-  if (runError) throw new Error(`Domain 3 run start failed for ${rule.rule_id}: ${runError.message}`);
-
-  let produced = 0;
-  let inserted = 0;
-  let replayed = 0;
-  try {
-    for (const candidate of candidates) {
-      const { data: existing, error: readError } = await atlasClient.schema('atlas').from('live_data_signal_candidate')
-        .select('candidate_id')
-        .eq('candidate_hash', candidate.candidate_hash)
-        .maybeSingle();
-      if (readError) throw readError;
-      if (existing) {
-        const { error: updateError } = await atlasClient.schema('atlas').from('live_data_signal_candidate')
-          .update({
-            last_run_id: runId,
-            last_replayed_at: new Date().toISOString(),
-            detected_at: candidate.detected_at,
-            source_freshness_at: candidate.source_freshness_at,
-            supporting_statistics: candidate.supporting_statistics,
-            source_event_refs: candidate.source_event_refs,
-            evidence_refs: candidate.evidence_refs,
-          })
-          .eq('candidate_id', existing.candidate_id);
-        if (updateError) throw updateError;
-        replayed += 1;
-      } else {
-        const { error: insertError } = await atlasClient.schema('atlas').from('live_data_signal_candidate').insert({
-          ...candidate,
-          rule_contract_hash: rule.rule_contract_hash,
-          first_run_id: runId,
-          last_run_id: runId,
-        });
-        if (insertError) throw insertError;
-        inserted += 1;
-      }
-      produced += 1;
-    }
-
-    const { error: finishError } = await atlasClient.schema('atlas').from('live_data_signal_run')
-      .update({ status: 'completed', candidates_produced: produced, completed_at: new Date().toISOString() })
-      .eq('run_id', runId);
-    if (finishError) throw finishError;
-    return {
-      run_id: runId,
-      rule_id: rule.rule_id,
-      candidates_produced: produced,
-      candidates_inserted: inserted,
-      candidates_replayed: replayed,
-    };
-  } catch (error) {
-    await atlasClient.schema('atlas').from('live_data_signal_run')
-      .update({
-        status: 'failed',
-        error_message: String(error?.message || error).slice(0, 2000),
-        completed_at: new Date().toISOString(),
-      })
-      .eq('run_id', runId);
-    throw new Error(`Domain 3 persistence failed for ${rule.rule_id}: ${error?.message || error}`);
-  }
+    candidates_produced: Number(data.candidates_produced ?? 0),
+    candidates_inserted: Number(data.candidates_inserted ?? 0),
+    candidates_replayed: Number(data.candidates_replayed ?? 0),
+  };
 }
 
 export async function executeDomain3FullReplay({
