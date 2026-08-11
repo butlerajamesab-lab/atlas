@@ -4,8 +4,10 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 export const ATLAS_API_BASE_URL = process.env.ATLAS_API_BASE_URL || `http://localhost:${process.env.PORT || 8787}`;
-const DEFAULT_INGEST_BATCH_SIZE = 200;
+const DEFAULT_INGEST_BATCH_SIZE = 100;
 const MAX_INGEST_BATCH_SIZE = 500;
+const DEFAULT_INGEST_TIMEOUT_MS = 60_000;
+const MAX_INGEST_TIMEOUT_MS = 180_000;
 
 export function sourceUrlFrom(...values) {
   return values.find((value) => typeof value === 'string' && value.trim().length > 0) || null;
@@ -30,6 +32,12 @@ function boundedBatchSize(value) {
   return Math.min(MAX_INGEST_BATCH_SIZE, Math.max(1, parsed));
 }
 
+function boundedTimeoutMs(value) {
+  const parsed = Number.parseInt(String(value ?? DEFAULT_INGEST_TIMEOUT_MS), 10);
+  if (!Number.isSafeInteger(parsed)) return DEFAULT_INGEST_TIMEOUT_MS;
+  return Math.min(MAX_INGEST_TIMEOUT_MS, Math.max(5_000, parsed));
+}
+
 function atlasIngestError(error, batchIndex) {
   const status = error?.response?.status ?? null;
   const payload = error?.response?.data;
@@ -43,7 +51,7 @@ function atlasIngestError(error, batchIndex) {
   return wrapped;
 }
 
-async function postBatch({ sourceId, jurisdictionId, moduleHint, signals, apiBaseUrl, ingestToken, batchIndex }) {
+async function postBatch({ sourceId, jurisdictionId, moduleHint, signals, apiBaseUrl, ingestToken, batchIndex, timeoutMs }) {
   try {
     const response = await axios.post(`${apiBaseUrl}/v1/ingest/signals`, {
       source_id: sourceId,
@@ -51,7 +59,7 @@ async function postBatch({ sourceId, jurisdictionId, moduleHint, signals, apiBas
       module_hint: moduleHint,
       signals,
     }, {
-      timeout: 30000,
+      timeout: timeoutMs,
       headers: {
         Authorization: `Bearer ${ingestToken}`,
         'Content-Type': 'application/json',
@@ -70,6 +78,7 @@ export async function postSignalsToAtlas({
   signals,
   apiBaseUrl = ATLAS_API_BASE_URL,
   batchSize = process.env.ATLAS_INGEST_BATCH_SIZE,
+  timeoutMs = process.env.ATLAS_INGEST_TIMEOUT_MS,
 }) {
   const ingestToken = process.env.ATLAS_INGEST_TOKEN;
   if (!ingestToken) {
@@ -92,6 +101,7 @@ export async function postSignalsToAtlas({
   }
 
   const size = boundedBatchSize(batchSize);
+  const timeout = boundedTimeoutMs(timeoutMs);
   const aggregate = {
     accepted: true,
     status: 'completed',
@@ -103,6 +113,8 @@ export async function postSignalsToAtlas({
     receipts: [],
     batches: 0,
     run_ids: [],
+    batch_size: size,
+    timeout_ms: timeout,
   };
 
   for (let start = 0, batchIndex = 0; start < rows.length; start += size, batchIndex += 1) {
@@ -115,6 +127,7 @@ export async function postSignalsToAtlas({
       apiBaseUrl,
       ingestToken,
       batchIndex,
+      timeoutMs: timeout,
     });
     aggregate.batches += 1;
     aggregate.ingested_count += Number(receipt?.ingested_count ?? 0);
