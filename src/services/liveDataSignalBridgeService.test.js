@@ -5,6 +5,15 @@ import {
   resolveLiveDataSignalBridgeConfiguration,
 } from './liveDataSignalBridgeService.js';
 
+const emptyPopulationDetector = async () => ({
+  engine_id: 'atlas.domain3_population_exact',
+  engine_version: '1.0.0',
+  observations_scanned: 0,
+  candidates_derived: 0,
+  candidates_persisted: 0,
+  runs: [],
+});
+
 test('Domain 3 bridge configuration requires Atlas service credentials only', () => {
   assert.throws(
     () => resolveLiveDataSignalBridgeConfiguration({
@@ -19,18 +28,21 @@ test('Domain 3 bridge configuration requires Atlas service credentials only', ()
     ATLAS_DOMAIN3_MIN_UNIQUE_RECORDS: '12',
     ATLAS_DOMAIN3_MIN_UNRESOLVED_RATE: '0.75',
     ATLAS_DOMAIN3_CANDIDATE_LIMIT: '25',
+    ATLAS_DOMAIN3_OBSERVATION_LIMIT: '12345',
   });
   assert.equal(config.atlasUrl, 'https://atlas.example.test');
   assert.equal(config.atlasKey, 'atlas-service-key');
   assert.equal(config.minUniqueRecords, 12);
   assert.equal(config.minUnresolvedRate, 0.75);
   assert.equal(config.candidateLimit, 25);
+  assert.equal(config.observationLimit, 12345);
   assert.equal('lighthouseUrl' in config, false);
   assert.equal('lighthouseKey' in config, false);
 });
 
-test('Domain 3 cycle runs detection then governed Atlas database transport', async () => {
+test('Domain 3 cycle runs seed detection, population detection, then governed Atlas database transport', async () => {
   const calls = [];
+  let populationCalled = false;
   const atlasClient = {
     async rpc(name, args) {
       calls.push({ name, args });
@@ -71,8 +83,16 @@ test('Domain 3 cycle runs detection then governed Atlas database transport', asy
     minUniqueRecords: 12,
     minUnresolvedRate: 0.75,
     candidateLimit: 25,
+    observationLimit: 12345,
+    populationDetector: async ({ observationLimit, candidateLimit }) => {
+      populationCalled = true;
+      assert.equal(observationLimit, 12345);
+      assert.equal(candidateLimit, 25);
+      return emptyPopulationDetector();
+    },
   });
 
+  assert.equal(populationCalled, true);
   assert.equal(calls.length, 2);
   assert.equal(calls[0].name, 'detect_propublica_unresolved_metadata_v1');
   assert.deepEqual(calls[0].args, {
@@ -83,10 +103,10 @@ test('Domain 3 cycle runs detection then governed Atlas database transport', asy
   assert.equal(calls[1].name, 'bridge_live_data_signal_candidates_v1');
   assert.equal(result.bridge.bridged, 9);
   assert.equal(result.bridge.failed, 0);
-  assert.equal(result.bridge.transport, 'atlas_database_http_receipt_v1');
+  assert.equal(result.population_detection.engine_id, 'atlas.domain3_population_exact');
 });
 
-test('Domain 3 cycle fails closed when detection has no completed run receipt', async () => {
+test('Domain 3 cycle fails closed when seed detection has no completed run receipt', async () => {
   const atlasClient = {
     async rpc(name) {
       assert.equal(name, 'detect_propublica_unresolved_metadata_v1');
@@ -95,7 +115,7 @@ test('Domain 3 cycle fails closed when detection has no completed run receipt', 
   };
 
   await assert.rejects(
-    executeLiveDataSignalCycle({ atlasClient }),
+    executeLiveDataSignalCycle({ atlasClient, populationDetector: emptyPopulationDetector }),
     /no completed run receipt/,
   );
 });
@@ -120,8 +140,8 @@ test('Domain 3 cycle surfaces governed database transport errors', async () => {
   };
 
   await assert.rejects(
-    executeLiveDataSignalCycle({ atlasClient }),
-    /Atlas Domain 3 transport failed: encrypted bridge config unavailable/,
+    executeLiveDataSignalCycle({ atlasClient, populationDetector: emptyPopulationDetector }),
+    /Atlas Domain 3 transport failed for run .*encrypted bridge config unavailable/,
   );
 });
 
@@ -150,8 +170,39 @@ test('Domain 3 cycle recognizes idempotent replay receipt', async () => {
     },
   };
 
-  const result = await executeLiveDataSignalCycle({ atlasClient });
+  const result = await executeLiveDataSignalCycle({ atlasClient, populationDetector: emptyPopulationDetector });
   assert.equal(result.bridge.bridged, 0);
   assert.equal(result.bridge.idempotent, 9);
   assert.equal(result.bridge.failed, 0);
+});
+
+test('Domain 3 cycle bridges each population detector run independently', async () => {
+  const bridgedRunIds = [];
+  const atlasClient = {
+    async rpc(name, args) {
+      if (name === 'detect_propublica_unresolved_metadata_v1') {
+        return { data: { run_id: 'seed-run', status: 'completed' }, error: null };
+      }
+      if (name === 'bridge_live_data_signal_candidates_v1') {
+        bridgedRunIds.push(args.p_run_id);
+        return { data: { candidates_seen: 1, bridged: 1, idempotent: 0, failed: 0 }, error: null };
+      }
+      throw new Error(`Unexpected RPC ${name}`);
+    },
+  };
+
+  const result = await executeLiveDataSignalCycle({
+    atlasClient,
+    candidateLimit: 10,
+    populationDetector: async () => ({
+      runs: [
+        { run_id: 'population-a', rule_id: 'atlas.domain3.frequency_spike' },
+        { run_id: 'population-b', rule_id: 'atlas.domain3.repeat_entity' },
+      ],
+    }),
+  });
+
+  assert.deepEqual(bridgedRunIds, ['seed-run', 'population-a', 'population-b']);
+  assert.equal(result.bridge.candidates_seen, 3);
+  assert.equal(result.bridge.bridged, 3);
 });
