@@ -30,7 +30,8 @@
       "properties": {
         "channel": {
           "type": "string",
-          "enum": ["internal", "external", "partner", "court_listener", "open_states", "grants_gov", "pro_publica", "cfpb", "eeoc", "dol_whd", "osha"]
+          "minLength": 1,
+          "description": "Source-native provenance channel. Canonical source/stream identity is governed by the registered stream contract rather than a closed transport enum."
         },
         "confidence": { "type": "number" },
         "source_system": { "type": ["string", "null"] },
