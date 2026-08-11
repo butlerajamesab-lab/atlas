@@ -1,0 +1,1 @@
+Complaint and service-request rows are source observations only. They require deterministic population derivation before becoming Domain 3 signal candidates.
