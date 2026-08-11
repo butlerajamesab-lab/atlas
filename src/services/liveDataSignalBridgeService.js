@@ -56,6 +56,7 @@ export async function executeLiveDataSignalCycle({
   minUnresolvedRate = 0.5,
   candidateLimit = 100,
   observationLimit = 20000,
+  populationDetector = executeDomain3PopulationDetection,
 }) {
   const boundedMinUniqueRecords = Math.max(1, Number(minUniqueRecords) || 10);
   const boundedMinUnresolvedRate = Math.min(1, Math.max(0, Number(minUnresolvedRate) || 0));
@@ -81,7 +82,7 @@ export async function executeLiveDataSignalCycle({
     );
   }
 
-  const populationDetection = await executeDomain3PopulationDetection({
+  const populationDetection = await populationDetector({
     atlasClient,
     observationLimit: boundedObservationLimit,
     candidateLimit: boundedCandidateLimit,
@@ -89,7 +90,7 @@ export async function executeLiveDataSignalCycle({
 
   const runIds = [
     seedDetection.run_id,
-    ...populationDetection.runs.map((run) => run.run_id),
+    ...(populationDetection?.runs || []).map((run) => run.run_id),
   ];
   const bridgeReceipts = [];
   for (const runId of runIds) {
