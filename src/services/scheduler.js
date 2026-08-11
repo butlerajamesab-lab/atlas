@@ -8,6 +8,7 @@ dotenv.config();
 import { supabase } from '../lib/supabaseClient.js';
 import { countStreamEvents, recordActionReceipt } from './actionReceiptService.js';
 import { runLiveDataSignalBridge } from './liveDataSignalBridgeService.js';
+import { projectStreamRuntimeSnapshot } from './streamRuntimeProjectionService.js';
 
 const STATE = process.env.ATLAS_STATE || 'WA';
 const STATE_FIPS = STATE === 'WA' ? '53' : STATE;
@@ -123,6 +124,7 @@ const adapterState = new Map();
 let schedulerRunning = false;
 let schedulerStartedAt = null;
 let domain3State = { running: false, lastRun: null, lastResult: null, errors: 0 };
+let streamProjectionState = { running: false, lastRun: null, lastResult: null, errors: 0 };
 
 function summarizeAdapterResult(result) {
   return {
@@ -266,6 +268,32 @@ async function runDomain3Bridge() {
   }
 }
 
+async function runStreamRuntimeProjection() {
+  if (streamProjectionState.running) return { status: 'already_running' };
+  streamProjectionState.running = true;
+  const start = Date.now();
+  try {
+    const result = await projectStreamRuntimeSnapshot({
+      adapterRegistry: ADAPTER_REGISTRY,
+      adapterStreamIds: ADAPTER_STREAM_IDS,
+    });
+    streamProjectionState.lastRun = new Date().toISOString();
+    streamProjectionState.lastResult = { status: 'ok', elapsed: Date.now() - start, ...result };
+    streamProjectionState.errors = 0;
+    console.log(`[scheduler] [stream-projection] projected=${result.stream_count ?? result.streams_registered ?? 0} hash=${String(result.snapshot_hash || '').slice(0,12)}`);
+    return streamProjectionState.lastResult;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    streamProjectionState.lastRun = new Date().toISOString();
+    streamProjectionState.lastResult = { status: 'error', error: message.slice(0, 500), elapsed: Date.now() - start };
+    streamProjectionState.errors += 1;
+    console.error(`[scheduler] [stream-projection] ${message.slice(0,180)}`);
+    return streamProjectionState.lastResult;
+  } finally {
+    streamProjectionState.running = false;
+  }
+}
+
 function scheduleAdapter(adapter) {
   const initialDelay = adapter.priority === 'high' ? 30_000 : adapter.priority === 'medium' ? 120_000 : 300_000;
   setTimeout(async () => {
@@ -281,6 +309,14 @@ export function startScheduler() {
   schedulerStartedAt = new Date().toISOString();
   for (const adapter of ADAPTER_REGISTRY) scheduleAdapter(adapter);
 
+  const streamProjectionIntervalMs = 15 * 60 * 1000;
+  const streamProjectionInitialDelayMs = 75_000;
+  console.log('[scheduler] Atlas→Lighthouse stream runtime projection scheduled every 15m');
+  setTimeout(async () => {
+    await runStreamRuntimeProjection();
+    setInterval(() => runStreamRuntimeProjection(), streamProjectionIntervalMs);
+  }, streamProjectionInitialDelayMs);
+
   const domain3IntervalMs = 6 * HOUR;
   const domain3InitialDelayMs = 3 * 60 * 1000;
   console.log('[scheduler] Domain 3 detection/bridge scheduled every 6h');
@@ -292,6 +328,10 @@ export function startScheduler() {
 
 export async function triggerLiveDataSignalBridgeNow() {
   return runDomain3Bridge();
+}
+
+export async function triggerStreamRuntimeProjectionNow() {
+  return runStreamRuntimeProjection();
 }
 
 export async function triggerBridgeDrainNow() {
@@ -311,6 +351,7 @@ export function getSchedulerStatus() {
       ...adapterState.get(adapter.name),
     })),
     live_data_signal_bridge: domain3State,
+    stream_runtime_projection: streamProjectionState,
     legacy_bridge: { scheduled: false, quarantined: true, reason: 'legacy_mixed_signal_transport_disabled' },
   };
 }
