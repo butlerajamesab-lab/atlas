@@ -136,11 +136,20 @@ export async function executeLiveDataSignalCycle({
   });
   bridge.errors = bridgeErrors;
 
+  const populationRuleErrors = Array.isArray(populationDetection?.rule_errors)
+    ? populationDetection.rule_errors
+    : [];
+  const partial = bridgeErrors.length > 0
+    || Boolean(seed.error)
+    || populationDetection?.status === 'partial'
+    || populationRuleErrors.length > 0;
+
   return {
-    status: bridgeErrors.length > 0 || seed.error ? 'partial' : 'completed',
+    status: partial ? 'partial' : 'completed',
     detection: seed.detection,
     seed_error: seed.error,
     population_detection: populationDetection,
+    population_rule_errors: populationRuleErrors,
     bridge,
     completed_at: new Date().toISOString(),
   };
