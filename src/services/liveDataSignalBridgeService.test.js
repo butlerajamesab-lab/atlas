@@ -17,6 +17,15 @@ const emptyPopulationDetector = async () => ({
   runs: [],
 });
 
+const emptyRetirementBridge = (runId) => ({
+  run_id: runId,
+  retirements_seen: 0,
+  bridged: 0,
+  idempotent: 0,
+  failed: 0,
+  transport: 'atlas_lighthouse_signal_retirement_v1',
+});
+
 test('Domain 3 bridge configuration requires Atlas service credentials only', () => {
   assert.throws(
     () => resolveLiveDataSignalBridgeConfiguration({
@@ -58,31 +67,24 @@ test('full replay declares cross-jurisdiction recurrence as a governed Domain 3 
       && rule.signal_type === 'cross_jurisdiction_recurrence'));
 });
 
-test('Domain 3 cycle runs seed detection, population detection, then governed Atlas database transport', async () => {
+test('Domain 3 cycle runs seed detection, population detection, then both governed Atlas database transports', async () => {
   const calls = [];
   let populationCalled = false;
+  const runId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
   const atlasClient = {
     async rpc(name, args) {
       calls.push({ name, args });
       if (name === 'detect_propublica_unresolved_metadata_v1') {
         return {
-          data: {
-            run_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
-            status: 'completed',
-            rule_version: '1.1.0',
-            candidates_produced: 9,
-          },
+          data: { run_id: runId, status: 'completed', rule_version: '1.1.0', candidates_produced: 9 },
           error: null,
         };
       }
       if (name === 'bridge_live_data_signal_candidates_v1') {
-        assert.deepEqual(args, {
-          p_run_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
-          p_limit: 25,
-        });
+        assert.deepEqual(args, { p_run_id: runId, p_limit: 25 });
         return {
           data: {
-            run_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+            run_id: runId,
             candidates_seen: 9,
             bridged: 9,
             idempotent: 0,
@@ -91,6 +93,10 @@ test('Domain 3 cycle runs seed detection, population detection, then governed At
           },
           error: null,
         };
+      }
+      if (name === 'bridge_live_data_signal_retirements_v1') {
+        assert.deepEqual(args, { p_run_id: runId, p_limit: 25 });
+        return { data: emptyRetirementBridge(runId), error: null };
       }
       throw new Error(`Unexpected RPC ${name}`);
     },
@@ -111,7 +117,7 @@ test('Domain 3 cycle runs seed detection, population detection, then governed At
   });
 
   assert.equal(populationCalled, true);
-  assert.equal(calls.length, 2);
+  assert.equal(calls.length, 3);
   assert.equal(calls[0].name, 'detect_propublica_unresolved_metadata_v1');
   assert.deepEqual(calls[0].args, {
     p_min_unique_records: 12,
@@ -119,9 +125,12 @@ test('Domain 3 cycle runs seed detection, population detection, then governed At
     p_limit: 25,
   });
   assert.equal(calls[1].name, 'bridge_live_data_signal_candidates_v1');
+  assert.equal(calls[2].name, 'bridge_live_data_signal_retirements_v1');
   assert.equal(result.status, 'completed');
   assert.equal(result.bridge.bridged, 9);
   assert.equal(result.bridge.failed, 0);
+  assert.equal(result.retirement_bridge.retirements_seen, 0);
+  assert.equal(result.retirement_bridge.failed, 0);
   assert.equal(result.population_detection.engine_id, 'atlas.domain3_population_exact');
 });
 
@@ -152,18 +161,9 @@ test('Domain 3 cycle retains per-run transport errors without discarding success
   const atlasClient = {
     async rpc(name) {
       if (name === 'detect_propublica_unresolved_metadata_v1') {
-        return {
-          data: {
-            run_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
-            status: 'completed',
-          },
-          error: null,
-        };
+        return { data: { run_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', status: 'completed' }, error: null };
       }
-      return {
-        data: null,
-        error: { message: 'encrypted bridge config unavailable' },
-      };
+      return { data: null, error: { message: 'encrypted bridge config unavailable' } };
     },
   };
 
@@ -171,30 +171,27 @@ test('Domain 3 cycle retains per-run transport errors without discarding success
   assert.equal(result.status, 'partial');
   assert.equal(result.bridge.failed, 1);
   assert.match(result.bridge.errors[0].error, /encrypted bridge config unavailable/);
+  assert.equal(result.retirement_bridge.failed, 1);
+  assert.match(result.retirement_bridge.errors[0].error, /encrypted bridge config unavailable/);
 });
 
-test('Domain 3 cycle recognizes idempotent replay receipt', async () => {
+test('Domain 3 cycle recognizes idempotent positive replay and an empty retirement replay', async () => {
+  const runId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
   const atlasClient = {
     async rpc(name) {
       if (name === 'detect_propublica_unresolved_metadata_v1') {
+        return { data: { run_id: runId, status: 'completed' }, error: null };
+      }
+      if (name === 'bridge_live_data_signal_candidates_v1') {
         return {
-          data: {
-            run_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
-            status: 'completed',
-          },
+          data: { candidates_seen: 9, bridged: 0, idempotent: 9, failed: 0, transport: 'atlas_database_http_receipt_v1' },
           error: null,
         };
       }
-      return {
-        data: {
-          candidates_seen: 9,
-          bridged: 0,
-          idempotent: 9,
-          failed: 0,
-          transport: 'atlas_database_http_receipt_v1',
-        },
-        error: null,
-      };
+      if (name === 'bridge_live_data_signal_retirements_v1') {
+        return { data: emptyRetirementBridge(runId), error: null };
+      }
+      throw new Error(`Unexpected RPC ${name}`);
     },
   };
 
@@ -202,18 +199,24 @@ test('Domain 3 cycle recognizes idempotent replay receipt', async () => {
   assert.equal(result.bridge.bridged, 0);
   assert.equal(result.bridge.idempotent, 9);
   assert.equal(result.bridge.failed, 0);
+  assert.equal(result.retirement_bridge.failed, 0);
 });
 
-test('Domain 3 cycle bridges each population detector run independently', async () => {
-  const bridgedRunIds = [];
+test('Domain 3 cycle bridges each population detector run independently on both transports', async () => {
+  const positiveRunIds = [];
+  const retirementRunIds = [];
   const atlasClient = {
     async rpc(name, args) {
       if (name === 'detect_propublica_unresolved_metadata_v1') {
         return { data: { run_id: 'seed-run', status: 'completed' }, error: null };
       }
       if (name === 'bridge_live_data_signal_candidates_v1') {
-        bridgedRunIds.push(args.p_run_id);
+        positiveRunIds.push(args.p_run_id);
         return { data: { candidates_seen: 1, bridged: 1, idempotent: 0, failed: 0 }, error: null };
+      }
+      if (name === 'bridge_live_data_signal_retirements_v1') {
+        retirementRunIds.push(args.p_run_id);
+        return { data: emptyRetirementBridge(args.p_run_id), error: null };
       }
       throw new Error(`Unexpected RPC ${name}`);
     },
@@ -230,9 +233,11 @@ test('Domain 3 cycle bridges each population detector run independently', async 
     }),
   });
 
-  assert.deepEqual(bridgedRunIds, ['seed-run', 'population-a', 'population-b']);
+  assert.deepEqual(positiveRunIds, ['seed-run', 'population-a', 'population-b']);
+  assert.deepEqual(retirementRunIds, ['seed-run', 'population-a', 'population-b']);
   assert.equal(result.bridge.candidates_seen, 3);
   assert.equal(result.bridge.bridged, 3);
+  assert.equal(result.retirement_bridge.retirements_seen, 0);
 });
 
 test('Domain 3 population detector derives repeat and cross-category signals from canonical observations', () => {
