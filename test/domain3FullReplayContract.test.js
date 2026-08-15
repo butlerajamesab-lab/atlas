@@ -11,6 +11,7 @@ const lighthouseProjectionMigration = readFileSync(new URL('../src/schema/202608
 const entityIdentityMigration = readFileSync(new URL('../src/schema/20260815090032_domain3_entity_aware_candidate_semantic_identity.sql', import.meta.url), 'utf8');
 const sequentialSeedMigration = readFileSync(new URL('../src/schema/20260815090211_domain3_propublica_sequential_candidate_upsert.sql', import.meta.url), 'utf8');
 const currentnessGuardMigration = readFileSync(new URL('../src/schema/20260815090334_domain3_currentness_upsert_self_conflict_guard.sql', import.meta.url), 'utf8');
+const retirementMigration = readFileSync(new URL('../src/schema/20260815092738_domain3_negative_currentness_retirement.sql', import.meta.url), 'utf8');
 const signalSchema = JSON.parse(readFileSync(new URL('../src/schema/json/signal_event.json', import.meta.url), 'utf8'));
 
 test('Domain 3 full replay scans the current bounded observation substrate and persists per-rule runs', () => {
@@ -55,11 +56,31 @@ test('one Domain 3 rule failure cannot silence later detector rules', () => {
   assert.match(replay, /for \(const rule of rules\.values\(\)\)/);
   assert.match(replay, /try \{[\s\S]*persistRuleRun/);
   assert.match(replay, /ruleErrors\.push/);
-  assert.match(replay, /status: ruleErrors\.length \? 'partial' : 'completed'/);
+  assert.match(replay, /status: ruleErrors\.length \|\| ruleWarnings\.length \? 'partial' : 'completed'/);
   assert.match(replay, /rule_errors: ruleErrors/);
   assert.match(bridge, /populationDetection\?\.status === 'partial'/);
   assert.match(bridge, /population_rule_errors: populationRuleErrors/);
   assert.match(bridge, /map\(\(run\) => run\.run_id\)\.filter\(Boolean\)/);
+});
+
+test('complete non-truncated replay retires absent candidates but truncated replay fails closed', () => {
+  assert.match(replay, /reconcile_domain3_population_currentness_v1/);
+  assert.match(replay, /const replayComplete = completeRuleCandidates\.length <= boundedPerRule/);
+  assert.match(replay, /candidate_limit_truncated_replay_currentness_not_reconciled/);
+  assert.match(retirementMigration, /p_replay_complete boolean/);
+  assert.match(retirementMigration, /replay_not_complete_or_truncated/);
+  assert.match(retirementMigration, /run_superseded_by_newer_completed_replay/);
+  assert.match(retirementMigration, /set is_current=false, retired_at=v_retired_at/);
+  assert.match(retirementMigration, /not_observed_in_complete_replay/);
+  assert.doesNotMatch(retirementMigration, /delete\s+from\s+atlas\.live_data_signal_candidate/i);
+});
+
+test('Atlas bridges retirement receipts separately from positive signal receipts', () => {
+  assert.match(retirementMigration, /bridge_live_data_signal_retirements_v1/);
+  assert.match(retirementMigration, /\/api\/atlas-domain3\/retirement/);
+  assert.match(bridge, /bridgeRetirements/);
+  assert.match(bridge, /retirement_bridge: retirementBridge/);
+  assert.match(bridge, /retirementBridgeErrors/);
 });
 
 test('ProPublica entity-specific candidates cannot retire independent entities', () => {

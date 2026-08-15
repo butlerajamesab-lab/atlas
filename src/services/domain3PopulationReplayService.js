@@ -178,9 +178,7 @@ async function persistRuleRun({ atlasClient, rule, observationsScanned, candidat
     p_observations_scanned: observationsScanned,
     p_candidates: candidates,
   });
-  if (error) {
-    throw new Error(`Domain 3 persistence failed for ${rule.rule_id}: ${error.message}`);
-  }
+  if (error) throw new Error(`Domain 3 persistence failed for ${rule.rule_id}: ${error.message}`);
   if (!data || data.status !== 'completed' || data.run_id !== runId) {
     throw new Error(`Domain 3 persistence returned an invalid receipt for ${rule.rule_id}: ${JSON.stringify(data ?? null)}`);
   }
@@ -193,6 +191,21 @@ async function persistRuleRun({ atlasClient, rule, observationsScanned, candidat
   };
 }
 
+async function reconcileRuleCurrentness({ atlasClient, rule, runId, candidates, replayComplete }) {
+  const { data, error } = await atlasClient.rpc('reconcile_domain3_population_currentness_v1', {
+    p_rule_id: rule.rule_id,
+    p_rule_version: rule.rule_version,
+    p_run_id: runId,
+    p_current_candidate_hashes: candidates.map((candidate) => candidate.candidate_hash),
+    p_replay_complete: replayComplete,
+  });
+  if (error) throw new Error(`Domain 3 currentness reconciliation failed for ${rule.rule_id}: ${error.message}`);
+  if (!data || !['completed', 'skipped'].includes(data.status)) {
+    throw new Error(`Domain 3 currentness reconciliation returned an invalid receipt for ${rule.rule_id}: ${JSON.stringify(data ?? null)}`);
+  }
+  return data;
+}
+
 export async function executeDomain3FullReplay({
   atlasClient,
   observationLimit = DEFAULT_OBSERVATION_LIMIT,
@@ -200,8 +213,6 @@ export async function executeDomain3FullReplay({
 } = {}) {
   if (!atlasClient) throw new Error('atlasClient is required');
 
-  // Register the governed detector population before the scan so a failed read cannot
-  // make the runtime appear to have only the historical ProPublica seed rule.
   const rules = await ensureRules(atlasClient);
   const observations = await loadCanonicalObservations(atlasClient, observationLimit);
   const baseCandidates = deriveDomain3PopulationCandidates(observations).map((candidate) => ({
@@ -215,15 +226,13 @@ export async function executeDomain3FullReplay({
   const boundedPerRule = Math.min(1000, Math.max(1, Number(candidateLimit) || DEFAULT_CANDIDATE_LIMIT_PER_RULE));
   const runs = [];
   const ruleErrors = [];
+  const ruleWarnings = [];
   let persisted = 0;
 
-  // One detector must never silence the rest of the governed live-data signal cycle.
-  // Each rule persists independently; failures are explicit in the replay receipt and
-  // successful run IDs remain eligible for the Lighthouse bridge.
   for (const rule of rules.values()) {
-    const ruleCandidates = allCandidates
-      .filter((candidate) => candidate.rule_id === rule.rule_id)
-      .slice(0, boundedPerRule);
+    const completeRuleCandidates = allCandidates.filter((candidate) => candidate.rule_id === rule.rule_id);
+    const replayComplete = completeRuleCandidates.length <= boundedPerRule;
+    const ruleCandidates = completeRuleCandidates.slice(0, boundedPerRule);
     try {
       const run = await persistRuleRun({
         atlasClient,
@@ -232,28 +241,62 @@ export async function executeDomain3FullReplay({
         candidates: ruleCandidates,
       });
       persisted += ruleCandidates.length;
-      runs.push({ ...run, status: 'completed' });
+
+      let currentness;
+      try {
+        currentness = await reconcileRuleCurrentness({
+          atlasClient,
+          rule,
+          runId: run.run_id,
+          candidates: ruleCandidates,
+          replayComplete,
+        });
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        ruleErrors.push({ rule_id: rule.rule_id, phase: 'currentness_reconciliation', error: errorMessage });
+        currentness = { status: 'failed', error: errorMessage, retired: 0 };
+      }
+
+      if (!replayComplete) {
+        ruleWarnings.push({
+          rule_id: rule.rule_id,
+          warning: 'candidate_limit_truncated_replay_currentness_not_reconciled',
+          candidates_derived: completeRuleCandidates.length,
+          candidates_persisted: ruleCandidates.length,
+        });
+      }
+
+      runs.push({
+        ...run,
+        status: currentness.status === 'failed' ? 'partial' : 'completed',
+        candidates_derived: completeRuleCandidates.length,
+        replay_complete: replayComplete,
+        currentness,
+      });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       ruleErrors.push({
         rule_id: rule.rule_id,
-        candidates_derived: ruleCandidates.length,
+        phase: 'persistence',
+        candidates_derived: completeRuleCandidates.length,
         error: errorMessage,
       });
       runs.push({
         run_id: null,
         rule_id: rule.rule_id,
         status: 'failed',
+        candidates_derived: completeRuleCandidates.length,
         candidates_produced: 0,
         candidates_inserted: 0,
         candidates_replayed: 0,
+        replay_complete: replayComplete,
         error: errorMessage,
       });
     }
   }
 
   return {
-    status: ruleErrors.length ? 'partial' : 'completed',
+    status: ruleErrors.length || ruleWarnings.length ? 'partial' : 'completed',
     engine_id: ENGINE_ID,
     engine_version: ENGINE_VERSION,
     replay_scope: 'complete_identity_bound_observation_population',
@@ -263,6 +306,7 @@ export async function executeDomain3FullReplay({
     candidate_limit_per_rule: boundedPerRule,
     rules_registered: rules.size,
     rule_errors: ruleErrors,
+    rule_warnings: ruleWarnings,
     runs,
   };
 }
