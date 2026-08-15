@@ -8,6 +8,9 @@ const ingestClient = readFileSync(new URL('../src/adapters/ingestClient.js', imp
 const streamStore = readFileSync(new URL('../src/services/streamStore.js', import.meta.url), 'utf8');
 const persistenceMigration = readFileSync(new URL('../src/schema/20260811_domain3_population_persistence_rpc.sql', import.meta.url), 'utf8');
 const lighthouseProjectionMigration = readFileSync(new URL('../src/schema/20260811_domain3_lighthouse_state_projection.sql', import.meta.url), 'utf8');
+const entityIdentityMigration = readFileSync(new URL('../src/schema/20260815090032_domain3_entity_aware_candidate_semantic_identity.sql', import.meta.url), 'utf8');
+const sequentialSeedMigration = readFileSync(new URL('../src/schema/20260815090211_domain3_propublica_sequential_candidate_upsert.sql', import.meta.url), 'utf8');
+const currentnessGuardMigration = readFileSync(new URL('../src/schema/20260815090334_domain3_currentness_upsert_self_conflict_guard.sql', import.meta.url), 'utf8');
 const signalSchema = JSON.parse(readFileSync(new URL('../src/schema/json/signal_event.json', import.meta.url), 'utf8'));
 
 test('Domain 3 full replay scans the current bounded observation substrate and persists per-rule runs', () => {
@@ -45,6 +48,33 @@ test('narrow ProPublica seed cannot gate full population replay', () => {
   assert.ok(seedIndex >= 0 && populationIndex > seedIndex);
   assert.match(bridge, /seed detector unavailable/);
   assert.doesNotMatch(bridge, /throw new Error\(`Atlas Domain 3 detection returned no completed run receipt/);
+});
+
+test('one Domain 3 rule failure cannot silence later detector rules', () => {
+  assert.match(replay, /const ruleErrors = \[\]/);
+  assert.match(replay, /for \(const rule of rules\.values\(\)\)/);
+  assert.match(replay, /try \{[\s\S]*persistRuleRun/);
+  assert.match(replay, /ruleErrors\.push/);
+  assert.match(replay, /status: ruleErrors\.length \? 'partial' : 'completed'/);
+  assert.match(replay, /rule_errors: ruleErrors/);
+  assert.match(bridge, /populationDetection\?\.status === 'partial'/);
+  assert.match(bridge, /population_rule_errors: populationRuleErrors/);
+  assert.match(bridge, /map\(\(run\) => run\.run_id\)\.filter\(Boolean\)/);
+});
+
+test('ProPublica entity-specific candidates cannot retire independent entities', () => {
+  assert.match(entityIdentityMigration, /live_data_signal_candidate_semantic_key_v2/);
+  assert.match(entityIdentityMigration, /p_entity_ids text\[\]/);
+  assert.match(entityIdentityMigration, /atlas\.propublica_unresolved_filing_metadata_rate/);
+  assert.match(entityIdentityMigration, /string_agg\(value, chr\(30\) order by value\)/);
+  assert.match(sequentialSeedMigration, /for v_row in/);
+  assert.match(sequentialSeedMigration, /persistence_mode', 'sequential_idempotent_upsert/);
+});
+
+test('candidate replay cannot self-conflict with its ON CONFLICT target', () => {
+  assert.match(currentnessGuardMigration, /candidate_hash <> new\.candidate_hash/);
+  assert.match(currentnessGuardMigration, /BEFORE INSERT trigger must never mutate/);
+  assert.match(currentnessGuardMigration, /INSERT ON CONFLICT may safely replay an already-current candidate/);
 });
 
 test('adapter ingress uses bounded replay-friendly batches and emits upstream Atlas validation detail', () => {
