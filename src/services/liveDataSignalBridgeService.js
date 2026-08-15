@@ -36,16 +36,23 @@ export function resolveLiveDataSignalBridgeConfiguration(env = process.env) {
 async function bridgeRun(atlasClient, runId, candidateLimit) {
   const { data: bridge, error: bridgeError } = await atlasClient.rpc(
     'bridge_live_data_signal_candidates_v1',
-    {
-      p_run_id: runId,
-      p_limit: candidateLimit,
-    },
+    { p_run_id: runId, p_limit: candidateLimit },
   );
-  if (bridgeError) {
-    throw new Error(`Atlas Domain 3 transport failed for run ${runId}: ${bridgeError.message}`);
-  }
+  if (bridgeError) throw new Error(`Atlas Domain 3 transport failed for run ${runId}: ${bridgeError.message}`);
   if (!bridge || typeof bridge !== 'object') {
     throw new Error(`Atlas Domain 3 transport returned no receipt for run ${runId}`);
+  }
+  return bridge;
+}
+
+async function bridgeRetirements(atlasClient, runId, candidateLimit) {
+  const { data: bridge, error: bridgeError } = await atlasClient.rpc(
+    'bridge_live_data_signal_retirements_v1',
+    { p_run_id: runId, p_limit: candidateLimit },
+  );
+  if (bridgeError) throw new Error(`Atlas Domain 3 retirement transport failed for run ${runId}: ${bridgeError.message}`);
+  if (!bridge || typeof bridge !== 'object') {
+    throw new Error(`Atlas Domain 3 retirement transport returned no receipt for run ${runId}`);
   }
   return bridge;
 }
@@ -86,9 +93,6 @@ export async function executeLiveDataSignalCycle({
   const boundedCandidateLimit = Math.min(1000, Math.max(1, Number(candidateLimit) || 250));
   const boundedObservationLimit = Math.min(100000, Math.max(1, Number(observationLimit) || 100000));
 
-  // The ProPublica metadata rule is a narrow historical seed detector. It may
-  // fail independently, but it is never permitted to gate the complete Domain 3
-  // population replay.
   const seed = await runSeedDetector({
     atlasClient,
     minUniqueRecords: boundedMinUniqueRecords,
@@ -96,8 +100,6 @@ export async function executeLiveDataSignalCycle({
     candidateLimit: boundedCandidateLimit,
   });
 
-  // The population detector is the primary Domain 3 derivation path and scans
-  // the complete bounded identity-bearing observation substrate.
   const populationDetection = await populationDetector({
     atlasClient,
     observationLimit: boundedObservationLimit,
@@ -110,12 +112,19 @@ export async function executeLiveDataSignalCycle({
   ];
   const bridgeReceipts = [];
   const bridgeErrors = [];
+  const retirementBridgeReceipts = [];
+  const retirementBridgeErrors = [];
 
   for (const runId of runIds) {
     try {
       bridgeReceipts.push(await bridgeRun(atlasClient, runId, boundedCandidateLimit));
     } catch (error) {
       bridgeErrors.push({ run_id: runId, error: String(error?.message || error).slice(0, 1000) });
+    }
+    try {
+      retirementBridgeReceipts.push(await bridgeRetirements(atlasClient, runId, boundedCandidateLimit));
+    } catch (error) {
+      retirementBridgeErrors.push({ run_id: runId, error: String(error?.message || error).slice(0, 1000) });
     }
   }
 
@@ -136,13 +145,34 @@ export async function executeLiveDataSignalCycle({
   });
   bridge.errors = bridgeErrors;
 
+  const retirementBridge = retirementBridgeReceipts.reduce((summary, receipt) => ({
+    retirements_seen: summary.retirements_seen + Number(receipt.retirements_seen || 0),
+    bridged: summary.bridged + Number(receipt.bridged || 0),
+    idempotent: summary.idempotent + Number(receipt.idempotent || 0),
+    failed: summary.failed + Number(receipt.failed || 0),
+    receipts: [...summary.receipts, receipt],
+  }), {
+    retirements_seen: 0,
+    bridged: 0,
+    idempotent: 0,
+    failed: retirementBridgeErrors.length,
+    receipts: [],
+  });
+  retirementBridge.errors = retirementBridgeErrors;
+
   const populationRuleErrors = Array.isArray(populationDetection?.rule_errors)
     ? populationDetection.rule_errors
     : [];
+  const populationRuleWarnings = Array.isArray(populationDetection?.rule_warnings)
+    ? populationDetection.rule_warnings
+    : [];
   const partial = bridgeErrors.length > 0
+    || retirementBridgeErrors.length > 0
+    || retirementBridge.failed > 0
     || Boolean(seed.error)
     || populationDetection?.status === 'partial'
-    || populationRuleErrors.length > 0;
+    || populationRuleErrors.length > 0
+    || populationRuleWarnings.length > 0;
 
   return {
     status: partial ? 'partial' : 'completed',
@@ -150,7 +180,9 @@ export async function executeLiveDataSignalCycle({
     seed_error: seed.error,
     population_detection: populationDetection,
     population_rule_errors: populationRuleErrors,
+    population_rule_warnings: populationRuleWarnings,
     bridge,
+    retirement_bridge: retirementBridge,
     completed_at: new Date().toISOString(),
   };
 }
