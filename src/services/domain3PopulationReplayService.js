@@ -214,22 +214,46 @@ export async function executeDomain3FullReplay({
     .sort((a, b) => a.rule_id.localeCompare(b.rule_id) || a.candidate_hash.localeCompare(b.candidate_hash));
   const boundedPerRule = Math.min(1000, Math.max(1, Number(candidateLimit) || DEFAULT_CANDIDATE_LIMIT_PER_RULE));
   const runs = [];
+  const ruleErrors = [];
   let persisted = 0;
 
+  // One detector must never silence the rest of the governed live-data signal cycle.
+  // Each rule persists independently; failures are explicit in the replay receipt and
+  // successful run IDs remain eligible for the Lighthouse bridge.
   for (const rule of rules.values()) {
     const ruleCandidates = allCandidates
       .filter((candidate) => candidate.rule_id === rule.rule_id)
       .slice(0, boundedPerRule);
-    persisted += ruleCandidates.length;
-    runs.push(await persistRuleRun({
-      atlasClient,
-      rule,
-      observationsScanned: observations.length,
-      candidates: ruleCandidates,
-    }));
+    try {
+      const run = await persistRuleRun({
+        atlasClient,
+        rule,
+        observationsScanned: observations.length,
+        candidates: ruleCandidates,
+      });
+      persisted += ruleCandidates.length;
+      runs.push({ ...run, status: 'completed' });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      ruleErrors.push({
+        rule_id: rule.rule_id,
+        candidates_derived: ruleCandidates.length,
+        error: errorMessage,
+      });
+      runs.push({
+        run_id: null,
+        rule_id: rule.rule_id,
+        status: 'failed',
+        candidates_produced: 0,
+        candidates_inserted: 0,
+        candidates_replayed: 0,
+        error: errorMessage,
+      });
+    }
   }
 
   return {
+    status: ruleErrors.length ? 'partial' : 'completed',
     engine_id: ENGINE_ID,
     engine_version: ENGINE_VERSION,
     replay_scope: 'complete_identity_bound_observation_population',
@@ -238,6 +262,7 @@ export async function executeDomain3FullReplay({
     candidates_persisted: persisted,
     candidate_limit_per_rule: boundedPerRule,
     rules_registered: rules.size,
+    rule_errors: ruleErrors,
     runs,
   };
 }
