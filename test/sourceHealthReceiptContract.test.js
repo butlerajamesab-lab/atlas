@@ -6,6 +6,14 @@ const migration = readFileSync(
   new URL('../src/schema/20260806_source_health_receipts.sql', import.meta.url),
   'utf8',
 );
+const openSecretsAdapter = readFileSync(
+  new URL('../src/adapters/openSecretsAdapter.js', import.meta.url),
+  'utf8',
+);
+const faraAdapter = readFileSync(
+  new URL('../src/adapters/faraForeignAgentsAdapter.js', import.meta.url),
+  'utf8',
+);
 
 test('source health substrate extends existing Atlas registries instead of duplicating them', () => {
   assert.match(migration, /references public\.connector_registry\(id\)/);
@@ -49,4 +57,20 @@ test('browser roles cannot write source health substrate', () => {
   assert.match(migration, /revoke all on public\.atlas_source_health_event from anon, authenticated/);
   assert.match(migration, /revoke all on public\.atlas_source_schema_snapshot from anon, authenticated/);
   assert.match(migration, /revoke all on public\.atlas_source_fallback_binding from anon, authenticated/);
+});
+
+test('Senate LDA ingestion uses the registered canonical stream identity', () => {
+  assert.match(openSecretsAdapter, /sourceId:\s*'senate_lda'/);
+  assert.match(openSecretsAdapter, /jurisdictionId:\s*'us_federal'/);
+  assert.match(openSecretsAdapter, /moduleHint:\s*'lobbying'/);
+  assert.doesNotMatch(openSecretsAdapter, /sourceId:\s*'opensecrets_lda'/);
+  assert.doesNotMatch(openSecretsAdapter, /signals:\s*\[\.\.\.lobbying,\s*\.\.\.donors\]/);
+});
+
+test('FARA ingestion uses the documented active-registrant endpoint and registered source identity', () => {
+  assert.match(faraAdapter, /\/Registrants\/json\/Active/);
+  assert.match(faraAdapter, /REGISTRANTS_ACTIVE\?\.ROW/);
+  assert.match(faraAdapter, /sourceId:\s*'fara'/);
+  assert.match(faraAdapter, /moduleHint:\s*'foreign_influence'/);
+  assert.doesNotMatch(faraAdapter, /sourceId:\s*'doj_fara'/);
 });
