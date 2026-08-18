@@ -87,7 +87,7 @@ export async function fetchLobbyingFilings({ limit = 100 } = {}) {
       params: {
         filing_dt_posted_after: new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10),
         ordering: '-dt_posted',
-        page_size: Math.min(limit, 25), // Senate LDA limits page size
+        page_size: Math.min(limit, 25),
       },
       timeout: 30000,
       headers: { Accept: 'application/json' },
@@ -119,28 +119,29 @@ export async function fetchTopDonors(cycle = '2024') {
 }
 
 export async function ingestOpenSecretsSignals({ cycle = '2024', apiBaseUrl } = {}) {
-  const [lobbying, donors] = await Promise.all([
-    fetchLobbyingFilings({}),
-    fetchTopDonors(cycle),
-  ]);
+  // The currently registered canonical stream is the public Senate LDA feed:
+  // streams.stream_id=open_secrets, source_id=senate_lda, module_hint=lobbying.
+  // Do not mix OpenSecrets donor records into that source identity. A separate
+  // registered stream is required before donor records may be persisted.
+  void cycle;
+  const lobbying = await fetchLobbyingFilings({});
 
-  const signals = [...lobbying, ...donors];
-  if (!signals.length) {
-    return { accepted: true, ingested_count: 0, note: 'No lobbying/donor data returned' };
+  if (!lobbying.length) {
+    return { accepted: true, ingested_count: 0, note: 'No Senate LDA filings returned' };
   }
 
   return postSignalsToAtlas({
-    sourceId: 'opensecrets_lda',
+    sourceId: 'senate_lda',
     jurisdictionId: 'us_federal',
-    moduleHint: 'lobbying_dark_money',
-    signals,
+    moduleHint: 'lobbying',
+    signals: lobbying,
     apiBaseUrl,
   });
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const cycle = process.argv[2] || '2024';
-  console.log(`Fetching lobbying/dark money data for cycle ${cycle}...`);
+  console.log('Fetching Senate LDA lobbying disclosures...');
   const result = await ingestOpenSecretsSignals({ cycle });
-  console.log(JSON.stringify({ ok: true, source: 'opensecrets_lda', cycle, result }, null, 2));
+  console.log(JSON.stringify({ ok: true, source: 'senate_lda', cycle, result }, null, 2));
 }
