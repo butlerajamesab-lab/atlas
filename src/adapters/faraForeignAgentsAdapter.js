@@ -3,7 +3,8 @@ import dotenv from 'dotenv';
 import { postSignalsToAtlas, toIsoTimestamp } from './ingestClient.js';
 dotenv.config();
 
-// DOJ FARA (Foreign Agents Registration Act) - tracks foreign influence
+// DOJ FARA (Foreign Agents Registration Act) - tracks foreign influence.
+// Current public endpoint contract: /api/v1/Registrants/json/Active
 const FARA_API_BASE = 'https://efile.fara.gov/api/v1';
 
 export function normalizeFaraRegistrant(registrant) {
@@ -81,30 +82,21 @@ export function normalizeFaraActivity(activity) {
 }
 
 export async function fetchFaraRegistrants({ country = null, limit = 100 } = {}) {
+  // The active-registrant endpoint does not expose foreign-principal country,
+  // so country filtering requires a later principal-enrichment pass. Do not
+  // invent or infer country from the registrant address.
+  void country;
   try {
-    const params = { status: 'Active' };
-    if (country) params.country = country;
-
-    const response = await axios.get(`${FARA_API_BASE}/registrants`, {
-      params,
+    const response = await axios.get(`${FARA_API_BASE}/Registrants/json/Active`, {
       timeout: 30000,
       headers: { Accept: 'application/json' },
     });
-    const results = response.data?.results || response.data?.registrants || response.data || [];
-    return (Array.isArray(results) ? results : []).slice(0, limit).map(normalizeFaraRegistrant);
-  } catch (e) {
-    // Fallback: try the FARA quick search
-    try {
-      const response = await axios.get('https://efile.fara.gov/api/v1/registrants/active', {
-        timeout: 30000,
-        headers: { Accept: 'application/json' },
-      });
-      const results = response.data || [];
-      return (Array.isArray(results) ? results : []).slice(0, limit).map(normalizeFaraRegistrant);
-    } catch (e2) {
-      console.warn(`FARA fetch failed: ${e2.message}`);
-      return [];
-    }
+    const rows = response.data?.REGISTRANTS_ACTIVE?.ROW || [];
+    const results = Array.isArray(rows) ? rows : rows ? [rows] : [];
+    return results.slice(0, limit).map(normalizeFaraRegistrant);
+  } catch (error) {
+    console.warn(`FARA fetch failed: ${error.message}`);
+    return [];
   }
 }
 
@@ -114,7 +106,7 @@ export async function ingestFaraSignals({ country = null, apiBaseUrl } = {}) {
     return { accepted: true, ingested_count: 0, note: 'No FARA data returned' };
   }
   return postSignalsToAtlas({
-    sourceId: 'doj_fara',
+    sourceId: 'fara',
     jurisdictionId: 'us_federal',
     moduleHint: 'foreign_influence',
     signals,
@@ -126,5 +118,5 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const country = process.argv[2] || null;
   console.log(`Fetching FARA foreign agent registrations${country ? ` for ${country}` : ''}...`);
   const result = await ingestFaraSignals({ country });
-  console.log(JSON.stringify({ ok: true, source: 'doj_fara', country, result }, null, 2));
+  console.log(JSON.stringify({ ok: true, source: 'fara', country, result }, null, 2));
 }
