@@ -14,6 +14,10 @@ const faraAdapter = readFileSync(
   new URL('../src/adapters/faraForeignAgentsAdapter.js', import.meta.url),
   'utf8',
 );
+const fecAdapter = readFileSync(
+  new URL('../src/adapters/fecCampaignFinanceAdapter.js', import.meta.url),
+  'utf8',
+);
 
 test('source health substrate extends existing Atlas registries instead of duplicating them', () => {
   assert.match(migration, /references public\.connector_registry\(id\)/);
@@ -73,4 +77,19 @@ test('FARA ingestion uses the documented active-registrant endpoint and register
   assert.match(faraAdapter, /sourceId:\s*'fara'/);
   assert.match(faraAdapter, /moduleHint:\s*'foreign_influence'/);
   assert.doesNotMatch(faraAdapter, /sourceId:\s*'doj_fara'/);
+});
+
+test('FEC IE-only committee ingestion uses the financial totals endpoint and registered source identity', () => {
+  assert.match(fecAdapter, /\/totals\/ie-only\//);
+  assert.match(fecAdapter, /committee_state/);
+  assert.match(fecAdapter, /sourceId:\s*'fec'/);
+  assert.match(fecAdapter, /moduleHint:\s*'campaign_finance'/);
+  assert.doesNotMatch(fecAdapter, /sourceId:\s*'fec_campaign_finance'/);
+  assert.doesNotMatch(fecAdapter, /\/committees\/.*total_receipts/s);
+});
+
+test('FEC committee records do not label disclosed IE-only committees as dark money by themselves', () => {
+  assert.match(fecAdapter, /signal_type:\s*isIndependentExpenditureOnly\s*\?\s*'independent_expenditure_committee'/);
+  assert.match(fecAdapter, /dark_money_classification:\s*'not_determined_from_fec_committee_record'/);
+  assert.doesNotMatch(fecAdapter, /signal_type:\s*isDarkMoney\s*\?\s*'dark_money_committee'/);
 });
