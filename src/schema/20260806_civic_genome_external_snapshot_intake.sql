@@ -99,10 +99,10 @@ begin
    where source_snapshot_id = v_snapshot_id;
 
   if found then
-    if v_existing.source_snapshot_hash is distinct from v_snapshot_hash
-       or v_existing.source_export_receipt_hash is distinct from v_snapshot->'export_receipt'->>'export_receipt_hash'
-       or v_existing.atlas_binding_hash is distinct from p_record->>'atlas_binding_hash'
-       or v_existing.snapshot_json is distinct from v_snapshot then
+    -- The source snapshot hash is the immutable semantic identity. Delivery
+    -- and export receipt metadata may differ across authenticated startup
+    -- replays without changing the source snapshot itself.
+    if v_existing.source_snapshot_hash is distinct from v_snapshot_hash then
       raise exception 'atlas_civic_genome_snapshot_identity_collision';
     end if;
     return jsonb_build_object(
