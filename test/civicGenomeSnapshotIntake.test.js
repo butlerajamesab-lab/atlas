@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import { sha256 } from '../src/substrate/canonical.js';
@@ -21,6 +22,10 @@ import {
 const KEY_ID='lighthouse-atlas-civic-genome-v1';
 const SECRET='0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
 const HASH='1'.repeat(64);
+const SNAPSHOT_INTAKE_SQL = readFileSync(
+  new URL('../src/schema/20260806_civic_genome_external_snapshot_intake.sql', import.meta.url),
+  'utf8',
+);
 
 function validSnapshot(){
   const component={
@@ -80,6 +85,28 @@ test('authenticated intake persists through bounded RPC and is idempotency-aware
   assert.equal(observed.name,'atlas_civic_genome_snapshot_persist_v1');
   assert.equal(receipt.persisted,true); assert.equal(receipt.projection_executed,false);
   assert.equal(observed.args.p_record.snapshot.snapshot_hash,snapshot.snapshot_hash);
+});
+
+test('authenticated intake accepts durable idempotent replay receipts',async()=>{
+  const snapshot=validSnapshot(); const requestBody=body(snapshot);
+  const signature=computeAtlasCivicGenomeSignature(requestBody,KEY_ID,SECRET);
+  const client={rpc:async()=>({data:{status:'idempotent'},error:null})};
+  const receipt=await acceptAtlasCivicGenomeSnapshot({body:requestBody,key_id:KEY_ID,signature,environment:{ATLAS_CIVIC_GENOME_HANDSHAKE_KEY_ID:KEY_ID,ATLAS_CIVIC_GENOME_HANDSHAKE_SECRET:SECRET},client});
+  assert.equal(receipt.persistence_status,'idempotent');
+  assert.equal(receipt.persisted,true);
+  assert.equal(receipt.projection_executed,false);
+});
+
+test('database replay guard treats same source snapshot hash as idempotent',()=>{
+  const foundBlock = SNAPSHOT_INTAKE_SQL.slice(
+    SNAPSHOT_INTAKE_SQL.indexOf('if found then'),
+    SNAPSHOT_INTAKE_SQL.indexOf('insert into atlas.civic_genome_external_snapshot'),
+  );
+  assert.match(foundBlock,/v_existing\.source_snapshot_hash is distinct from v_snapshot_hash/);
+  assert.match(foundBlock,/'status','idempotent'/);
+  assert.doesNotMatch(foundBlock,/source_export_receipt_hash is distinct/);
+  assert.doesNotMatch(foundBlock,/atlas_binding_hash is distinct/);
+  assert.doesNotMatch(foundBlock,/snapshot_json is distinct/);
 });
 
 test('wrong HMAC fails before persistence',async()=>{
