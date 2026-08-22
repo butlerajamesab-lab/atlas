@@ -13,6 +13,10 @@ test('Atlas periodically projects authoritative stream/runtime state downstream'
   assert.match(projection, /v_atlas_stream_runtime_summary_v1/);
   assert.match(projection, /atlas_action_receipt/);
   assert.match(projection, /bridge_atlas_stream_runtime_snapshot_v1/);
+  assert.match(projection, /READ_RETRY_DELAYS_MS = Object\.freeze\(\[0, 1_000, 3_000\]\)/);
+  assert.match(projection, /readWithRetry\('Atlas stream runtime read'/);
+  assert.match(projection, /readWithRetry\('Atlas adapter receipt read'/);
+  assert.match(projection, /failed after \$\{READ_RETRY_DELAYS_MS\.length\} attempts/);
 });
 
 test('stream projection includes runtime, observation, identity, schedule, and latest receipt state', () => {
