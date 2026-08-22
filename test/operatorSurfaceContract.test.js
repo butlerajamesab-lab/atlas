@@ -5,6 +5,7 @@ import test from 'node:test';
 const migration = readFileSync(new URL('../src/schema/20260809_live_operator_surface.sql', import.meta.url), 'utf8');
 const securityMigration = readFileSync(new URL('../src/schema/20260809_live_operator_surface_security.sql', import.meta.url), 'utf8');
 const compactReadMigration = readFileSync(new URL('../src/schema/20260809_live_operator_surface_compact_reads.sql', import.meta.url), 'utf8');
+const indexedRuntimeReadMigration = readFileSync(new URL('../src/schema/20260822_stream_runtime_summary_indexed_read.sql', import.meta.url), 'utf8');
 const ontologyMigration = readFileSync(new URL('../src/schema/20260809_signal_ontology_read_model.sql', import.meta.url), 'utf8');
 const ui = readFileSync(new URL('../src/routes/ui.js', import.meta.url), 'utf8');
 const server = readFileSync(new URL('../src/server.js', import.meta.url), 'utf8');
@@ -38,6 +39,15 @@ test('aggregate views are invoker-secured and do not expose payload fields', () 
   assert.match(migration, /v_atlas_signal_substrate_summary_v1[\s\S]*security_invoker = true/);
   assert.doesNotMatch(migration, /event\.payload/);
   assert.doesNotMatch(migration, /event\.provenance/);
+});
+
+test('stream runtime summary uses an indexed per-stream aggregate within the service read budget', () => {
+  assert.match(indexedRuntimeReadMigration, /idx_signal_events_runtime_summary_v1/);
+  assert.match(indexedRuntimeReadMigration, /cross join lateral/);
+  assert.match(indexedRuntimeReadMigration, /where event\.stream_id = stream\.stream_id/);
+  assert.match(indexedRuntimeReadMigration, /security_invoker = true/);
+  assert.match(indexedRuntimeReadMigration, /revoke all on public\.v_atlas_stream_runtime_summary_v1[\s\S]*public, anon, authenticated/);
+  assert.doesNotMatch(indexedRuntimeReadMigration, /event\.payload|event\.provenance/);
 });
 
 test('compact UI reads preserve service-role boundaries and one database round trip per surface', () => {
