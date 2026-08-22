@@ -15,6 +15,7 @@ export function normalizeFaraRegistrant(registrant) {
   const state = registrant.State || registrant.state || '';
   const regDate = registrant.Registration_Date || registrant.date || '';
   const status = registrant.Status || registrant.status || 'Active';
+  const exactRegistrantId = id ? `fara:registrant:${id}` : null;
 
   return {
     signal_type: 'foreign_agent_registration',
@@ -39,6 +40,15 @@ export function normalizeFaraRegistrant(registrant) {
       state,
       registration_date: regDate,
       status,
+      integrity_observation: exactRegistrantId ? {
+        kind: 'entity_registration',
+        canonical_entity_id: exactRegistrantId,
+        entity_name: name,
+        status,
+        formed_at: regDate || null,
+        exact_identifiers: { fara_registration_number: [String(id)] },
+        jurisdiction_id: 'us_federal',
+      } : null,
     },
   };
 }

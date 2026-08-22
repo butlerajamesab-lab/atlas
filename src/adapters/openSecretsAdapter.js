@@ -19,6 +19,8 @@ export function normalizeLobbyingFiling(filing) {
   const amount = parseFloat(filing.income || filing.amount || filing.expenses || 0);
   const filingDate = filing.dt_posted || filing.filing_date || filing.received || '';
   const filingId = filing.filing_uuid || filing.id || '';
+  const registrantId = filing.registrant?.id || filing.registrant_id || filing.registrant_uuid || null;
+  const clientId = filing.client?.id || filing.client_id || filing.client_uuid || null;
   const issues = filing.lobbying_activities?.map(a => a.general_issue_code)?.join(', ') || filing.specific_issues || '';
 
   const isLarge = amount > 500000;
@@ -47,6 +49,24 @@ export function normalizeLobbyingFiling(filing) {
       is_large: isLarge,
       filing_type: filing.filing_type || filing.type || null,
       government_entities: filing.government_entities?.map(e => e.name)?.join(', ') || null,
+      registrant_source_id: registrantId,
+      client_source_id: clientId,
+      integrity_identity_gaps: [
+        !clientId ? 'missing_exact_client_id' : null,
+        !registrantId ? 'missing_exact_registrant_id' : null,
+      ].filter(Boolean),
+      integrity_observation: clientId && registrantId && amount > 0 && filingDate ? {
+        kind: 'lobbying_disclosure',
+        transfer_id: `lda_${filingId}`,
+        from_entity_id: `senate_lda:client:${clientId}`,
+        to_entity_id: `senate_lda:registrant:${registrantId}`,
+        from_entity_name: clientName,
+        to_entity_name: registrantName,
+        amount,
+        occurred_at: filingDate,
+        purpose_tags: filing.lobbying_activities?.map(a => a.general_issue_code).filter(Boolean) || [],
+        jurisdiction_id: 'us_federal',
+      } : null,
     },
   };
 }

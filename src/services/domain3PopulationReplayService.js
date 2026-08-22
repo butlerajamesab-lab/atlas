@@ -5,6 +5,11 @@ import {
   entityOf,
   jurisdictionOf,
 } from './domain3PopulationDetectorService.js';
+import {
+  INTEGRITY_PATTERN_RULES,
+  deriveIntegrityPatternCandidates,
+  summarizeIntegrityPatternReadiness,
+} from './integrityPatternDetectorService.js';
 
 const ENGINE_ID = 'atlas.domain3_population_exact';
 const ENGINE_VERSION = '1.1.0';
@@ -35,6 +40,13 @@ const RULES = Object.freeze([
     },
   })),
   CROSS_JURISDICTION_RULE,
+  ...INTEGRITY_PATTERN_RULES.map((rule) => ({
+    ...rule,
+    rule_contract: {
+      ...rule.rule_contract,
+      replay_scope: 'complete_identity_bound_observation_population',
+    },
+  })),
 ]);
 
 function stableHash(value) {
@@ -140,17 +152,19 @@ async function loadCanonicalObservations(atlasClient, limit) {
 
 function materializeRuleRows() {
   return RULES.map((rule) => {
+    const engineId = rule.engine_id || ENGINE_ID;
+    const engineVersion = rule.engine_version || ENGINE_VERSION;
     const ruleContract = {
       ...rule.rule_contract,
-      engine_id: ENGINE_ID,
-      engine_version: ENGINE_VERSION,
+      engine_id: engineId,
+      engine_version: engineVersion,
     };
     return {
       rule_id: rule.rule_id,
       rule_version: rule.rule_version,
       signal_type: rule.signal_type,
-      engine_id: ENGINE_ID,
-      engine_version: ENGINE_VERSION,
+      engine_id: engineId,
+      engine_version: engineVersion,
       rule_contract: ruleContract,
       rule_contract_hash: stableHash(ruleContract),
       is_active: true,
@@ -221,7 +235,9 @@ export async function executeDomain3FullReplay({
     engine_version: ENGINE_VERSION,
   }));
   const crossJurisdictionCandidates = deriveCrossJurisdictionCandidates(observations);
-  const allCandidates = [...baseCandidates, ...crossJurisdictionCandidates]
+  const integrityCandidates = deriveIntegrityPatternCandidates(observations);
+  const integrityReadiness = summarizeIntegrityPatternReadiness(observations);
+  const allCandidates = [...baseCandidates, ...crossJurisdictionCandidates, ...integrityCandidates]
     .sort((a, b) => a.rule_id.localeCompare(b.rule_id) || a.candidate_hash.localeCompare(b.candidate_hash));
   const boundedPerRule = Math.min(1000, Math.max(1, Number(candidateLimit) || DEFAULT_CANDIDATE_LIMIT_PER_RULE));
   const runs = [];
@@ -305,6 +321,8 @@ export async function executeDomain3FullReplay({
     candidates_persisted: persisted,
     candidate_limit_per_rule: boundedPerRule,
     rules_registered: rules.size,
+    integrity_candidates_derived: integrityCandidates.length,
+    integrity_readiness: integrityReadiness,
     rule_errors: ruleErrors,
     rule_warnings: ruleWarnings,
     runs,
