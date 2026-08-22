@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const replay = readFileSync(new URL('../src/services/domain3PopulationReplayService.js', import.meta.url), 'utf8');
+const integrityDetector = readFileSync(new URL('../src/services/integrityPatternDetectorService.js', import.meta.url), 'utf8');
 const bridge = readFileSync(new URL('../src/services/liveDataSignalBridgeService.js', import.meta.url), 'utf8');
 const ingestClient = readFileSync(new URL('../src/adapters/ingestClient.js', import.meta.url), 'utf8');
 const streamStore = readFileSync(new URL('../src/services/streamStore.js', import.meta.url), 'utf8');
@@ -24,6 +25,17 @@ test('Domain 3 full replay scans the current bounded observation substrate and p
   assert.match(replay, /register_domain3_population_rules_v1/);
   assert.match(replay, /persist_domain3_population_run_v1/);
   assert.doesNotMatch(replay, /\.schema\('atlas'\)/);
+});
+
+test('integrity patterns are derived inside Atlas and use the existing candidate receipt path', () => {
+  assert.match(replay, /deriveIntegrityPatternCandidates\(observations\)/);
+  assert.match(replay, /summarizeIntegrityPatternReadiness\(observations\)/);
+  assert.match(replay, /INTEGRITY_PATTERN_RULES/);
+  assert.match(integrityDetector, /atlas\.domain3\.integrity\.financial_conduit/);
+  assert.match(integrityDetector, /atlas\.domain3\.integrity\.legislative_financial_convergence/);
+  assert.match(integrityDetector, /no fuzzy name matching/);
+  assert.match(integrityDetector, /not proof of corruption/);
+  assert.doesNotMatch(integrityDetector, /\.insert\(|\.upsert\(|\.rpc\(/);
 });
 
 test('Domain 3 internal tables stay behind service-role RPC boundaries', () => {

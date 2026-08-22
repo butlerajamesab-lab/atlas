@@ -1,4 +1,5 @@
 import axios from 'axios';
+import crypto from 'crypto';
 import dotenv from 'dotenv';
 import { postSignalsToAtlas, toIsoTimestamp } from './ingestClient.js';
 dotenv.config();
@@ -20,13 +21,17 @@ export function normalizeCommittee(committee) {
   const totalReceipts = committee.total_receipts || committee.receipts || 0;
   const totalDisbursements = committee.total_disbursements || committee.disbursements || 0;
 
-  // Dark money indicators: Super PACs (type O/U), 527s, or committees with no party
-  const isDarkMoney = ['Super PAC', 'super pac'].some(t => type.toLowerCase().includes(t.toLowerCase())) ||
-    designation.includes('Unauthorized') ||
-    (type.includes('Independent') && !party);
+  // These source classifications can justify disclosure review, but do not by
+  // themselves establish hidden funding, unlawful conduct, or "dark money."
+  const disclosureReviewReasons = [
+    type.toLowerCase().includes('super pac') ? 'source_classifies_super_pac' : null,
+    designation.toLowerCase().includes('unauthorized') ? 'source_classifies_unauthorized' : null,
+    type.toLowerCase().includes('independent') && !party ? 'independent_committee_without_declared_party' : null,
+  ].filter(Boolean);
+  const exactCommitteeId = id ? `fec:committee:${id}` : null;
 
   return {
-    signal_type: isDarkMoney ? 'dark_money_committee' : 'campaign_finance_committee',
+    signal_type: 'campaign_finance_committee',
     timestamp: toIsoTimestamp(committee.last_file_date || committee.first_file_date),
     spacetime: {
       region: state ? `us_state_${state}` : 'us_federal',
@@ -49,11 +54,22 @@ export function normalizeCommittee(committee) {
       state,
       total_receipts: totalReceipts,
       total_disbursements: totalDisbursements,
-      is_dark_money: isDarkMoney,
+      requires_disclosure_review: disclosureReviewReasons.length > 0,
+      disclosure_review_reasons: disclosureReviewReasons,
       first_file_date: committee.first_file_date || null,
       last_file_date: committee.last_file_date || null,
       treasurer_name: committee.treasurer_name || null,
       candidate_ids: committee.candidate_ids || [],
+      integrity_observation: exactCommitteeId ? {
+        kind: 'entity_registration',
+        canonical_entity_id: exactCommitteeId,
+        entity_name: name,
+        status: committee.committee_status || committee.status || 'active',
+        formed_at: committee.first_file_date || null,
+        exact_identifiers: { fec_committee_id: [String(id)] },
+        interest_tags: [type, designation, party].filter(Boolean),
+        jurisdiction_id: 'us_federal',
+      } : null,
     },
   };
 }
@@ -65,6 +81,22 @@ export function normalizeDisbursement(disbursement) {
   const committeeName = disbursement.committee?.name || disbursement.committee_name || '';
   const purpose = disbursement.disbursement_description || disbursement.purpose || '';
   const state = disbursement.recipient_state || '';
+  const recipientCommitteeId = disbursement.recipient_committee_id
+    || disbursement.recipient?.committee_id
+    || null;
+  const transactionId = disbursement.sub_id || disbursement.transaction_id || crypto
+    .createHash('sha256')
+    .update(JSON.stringify({
+      committee_id: committeeId,
+      recipient_committee_id: recipientCommitteeId,
+      recipient_name: recipientName,
+      amount,
+      date: disbursement.disbursement_date || null,
+      purpose,
+    }))
+    .digest('hex');
+  const fromEntityId = committeeId ? `fec:committee:${committeeId}` : null;
+  const toEntityId = recipientCommitteeId ? `fec:committee:${recipientCommitteeId}` : null;
 
   return {
     signal_type: 'campaign_disbursement',
@@ -80,7 +112,7 @@ export function normalizeDisbursement(disbursement) {
       source_url: `https://www.fec.gov/data/committee/${committeeId}/`,
     },
     payload: {
-      external_id: `fec_disb_${disbursement.sub_id || disbursement.transaction_id || Math.random().toString(36).slice(2)}`,
+      external_id: `fec_disb_${transactionId}`,
       committee_id: committeeId,
       committee_name: committeeName,
       recipient_name: recipientName,
@@ -89,6 +121,23 @@ export function normalizeDisbursement(disbursement) {
       purpose,
       disbursement_date: disbursement.disbursement_date || null,
       category: disbursement.disbursement_type_description || null,
+      recipient_committee_id: recipientCommitteeId,
+      integrity_identity_gaps: [
+        !fromEntityId ? 'missing_exact_payer_committee_id' : null,
+        !toEntityId ? 'missing_exact_recipient_committee_id' : null,
+      ].filter(Boolean),
+      integrity_observation: fromEntityId && toEntityId && Number(amount) > 0 && disbursement.disbursement_date ? {
+        kind: 'financial_transfer',
+        transfer_id: `fec_disb_${transactionId}`,
+        from_entity_id: fromEntityId,
+        to_entity_id: toEntityId,
+        from_entity_name: committeeName || committeeId,
+        to_entity_name: recipientName,
+        amount: Number(amount),
+        occurred_at: disbursement.disbursement_date,
+        purpose_tags: [purpose, disbursement.disbursement_type_description].filter(Boolean),
+        jurisdiction_id: 'us_federal',
+      } : null,
     },
   };
 }
