@@ -24,6 +24,8 @@ test('Domain 3 full replay scans the current bounded observation substrate and p
   assert.match(replay, /not misconduct, causation, or legal finding/);
   assert.match(replay, /register_domain3_population_rules_v1/);
   assert.match(replay, /persist_domain3_population_run_v1/);
+  assert.match(replay, /\.order\('stream_id', \{ ascending: true \}\)[\s\S]*\.order\('offset', \{ ascending: true \}\)/);
+  assert.doesNotMatch(replay, /\.order\('ingested_at'/);
   assert.doesNotMatch(replay, /\.schema\('atlas'\)/);
 });
 
