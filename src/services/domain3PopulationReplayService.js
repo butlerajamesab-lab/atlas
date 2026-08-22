@@ -139,7 +139,6 @@ async function loadCanonicalObservations(atlasClient, limit) {
       .from('signal_events')
       .select('stream_id,offset,timestamp,signal_type,spacetime,provenance,payload,source_id,jurisdiction_id,module_hint,ingested_at,event_identity_hash')
       .not('event_identity_hash', 'is', null)
-      .order('ingested_at', { ascending: true })
       .order('stream_id', { ascending: true })
       .order('offset', { ascending: true })
       .range(from, to);
