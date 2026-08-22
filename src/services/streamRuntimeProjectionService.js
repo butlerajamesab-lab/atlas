@@ -1,6 +1,8 @@
 import crypto from 'crypto';
 import { supabase } from '../lib/supabaseClient.js';
 
+const READ_RETRY_DELAYS_MS = Object.freeze([0, 1_000, 3_000]);
+
 function stableHash(value) {
   return crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');
 }
@@ -14,20 +16,39 @@ function latestReceiptByTarget(receipts) {
   return map;
 }
 
+function compactError(error) {
+  return String(error?.message || error || 'unknown_error')
+    .replace(/\s+/g, ' ')
+    .slice(0, 500);
+}
+
+async function readWithRetry(label, operation) {
+  let lastError = null;
+  for (const delayMs of READ_RETRY_DELAYS_MS) {
+    if (delayMs > 0) await new Promise((resolve) => setTimeout(resolve, delayMs));
+    try {
+      const result = await operation();
+      if (!result?.error) return result?.data ?? [];
+      lastError = result.error;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw new Error(`${label} failed after ${READ_RETRY_DELAYS_MS.length} attempts: ${compactError(lastError)}`);
+}
+
 export async function buildStreamRuntimeSnapshot({ adapterRegistry, adapterStreamIds }) {
-  const { data: streamRows, error: streamError } = await supabase
+  const streamRows = await readWithRetry('Atlas stream runtime read', () => supabase
     .from('v_atlas_stream_runtime_summary_v1')
     .select('*')
-    .order('stream_id');
-  if (streamError) throw new Error(`Atlas stream runtime read failed: ${streamError.message}`);
+    .order('stream_id'));
 
-  const { data: receipts, error: receiptError } = await supabase
+  const receipts = await readWithRetry('Atlas adapter receipt read', () => supabase
     .from('atlas_action_receipt')
     .select('target_id,outcome_status,completed_at,result_json')
     .eq('action_type', 'adapter_run')
     .order('completed_at', { ascending: false })
-    .limit(500);
-  if (receiptError) throw new Error(`Atlas adapter receipt read failed: ${receiptError.message}`);
+    .limit(500));
 
   const receiptByTarget = latestReceiptByTarget(receipts);
   const adapterByStream = new Map((adapterRegistry || []).map((adapter) => [
