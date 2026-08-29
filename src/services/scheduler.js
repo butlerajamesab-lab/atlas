@@ -245,17 +245,22 @@ async function runDomain3Bridge() {
   const start = Date.now();
   try {
     const result = await runLiveDataSignalBridge();
+    const bridgeFailed = Number(result?.bridge?.failed ?? 0);
+    const retirementFailed = Number(result?.retirement_bridge?.failed ?? 0);
+    const partial = result?.status !== 'completed' || bridgeFailed > 0 || retirementFailed > 0;
     domain3State.lastRun = new Date().toISOString();
     domain3State.lastResult = {
-      status: 'ok',
+      status: partial ? 'partial' : 'ok',
       elapsed: Date.now() - start,
       detection_run_id: result?.bridge?.detection_run_id ?? result?.detection?.run_id ?? null,
       candidates_seen: Number(result?.bridge?.candidates_seen ?? 0),
       bridged: Number(result?.bridge?.bridged ?? 0),
       idempotent: Number(result?.bridge?.idempotent ?? 0),
-      failed: Number(result?.bridge?.failed ?? 0),
+      failed: bridgeFailed + retirementFailed,
+      bridge_failed: bridgeFailed,
+      retirement_failed: retirementFailed,
     };
-    domain3State.errors = 0;
+    domain3State.errors = partial ? domain3State.errors + 1 : 0;
     return domain3State.lastResult;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

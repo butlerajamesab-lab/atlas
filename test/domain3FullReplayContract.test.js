@@ -79,8 +79,12 @@ test('one Domain 3 rule failure cannot silence later detector rules', () => {
 
 test('complete non-truncated replay retires absent candidates but truncated replay fails closed', () => {
   assert.match(replay, /reconcile_domain3_population_currentness_v1/);
-  assert.match(replay, /const replayComplete = completeRuleCandidates\.length <= boundedPerRule/);
+  assert.match(replay, /const readLimit = bounded \+ 1/);
+  assert.match(replay, /complete: rows\.length <= bounded/);
+  assert.match(replay, /const replayComplete = observationScan\.complete/);
   assert.match(replay, /candidate_limit_truncated_replay_currentness_not_reconciled/);
+  assert.match(replay, /observation_limit_truncated_replay_currentness_not_reconciled/);
+  assert.match(replay, /observation_scan_complete: observationScan\.complete/);
   assert.match(retirementMigration, /p_replay_complete boolean/);
   assert.match(retirementMigration, /replay_not_complete_or_truncated/);
   assert.match(retirementMigration, /run_superseded_by_newer_completed_replay/);

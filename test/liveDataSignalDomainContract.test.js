@@ -103,6 +103,14 @@ test('canonical scheduler runs Domain 3 and quarantines legacy mixed transport',
   assert.doesNotMatch(scheduler, /import \{ runBridgeDrain \}/);
 });
 
+test('scheduler surfaces partial positive and retirement bridge outcomes', () => {
+  assert.match(scheduler, /result\?\.status !== 'completed'/);
+  assert.match(scheduler, /result\?\.retirement_bridge\?\.failed/);
+  assert.match(scheduler, /status: partial \? 'partial' : 'ok'/);
+  assert.match(scheduler, /failed: bridgeFailed \+ retirementFailed/);
+  assert.match(scheduler, /domain3State\.errors = partial \? domain3State\.errors \+ 1 : 0/);
+});
+
 test('all non-health service routes require private bearer tokens', () => {
   assert.match(server, /requireBearerToken\('ATLAS_CONTROL_TOKEN'\)/);
   assert.match(server, /requireBearerToken\('ATLAS_INGEST_TOKEN'\)/);
