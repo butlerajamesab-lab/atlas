@@ -131,10 +131,11 @@ function deriveCrossJurisdictionCandidates(events) {
 
 async function loadCanonicalObservations(atlasClient, limit) {
   const bounded = Math.min(100000, Math.max(1, Number(limit) || DEFAULT_OBSERVATION_LIMIT));
+  const readLimit = bounded + 1;
   const pageSize = 1000;
   const rows = [];
-  for (let from = 0; from < bounded; from += pageSize) {
-    const to = Math.min(from + pageSize - 1, bounded - 1);
+  for (let from = 0; from < readLimit; from += pageSize) {
+    const to = Math.min(from + pageSize - 1, readLimit - 1);
     const { data, error } = await atlasClient
       .from('signal_events')
       .select('stream_id,offset,timestamp,signal_type,spacetime,provenance,payload,source_id,jurisdiction_id,module_hint,ingested_at,event_identity_hash')
@@ -146,7 +147,10 @@ async function loadCanonicalObservations(atlasClient, limit) {
     rows.push(...(data || []));
     if (!data || data.length < pageSize) break;
   }
-  return rows;
+  return {
+    observations: rows.slice(0, bounded),
+    complete: rows.length <= bounded,
+  };
 }
 
 function materializeRuleRows() {
@@ -227,7 +231,8 @@ export async function executeDomain3FullReplay({
   if (!atlasClient) throw new Error('atlasClient is required');
 
   const rules = await ensureRules(atlasClient);
-  const observations = await loadCanonicalObservations(atlasClient, observationLimit);
+  const observationScan = await loadCanonicalObservations(atlasClient, observationLimit);
+  const observations = observationScan.observations;
   const baseCandidates = deriveDomain3PopulationCandidates(observations).map((candidate) => ({
     ...candidate,
     engine_id: ENGINE_ID,
@@ -246,7 +251,8 @@ export async function executeDomain3FullReplay({
 
   for (const rule of rules.values()) {
     const completeRuleCandidates = allCandidates.filter((candidate) => candidate.rule_id === rule.rule_id);
-    const replayComplete = completeRuleCandidates.length <= boundedPerRule;
+    const replayComplete = observationScan.complete
+      && completeRuleCandidates.length <= boundedPerRule;
     const ruleCandidates = completeRuleCandidates.slice(0, boundedPerRule);
     try {
       const run = await persistRuleRun({
@@ -275,7 +281,10 @@ export async function executeDomain3FullReplay({
       if (!replayComplete) {
         ruleWarnings.push({
           rule_id: rule.rule_id,
-          warning: 'candidate_limit_truncated_replay_currentness_not_reconciled',
+          warning: observationScan.complete
+            ? 'candidate_limit_truncated_replay_currentness_not_reconciled'
+            : 'observation_limit_truncated_replay_currentness_not_reconciled',
+          observation_scan_complete: observationScan.complete,
           candidates_derived: completeRuleCandidates.length,
           candidates_persisted: ruleCandidates.length,
         });
@@ -316,6 +325,7 @@ export async function executeDomain3FullReplay({
     engine_version: ENGINE_VERSION,
     replay_scope: 'complete_identity_bound_observation_population',
     observations_scanned: observations.length,
+    observation_scan_complete: observationScan.complete,
     candidates_derived: allCandidates.length,
     candidates_persisted: persisted,
     candidate_limit_per_rule: boundedPerRule,
