@@ -160,6 +160,35 @@ test('candidate contract requires a production baseline and pending preview pari
   );
 });
 
+test('ready state requires a hash-bound hosted preview acceptance receipt', async (t) => {
+  const { fixtureRoot, manifest } = await createValidatorFixture(t);
+  const migrationPath = 'supabase/migrations/20260830190000_production_baseline.sql';
+  const migrationSql = 'create table public.ready_baseline_probe(id bigint primary key);\n';
+  const migrationHash = createHash('sha256').update(migrationSql).digest('hex');
+  await mkdir(path.dirname(path.join(fixtureRoot, migrationPath)), { recursive: true });
+  await writeFile(path.join(fixtureRoot, migrationPath), migrationSql);
+  manifest.canonical.status = 'ready';
+  manifest.canonical.migrations = [{
+    path: migrationPath,
+    version: '20260830190000',
+    name: 'production_baseline',
+    kind: 'production_baseline',
+    sha256: migrationHash,
+  }];
+  manifest.productionEvidence.ledgerReconciliationStatus = 'reconciled';
+  for (const blocker of manifest.blockers) blocker.status = 'resolved';
+  delete manifest.acceptanceEvidence;
+  await writeFile(
+    path.join(fixtureRoot, 'supabase/migration-manifest.json'),
+    `${JSON.stringify(manifest, null, 2)}\n`,
+  );
+  const result = validateRepository({ repositoryRoot: fixtureRoot });
+  assert.match(
+    result.errors.join('\n'),
+    /ready canonical chain requires supabase\/evidence\/hosted-preview-acceptance\.json/,
+  );
+});
+
 test('compact production ledger preserves exact order and digest without raw statements', async () => {
   const receipt = JSON.parse(
     await readFile(
@@ -182,6 +211,7 @@ test('path classifier catches SQL and every migration-boundary control file', ()
     'supabase/config.toml',
     'scripts/apply-sql-management-api.mjs',
     'scripts/validate-supabase-migrations.mjs',
+    'scripts/verify-atlas-acceptance.mjs',
     '.github/workflows/database-migration-gate.yml',
     'package.json',
   ]) {
@@ -321,6 +351,8 @@ test('workflow exposes one stable fail-closed database check', async () => {
     'utf8',
   );
   assert.match(workflow, /^name: database-migration-gate$/m);
+  assert.match(workflow, /^  database-replay-evidence:$/m);
+  assert.match(workflow, /^    name: database-replay-evidence$/m);
   assert.match(workflow, /^  database-migration-gate:$/m);
   assert.match(workflow, /^    name: database-migration-gate$/m);
   assert.match(workflow, /run: supabase start/);
@@ -332,8 +364,9 @@ test('workflow exposes one stable fail-closed database check', async () => {
   assert.match(workflow, /baseline_status == 'ready'/);
   assert.match(
     workflow,
-    /Require reviewed ready baseline for database changes\n\s+if: always\(\)/,
+    /Verify accepted candidate ancestry and replay attestation/,
   );
+  assert.match(workflow, /run: npm run db:verify-acceptance/);
   assert.match(workflow, /run: npm run db:require-ready/);
   assert.ok(
     workflow.indexOf('Require reviewed ready baseline for database changes') >

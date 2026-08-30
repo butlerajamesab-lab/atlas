@@ -15,6 +15,7 @@ const MANIFEST_PATH = 'supabase/migration-manifest.json';
 const CONFIG_PATH = 'supabase/config.toml';
 const CANONICAL_ROOT = 'supabase/migrations';
 const COMPACT_LEDGER_PATH = 'supabase/evidence/production-migration-ledger.json';
+const ACCEPTANCE_EVIDENCE_PATH = 'supabase/evidence/hosted-preview-acceptance.json';
 const MIGRATION_NAME = /^(\d{14})_([a-z0-9]+(?:_[a-z0-9]+)*)\.sql$/;
 const SHA256 = /^[a-f0-9]{64}$/;
 const IGNORED_DIRECTORIES = new Set([
@@ -86,6 +87,26 @@ function orderedLedgerDigest(rows) {
   return createHash('sha256').update(encoded).digest('hex');
 }
 
+function canonicalChainDigest(migrations) {
+  const encoded = migrations
+    .map((entry) => [
+      entry.path,
+      entry.version,
+      entry.name,
+      entry.kind,
+      entry.sha256,
+    ].join('\x1f'))
+    .join('\x1e');
+  return createHash('sha256').update(encoded).digest('hex');
+}
+
+function orderedVersionNameDigest(migrations) {
+  const encoded = migrations
+    .map((entry) => [entry.version, entry.name].join('\x1f'))
+    .join('\x1e');
+  return createHash('sha256').update(encoded).digest('hex');
+}
+
 function parseTomlSubset(text) {
   let section = '';
   const values = new Map();
@@ -124,7 +145,8 @@ function classifyDatabaseBearingPath(repositoryPath) {
     value === 'package.json' ||
     value === 'package-lock.json' ||
     value === 'scripts/apply-sql-management-api.mjs' ||
-    value === 'scripts/validate-supabase-migrations.mjs'
+    value === 'scripts/validate-supabase-migrations.mjs' ||
+    value === 'scripts/verify-atlas-acceptance.mjs'
   ) return true;
   return /^\.github\/workflows\/[^/]*(?:supabase|database|migration)[^/]*\.ya?ml$/i.test(value);
 }
@@ -505,6 +527,52 @@ function validateRepository({
     errors.push('database-bearing change blocked: canonical production baseline is not ready');
   }
 
+  const acceptanceDescriptor = manifest.acceptanceEvidence;
+  if (manifest.canonical?.status !== 'ready' && acceptanceDescriptor !== undefined) {
+    errors.push('acceptanceEvidence is only allowed when the canonical chain is ready');
+  }
+  if (manifest.canonical?.status === 'ready') {
+    if (acceptanceDescriptor?.path !== ACCEPTANCE_EVIDENCE_PATH) {
+      errors.push(`ready canonical chain requires ${ACCEPTANCE_EVIDENCE_PATH}`);
+    } else {
+      const absoluteAcceptancePath = path.join(repositoryRoot, ACCEPTANCE_EVIDENCE_PATH);
+      if (!existsSync(absoluteAcceptancePath)) {
+        errors.push(`acceptance evidence is missing: ${ACCEPTANCE_EVIDENCE_PATH}`);
+      } else {
+        const actualAcceptanceHash = sha256File(ACCEPTANCE_EVIDENCE_PATH, repositoryRoot);
+        if (
+          !SHA256.test(acceptanceDescriptor.sha256 ?? '') ||
+          acceptanceDescriptor.sha256 !== actualAcceptanceHash
+        ) {
+          errors.push('acceptance evidence SHA-256 differs from the manifest');
+        }
+        try {
+          const acceptance = JSON.parse(readFileSync(absoluteAcceptancePath, 'utf8'));
+          const staticChecks = [
+            [acceptance.schemaVersion === 1, 'acceptance schemaVersion must be 1'],
+            [acceptance.subject?.repository === 'butlerajamesab-lab/atlas', 'acceptance repository differs'],
+            [acceptance.subject?.canonicalMigrationCount === canonicalEntries.length, 'acceptance canonical count differs'],
+            [acceptance.subject?.canonicalChainSha256 === canonicalChainDigest(canonicalEntries), 'acceptance canonical digest differs'],
+            [acceptance.productionBoundary?.mode === 'read_only', 'acceptance production boundary was not read-only'],
+            [acceptance.productionBoundary?.productionMigrationCount === 49, 'acceptance production count differs'],
+            [acceptance.hostedPreview?.previewProjectRef === 'pfslrupnskktspdaayfq', 'acceptance preview ref differs'],
+            [acceptance.hostedPreview?.migrationCount === canonicalEntries.length, 'acceptance preview count differs'],
+            [acceptance.hostedPreview?.orderedVersionNameSha256 === orderedVersionNameDigest(canonicalEntries), 'acceptance preview ledger digest differs'],
+            [acceptance.localVerification?.pgTap?.failed === 0, 'acceptance pgTAP failures are nonzero'],
+            [acceptance.localVerification?.lint?.errorCount === 0, 'acceptance lint errors are nonzero'],
+            [acceptance.securityAdvisors?.warningCount === 0, 'acceptance advisor warnings are nonzero'],
+            [acceptance.securityAdvisors?.errorCount === 0, 'acceptance advisor errors are nonzero'],
+            [acceptance.decision?.status === 'accepted', 'acceptance decision is not accepted'],
+            [acceptance.decision?.productionMutated === false, 'acceptance reports production mutation'],
+          ];
+          for (const [condition, message] of staticChecks) if (!condition) errors.push(message);
+        } catch (error) {
+          errors.push(`invalid acceptance evidence: ${error.message}`);
+        }
+      }
+    }
+  }
+
   if (remoteLedgerPath) {
     try {
       const ledger = JSON.parse(readFileSync(path.resolve(repositoryRoot, remoteLedgerPath), 'utf8'));
@@ -652,11 +720,13 @@ if (executedDirectly) runCli();
 
 export {
   CANONICAL_ROOT,
+  canonicalChainDigest,
   canonicalPatternViolations,
   canonicalStateViolations,
   changedPathsFrom,
   classifyDatabaseBearingPath,
   orderedLedgerDigest,
+  orderedVersionNameDigest,
   parseTomlSubset,
   sha256File,
   validateRepository,

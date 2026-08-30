@@ -8,17 +8,22 @@ on:
   workflow_dispatch:
 
 permissions:
+  actions: read
   contents: read
+  pull-requests: read
 
 concurrency:
   group: atlas-supabase-migration-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  database-migration-gate:
-    name: database-migration-gate
+  database-replay-evidence:
+    name: database-replay-evidence
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    outputs:
+      database_changed: ${{ steps.paths.outputs.database_changed }}
+      baseline_status: ${{ steps.paths.outputs.baseline_status }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -103,6 +108,34 @@ jobs:
         if: always() && steps.setup-cli.outcome == 'success'
         run: supabase stop --no-backup
 
+  database-migration-gate:
+    name: database-migration-gate
+    if: always()
+    needs: database-replay-evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Reject missing or failed replay evidence
+        if: needs.database-replay-evidence.result != 'success'
+        run: exit 1
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Verify accepted candidate ancestry and replay attestation
+        if: needs.database-replay-evidence.outputs.database_changed == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: npm run db:verify-acceptance
+
       - name: Require reviewed ready baseline for database changes
-        if: always() && steps.paths.outputs.database_changed == 'true'
+        if: needs.database-replay-evidence.outputs.database_changed == 'true'
         run: npm run db:require-ready

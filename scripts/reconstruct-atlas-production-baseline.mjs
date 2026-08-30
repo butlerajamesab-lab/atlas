@@ -32,6 +32,10 @@ const boundaryManifestPath = path.join(
   root,
   'supabase/migration-manifest.json',
 );
+const acceptanceEvidencePath = path.join(
+  root,
+  'supabase/evidence/hosted-preview-acceptance.json',
+);
 
 const PRODUCTION_COMPONENT_FINGERPRINTS = {
   schemas: 'e0512b57c118b4b774e32fcddd9b65230ad94cd71ecc7f4ef35ab30238f645f0',
@@ -109,6 +113,35 @@ function roleSql(role) {
 
 function sha256(value) {
   return createHash('sha256').update(value).digest('hex');
+}
+
+function canonicalChainSha256(migrations) {
+  return sha256(
+    migrations
+      .map((entry) => [
+        entry.path,
+        entry.version,
+        entry.name,
+        entry.kind,
+        entry.sha256,
+      ].join('\x1f'))
+      .join('\x1e'),
+  );
+}
+
+function acceptedEvidence(migrations) {
+  if (!existsSync(acceptanceEvidencePath)) return null;
+  const bytes = readFileSync(acceptanceEvidencePath);
+  const evidence = JSON.parse(bytes);
+  if (
+    evidence.schemaVersion !== 1 ||
+    evidence.decision?.status !== 'accepted' ||
+    evidence.subject?.canonicalMigrationCount !== migrations.length ||
+    evidence.subject?.canonicalChainSha256 !== canonicalChainSha256(migrations)
+  ) {
+    throw new Error('hosted preview acceptance evidence does not match the generated chain');
+  }
+  return { evidence, sha256: sha256(bytes) };
 }
 
 function endStatement(value) {
@@ -749,12 +782,13 @@ function functionLintRepairMigration(catalog) {
   return output.join('\n').replace(/[ \t]+$/gm, '');
 }
 
-function syncBoundaryManifest(reconstruction) {
+function syncBoundaryManifest(reconstruction, acceptance) {
   const manifest = JSON.parse(readFileSync(boundaryManifestPath, 'utf8'));
-  manifest.canonical.status = 'candidate';
+  const ready = acceptance !== null;
+  manifest.canonical.status = ready ? 'ready' : 'candidate';
   manifest.canonical.migrations = reconstruction.migrations;
   manifest.productionEvidence.ledgerReconciliationStatus =
-    'reconstructed_pending_preview_parity';
+    ready ? 'reconciled' : 'reconstructed_pending_preview_parity';
   manifest.productionEvidence.currentProductionCatalog = {
     evidenceRoot: 'supabase/evidence/current-production-catalog',
     reconstructionManifestPath:
@@ -766,8 +800,19 @@ function syncBoundaryManifest(reconstruction) {
     productionBoundary: 'read_only',
     model: 'current_production_derived_schema_squash',
   };
-  manifest.foundationalDependencyClosure.status =
-    'represented_in_current_state_baseline_pending_fresh_pg17_replay';
+  manifest.foundationalDependencyClosure.status = ready
+    ? 'represented_in_current_state_baseline_replay_verified'
+    : 'represented_in_current_state_baseline_pending_fresh_pg17_replay';
+  if (ready) {
+    manifest.acceptanceEvidence = {
+      path: 'supabase/evidence/hosted-preview-acceptance.json',
+      sha256: acceptance.sha256,
+      candidateCommitSha: acceptance.evidence.subject.candidateCommitSha,
+      previewProjectRef: acceptance.evidence.hostedPreview.previewProjectRef,
+    };
+  } else {
+    delete manifest.acceptanceEvidence;
+  }
 
   const dispositions = {
     production_schema_baseline_missing: {
@@ -786,19 +831,22 @@ function syncBoundaryManifest(reconstruction) {
         'The baseline creates pg_net without a version pin before dependent functions.',
     },
     production_ledger_not_replayable_from_empty: {
-      status: 'candidate_pending_preview_replay',
-      disposition:
-        'The baseline plus 48 historical receipts and two pending forward repairs forms a 51-version candidate chain; empty PG17 and hosted preview replay are still required.',
+      status: ready ? 'resolved' : 'candidate_pending_preview_replay',
+      disposition: ready
+        ? 'The 51-version chain passed empty PG17 replay, dirty no-op replay, second clean replay, and hosted preview ledger parity; production remains at its represented 49 rows until an approved merge/deployment.'
+        : 'The baseline plus 48 historical receipts and two pending forward repairs forms a 51-version candidate chain; empty PG17 and hosted preview replay are still required.',
     },
     historical_atlas_schema_shapes_unknown: {
-      status: 'accepted_current_state_squash_pending_replay',
-      disposition:
-        'Lost pre-ledger history is not fabricated; the candidate explicitly adopts the verified current catalog as a squash.',
+      status: ready ? 'resolved' : 'accepted_current_state_squash_pending_replay',
+      disposition: ready
+        ? 'Lost pre-ledger history is not fabricated; the accepted operational model is the verified current production-derived squash, now replay-verified.'
+        : 'Lost pre-ledger history is not fabricated; the candidate explicitly adopts the verified current catalog as a squash.',
     },
     civic_infrastructure_policy_history_unknown: {
-      status: 'accepted_current_state_squash_pending_replay',
-      disposition:
-        'Lost policy history is not fabricated; current verified RLS, policies, grants, and comments are represented.',
+      status: ready ? 'resolved' : 'accepted_current_state_squash_pending_replay',
+      disposition: ready
+        ? 'Lost policy history is not fabricated; current verified RLS, policies, grants, and comments are represented and replay-verified.'
+        : 'Lost policy history is not fabricated; current verified RLS, policies, grants, and comments are represented.',
     },
     retired_cross_service_writers_must_stay_retired: {
       status: 'resolved',
@@ -811,9 +859,10 @@ function syncBoundaryManifest(reconstruction) {
         'The conservative candidate revokes anonymous/authenticated execution and grants the two export RPCs only to service_role.',
     },
     security_acceptance_pending: {
-      status: 'open',
-      disposition:
-        'Awaiting fresh PG17 replay, hosted preview parity, pgTAP, lint, and fresh advisors.',
+      status: ready ? 'resolved' : 'open',
+      disposition: ready
+        ? 'Fresh PG17 replay, 56 pgTAP assertions, zero-error database lint, hosted preview parity, and fresh advisors (26 INFO, 0 WARN, 0 ERROR) passed within the postgres-owned application boundary.'
+        : 'Awaiting fresh PG17 replay, hosted preview parity, pgTAP, lint, and fresh advisors.',
     },
   };
   for (const blocker of manifest.blockers) {
@@ -990,7 +1039,8 @@ function main() {
     reconstructionPath,
     JSON.stringify(reconstruction, null, 2) + '\n',
   );
-  syncBoundaryManifest(reconstruction);
+  const acceptance = acceptedEvidence(migrations);
+  syncBoundaryManifest(reconstruction, acceptance);
 
   console.log(JSON.stringify({
     catalogRootSha256: catalogRootHash,
@@ -999,6 +1049,7 @@ function main() {
       path.join(migrationRoot, path.basename(migrations[0].path)),
     ).length,
     catalogCounts: reconstruction.catalogCounts,
+    acceptanceStatus: acceptance === null ? 'candidate' : 'ready',
   }, null, 2));
 }
 
