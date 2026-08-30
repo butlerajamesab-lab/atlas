@@ -96,8 +96,8 @@ included in path classification.
 ## Baseline closure procedure
 
 Production remained read-only. Candidate commit
-`e4daf550d983c11250558bbae19ee2ea651d86ae` passed GitHub run
-`33336833312`, replay-evidence job `99325144249`: empty PostgreSQL 17 replay,
+`9cefe9bfa6ce175400bcf498eaa889b1947e921e` passed GitHub run
+`33337344595`, replay-evidence job `99326512006`: empty PostgreSQL 17 replay,
 56/56 pgTAP assertions, zero-error lint, dirty no-op replay, and a second clean
 replay. The isolated hosted preview `pfslrupnskktspdaayfq` independently proved
 the exact 51-version ledger on PostgreSQL 17.6, the expected catalog counts,
