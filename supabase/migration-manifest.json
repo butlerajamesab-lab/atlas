@@ -6,7 +6,7 @@
   },
   "canonical": {
     "root": "supabase/migrations",
-    "status": "ready",
+    "status": "candidate",
     "postgresMajorVersion": 17,
     "supabaseCliVersion": "2.116.0",
     "migrations": [
@@ -760,7 +760,7 @@
     "compactLedgerPath": "supabase/evidence/production-migration-ledger.json",
     "compactLedgerSha256": "7bb1cad2173705e1ff645132484e9c4bdca63c44cb9d2baa82da2e9b73d08c07",
     "liveSchemaFingerprintSha256": "c030cce77d6c9d11c4bda304c05902b49f08708eecd687ca042afc7a304b6582",
-    "ledgerReconciliationStatus": "reconciled",
+    "ledgerReconciliationStatus": "reconstructed_pending_preview_parity",
     "currentProductionCatalog": {
       "evidenceRoot": "supabase/evidence/current-production-catalog",
       "reconstructionManifestPath": "supabase/evidence/current-production-catalog/reconstruction-manifest.json",
@@ -801,7 +801,7 @@
   },
   "foundationalDependencyClosure": {
     "capturedAt": "2026-08-30T18:00:00Z",
-    "status": "represented_in_current_state_baseline_replay_verified",
+    "status": "represented_in_current_state_baseline_pending_fresh_pg17_replay",
     "relationCount": 22,
     "evidenceSha256": "cd88ccc1e64eb54bccd55274ddd4e74509c8c3060d715d0f90c583eae0b11317",
     "catalogSnapshotSha256": "017e26b440d6218d22689b516271f1859f5f0d2a9307437a6589c885f2c0551a",
@@ -921,22 +921,22 @@
     },
     {
       "id": "production_ledger_not_replayable_from_empty",
-      "status": "resolved",
+      "status": "candidate_pending_preview_replay",
       "evidence": "The 49-row production ledger is neither a complete baseline nor self-contained executable history.",
       "recovery": "Reconcile a catalog-derived schema baseline with all ledger rows and recovered payloads.",
-      "disposition": "The 51-version chain passed empty PG17 replay, dirty no-op replay, second clean replay, and hosted preview ledger parity; production remains at its represented 49 rows until an approved merge/deployment."
+      "disposition": "The baseline plus 48 historical receipts and two pending forward repairs forms a 51-version candidate chain; empty PG17 and hosted preview replay are still required."
     },
     {
       "id": "historical_atlas_schema_shapes_unknown",
-      "status": "resolved",
+      "status": "accepted_current_state_squash_pending_replay",
       "evidence": "Catalog closure describes current final-state Atlas relations, not cryptographically proven pre-ledger DDL; substituting it could duplicate later changes or alter behavior.",
-      "disposition": "Lost pre-ledger history is not fabricated; the accepted operational model is the verified current production-derived squash, now replay-verified."
+      "disposition": "Lost pre-ledger history is not fabricated; the candidate explicitly adopts the verified current catalog as a squash."
     },
     {
       "id": "civic_infrastructure_policy_history_unknown",
-      "status": "resolved",
+      "status": "accepted_current_state_squash_pending_replay",
       "evidence": "The minimum pre-ALTER three-column table shape is recoverable, but original creation source and pre-20260517 policies/grants are not.",
-      "disposition": "Lost policy history is not fabricated; current verified RLS, policies, grants, and comments are represented and replay-verified."
+      "disposition": "Lost policy history is not fabricated; current verified RLS, policies, grants, and comments are represented."
     },
     {
       "id": "retired_cross_service_writers_must_stay_retired",
@@ -953,9 +953,9 @@
     },
     {
       "id": "security_acceptance_pending",
-      "status": "resolved",
+      "status": "open",
       "evidence": "Fresh replay, pgTAP prerequisite checks, database lint, RLS/grant review, and Supabase security advisors (30 findings: 26 INFO, 4 WARN) have not passed on an isolated branch.",
-      "disposition": "Fresh PG17 replay, 56 pgTAP assertions, zero-error database lint, hosted preview parity, and fresh advisors (26 INFO, 0 WARN, 0 ERROR) passed within the postgres-owned application boundary."
+      "disposition": "Awaiting fresh PG17 replay, hosted preview parity, pgTAP, lint, and fresh advisors."
     }
   ],
   "prohibitedCanonicalDependencies": [
@@ -963,11 +963,5 @@
     "server-side file reads",
     "COPY PROGRAM",
     "psql runtime includes"
-  ],
-  "acceptanceEvidence": {
-    "path": "supabase/evidence/hosted-preview-acceptance.json",
-    "sha256": "b33d9b2aca0413c1d67aaafb7e4ec2f8d71c210fb2c95e241f0487f84d164d70",
-    "candidateCommitSha": "e4daf550d983c11250558bbae19ee2ea651d86ae",
-    "previewProjectRef": "pfslrupnskktspdaayfq"
-  }
+  ]
 }
