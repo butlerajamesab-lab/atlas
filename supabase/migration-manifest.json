@@ -530,7 +530,7 @@
   ],
   "validationSql": [
     {
-      "sha256": "d8fafea0c227cbed4ae2185d336330ee0408a32f13787b13278c0a44b55c5eb8",
+      "sha256": "43ff07ccd92ec3b145797c2a617cda24d9d37156f87b1a381812f260d0931bc9",
       "path": "supabase/tests/0001_baseline_prerequisites.sql",
       "kind": "pgtap_acceptance"
     }

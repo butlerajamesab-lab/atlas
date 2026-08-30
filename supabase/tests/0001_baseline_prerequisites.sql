@@ -220,7 +220,7 @@ select ok(
 );
 select is(
   (
-    select count(distinct n.nspname || ':' || d.defaclobjtype)
+    select count(distinct n.nspname || ':' || d.defaclobjtype::text)
     from pg_default_acl d
     join pg_roles owner_role on owner_role.oid = d.defaclrole
     join pg_namespace n on n.oid = d.defaclnamespace
