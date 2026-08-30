@@ -1,0 +1,424 @@
+{
+  "schemaVersion": 1,
+  "evidenceKind": "atlas-production-migration-ledger-compact-v1",
+  "repository": {
+    "name": "butlerajamesab-lab/atlas",
+    "observedDefaultBranch": "main",
+    "observedDefaultBranchHead": "72d6c698cc8a7d7e44165e93817054604c491d41"
+  },
+  "capturedAt": "2026-08-30T18:07:28.098576+00:00",
+  "project": {
+    "ref": "bjdjjgnkhxblnpdrjqtw",
+    "name": "Atlas",
+    "region": "us-east-1",
+    "database": "postgres",
+    "serverVersion": "17.6",
+    "ledgerRelation": "supabase_migrations.schema_migrations"
+  },
+  "hashContract": {
+    "row": "version + US + name + US + statementsSha256 + US + rollbackSha256",
+    "ledger": "sha256(rows joined by RS in ascending version order)",
+    "separators": {
+      "US": "0x1f",
+      "RS": "0x1e"
+    }
+  },
+  "migrationCount": 49,
+  "firstVersion": "20260513203455",
+  "lastVersion": "20260822082205",
+  "orderedLedgerSha256": "278e15ff6dddc371e0484145c4aaa2fefb82913b83e28acf5729e35cd009af7f",
+  "rows": [
+    {
+      "version": "20260513203455",
+      "name": "canonical_jurisdiction_and_workflow_registries",
+      "statementCount": 1,
+      "statementsSha256": "c8738b389d7cf7efdd350b0377043ce8f11b89c9d709df2274aa6e6e27f52879",
+      "rollbackStatementCount": null,
+      "rollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "version": "20260513204002",
+      "name": "atlas_registry_safeguards_and_reconciliation_v3",
+      "statementCount": 1,
+      "statementsSha256": "5ad540a3ca3d318b69fe802b92110d6d7e513bd3259a47a1d3e9e5b25bfb4be1",
+      "rollbackStatementCount": null,
+      "rollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "version": "20260517115802",
+      "name": "expand_civic_infrastructure_nodes",
+      "statementCount": 1,
+      "statementsSha256": "63fd0ea3bfab4dfc73c5c67fccd60a2c31178a1184a6077fb70dc83d21691d2f",
+      "rollbackStatementCount": null,
+      "rollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "version": "20260517115822",
+      "name": "add_created_at_to_civic_nodes",
+      "statementCount": 1,
+      "statementsSha256": "3a8ab5eea9a73ac74c94f7851b3394020fb156c3ee7ab227e67656da869a0a5b",
+      "rollbackStatementCount": null,
+      "rollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "version": "20260517115833",
+      "name": "create_unified_civic_infrastructure_view_v2",
+      "statementCount": 1,
+      "statementsSha256": "a1137ae38d018cf50a954dd6211d781f312b5c4bc1fcf8b12f8b3369883e0840",
+      "rollbackStatementCount": null,
+      "rollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "version": "20260602092945",
+      "name": "create_signal_intelligence_cards_view_v2",
+      "statementCount": 1,
+      "statementsSha256": "d1960348c5c5ad841430aa44f1f73d71a37aba844a60e45c8c23b19c6ad71364",
+      "rollbackStatementCount": null,
+      "rollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "version": "20260603204953",
+      "name": "chronicle_verification_engine_v1",
+      "statementCount": 1,
+      "statementsSha256": "f77da28b28417b8159a9c84b1260537679ba3cd8348048691332eb65ea351ad6",
+      "rollbackStatementCount": null,
+      "rollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "version": "20260603205557",
+      "name": "chronicle_candidate_ingest_rpc_v1",
+      "statementCount": 1,
+      "statementsSha256": "3355dce4ac803ec56dff7aeb49fa84927f4e97c11c11d4c217ef64b03eed250c",
+      "rollbackStatementCount": null,
+      "rollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "version": "20260603213030",
+      "name": "chronicle_cohesive_usefulness_gate_v3",
+      "statementCount": 1,
+      "statementsSha256": "18ed1f0f7e3d764f15df6b94a649b952fc84a96bcd3bf26d7ed3a90287c98a5f",
+      "rollbackStatementCount": null,
+      "rollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "version": "20260729150556",
+      "name": "lighthouse_stream_export_contract",
+      "statementCount": 1,
+      "statementsSha256": "fd5db2b7c9c3ae8c4db84e75e406dffd10a0bc80c412ece8066f1e71f2038d0a",
+      "rollbackStatementCount": null,
+      "rollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "version": "20260730194805",
+      "name": "20260726_event_entity_resolution",
+      "statementCount": 1,
+      "statementsSha256": "aea2b1920e735001bf4ce8d03e5447c9788a87d191345e27269a7ef306762fd5",
+      "rollbackStatementCount": null,
+      "rollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "version": "20260730195601",
+      "name": "20260730_event_entity_resolution_usaspending_extraction_fix",
+      "statementCount": 1,
+      "statementsSha256": "b084572002b658571b3ff94bc7ca8be1bd9c5536877eac9707e9f3e3adc66811",
+      "rollbackStatementCount": null,
+      "rollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "version": "20260731091207",
+      "name": "quarantine_stale_civic_contract_writers",
+      "statementCount": 1,
+      "statementsSha256": "3f08957a7ace2f42695a1245ab1a3fe30f115e73fa285bc2ea742712c615ef41",
+      "rollbackStatementCount": null,
+      "rollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "version": "20260731092416",
+      "name": "complete_stale_lighthouse_queue_quarantine",
+      "statementCount": 1,
+      "statementsSha256": "4f817048f85ba30a00b6022fe68d0c5be018982c1666f9c2f7b6bfa6586f1b3b",
+      "rollbackStatementCount": null,
+      "rollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "version": "20260731092807",
+      "name": "disable_stale_lighthouse_queue_trigger",
+      "statementCount": 1,
+      "statementsSha256": "5dd44d424e12a07c0cb540cd10871c7bc258e39c2a0e2af82a4799b54315bebe",
+      "rollbackStatementCount": null,
+      "rollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "version": "20260731191916",
+      "name": "signal_event_identity_and_live_data_detection",
+      "statementCount": 1,
+      "statementsSha256": "1a15c981475f527cd45d10e7991d89a6f73fb92965e48ee79bb35747cc2044d3",
+      "rollbackStatementCount": null,
+      "rollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "version": "20260731192021",
+      "name": "signal_event_identity_hardening",
+      "statementCount": 1,
+      "statementsSha256": "c265f053cfe6d35218795bc103adb989cc4408900d4a6e822a14a0c066adee23",
+      "rollbackStatementCount": null,
+      "rollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "version": "20260731194318",
+      "name": "domain3_candidate_identity_receipt",
+      "statementCount": 1,
+      "statementsSha256": "0f9af0f8656021fea2177cf972d56487474b48a93a112e88e464368f08c7896b",
+      "rollbackStatementCount": null,
+      "rollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "version": "20260731200914",
+      "name": "domain3_pg_net_transport",
+      "statementCount": 1,
+      "statementsSha256": "3ae4c33ba160bc6ec3c073130a061d3a7ff5d5930a5c7a13c4c974b67b85e218",
+      "rollbackStatementCount": null,
+      "rollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "version": "20260801233925",
+      "name": "atlas_convergence_v21_atomic_persistence",
+      "statementCount": 1,
+      "statementsSha256": "ca5d7f232724778a91d866f7572f57cfc44f24fc810c206d6b56a7ce654094c6",
+      "rollbackStatementCount": null,
+      "rollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "version": "20260801235025",
+      "name": "atlas_convergence_v21_persistence_timeout",
+      "statementCount": 1,
+      "statementsSha256": "85e3740b2582325178f463d49bede89e2f757cf929f3f675cd8138a8949e3121",
+      "rollbackStatementCount": null,
+      "rollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "version": "20260804060700",
+      "name": "convergence_replay_snapshot_contract",
+      "statementCount": 1,
+      "statementsSha256": "c1920694a47efbc79e4811f7c26fde230da765296b3e100f0796790aec9cd75a",
+      "rollbackStatementCount": null,
+      "rollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "version": "20260804061454",
+      "name": "convergence_source_identity_stability",
+      "statementCount": 1,
+      "statementsSha256": "a19bc14b0963959c177aa5c56b4b40c14c324f917e6cb70b63b71c195f659ce7",
+      "rollbackStatementCount": null,
+      "rollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "version": "20260804062745",
+      "name": "legacy_verification_chronicle_quarantine",
+      "statementCount": 1,
+      "statementsSha256": "5041f3cb975e1a6437085585c90c120bd169890921cda3502796271b7fe2658e",
+      "rollbackStatementCount": null,
+      "rollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "version": "20260806050236",
+      "name": "domain3_http_transport_activation",
+      "statementCount": 1,
+      "statementsSha256": "aa79ef7da941d50240ede9c006b7a2f59c5fe9657f2ac074b5f114c6de82accc",
+      "rollbackStatementCount": null,
+      "rollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "version": "20260806054334",
+      "name": "domain3_direct_lighthouse_receipt_endpoint",
+      "statementCount": 1,
+      "statementsSha256": "6974b2e164861fa6c34fee772df0ab72bd851fae6e01768cd354e1ecd6114aeb",
+      "rollbackStatementCount": null,
+      "rollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "version": "20260806195023",
+      "name": "atlas_source_health_receipts_v1",
+      "statementCount": 1,
+      "statementsSha256": "a90340185b2f025fe579684bf27509c008fbf4eb7d321be85cb47d61086e8b1f",
+      "rollbackStatementCount": null,
+      "rollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "version": "20260806204135",
+      "name": "civic_genome_external_snapshot_intake_v1",
+      "statementCount": 1,
+      "statementsSha256": "36f4e7c937a4fae2a9d1150ebd03f1e7a7f9aa0c1df6070ed4f7888b6a7261a9",
+      "rollbackStatementCount": null,
+      "rollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "version": "20260806224714",
+      "name": "civic_genome_legislative_projection_v1",
+      "statementCount": 1,
+      "statementsSha256": "d6960b667d2f32b1c167406eac98409e7cef0d6ab6e423341cf849e8d7ec183d",
+      "rollbackStatementCount": null,
+      "rollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "version": "20260806225709",
+      "name": "civic_genome_trait_binding_accounting_v1",
+      "statementCount": 1,
+      "statementsSha256": "15141539b71e8e29d77ae31b97232a9eecc9c53bb1ba6245f6004600f595d5f9",
+      "rollbackStatementCount": null,
+      "rollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "version": "20260806230022",
+      "name": "fix_trait_accounting_lock_expression",
+      "statementCount": 1,
+      "statementsSha256": "1819db2363706f3610fb9afb86d12c9dd57451f86c42d6ffb18fae13ad91ad08",
+      "rollbackStatementCount": null,
+      "rollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "version": "20260809155505",
+      "name": "atlas_live_operator_surface",
+      "statementCount": 1,
+      "statementsSha256": "a0fc0eb93c52e0c9e0460d4718f316d10211420c7c1ed718574c0784c3b711b4",
+      "rollbackStatementCount": null,
+      "rollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "version": "20260809155739",
+      "name": "atlas_live_operator_surface_security",
+      "statementCount": 1,
+      "statementsSha256": "97148df245922123ac74be3a3eb4d40911bea518eeceb532c7df509ab25689a9",
+      "rollbackStatementCount": null,
+      "rollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "version": "20260809160901",
+      "name": "atlas_live_operator_surface_compact_reads",
+      "statementCount": 1,
+      "statementsSha256": "d8294b1e635af7c5e619017c2e678807b2ff2ff750145ebf1e60fcc33f4d557d",
+      "rollbackStatementCount": null,
+      "rollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "version": "20260809170900",
+      "name": "atlas_signal_ontology_read_model",
+      "statementCount": 1,
+      "statementsSha256": "57f224852e14936c323d00d9e485cb4b8131ba8651bb92ae8ad6133d20a86084",
+      "rollbackStatementCount": null,
+      "rollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "version": "20260809171314",
+      "name": "atlas_signal_ontology_read_model_privileges",
+      "statementCount": 1,
+      "statementsSha256": "0e70f09716f384d4b1ceab36627e6030323022504c0aace744e8b7a5136fb083",
+      "rollbackStatementCount": null,
+      "rollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "version": "20260811121639",
+      "name": "domain3_population_persistence_rpc",
+      "statementCount": 1,
+      "statementsSha256": "389b4e5c9816c474c0f42135378ad17ee000aabf8d82a06939cd6ad76b788eaa",
+      "rollbackStatementCount": null,
+      "rollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "version": "20260811122914",
+      "name": "domain3_lighthouse_state_projection",
+      "statementCount": 1,
+      "statementsSha256": "58636d83f48e7a0caf323751a0a10619e4ac74bc4f8ffb0b017a21cdf9fa2c61",
+      "rollbackStatementCount": null,
+      "rollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "version": "20260811152908",
+      "name": "atlas_stream_runtime_projection_bridge",
+      "statementCount": 1,
+      "statementsSha256": "393a7988feb27e760b22f9be3a9db2e246256623eb2cd842969ce69504a44c5c",
+      "rollbackStatementCount": null,
+      "rollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "version": "20260811161224",
+      "name": "domain3_candidate_semantic_currentness",
+      "statementCount": 1,
+      "statementsSha256": "1c53d2fec30c75d14e7c2857932aa8b539bab7b40a130ebd398a50837d6154a8",
+      "rollbackStatementCount": null,
+      "rollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "version": "20260811161803",
+      "name": "signal_ontology_currentness_read_model",
+      "statementCount": 1,
+      "statementsSha256": "bd423d81d99a411d891feafab161df5630b3cd6e12bacf3b9ca97af35c502fc5",
+      "rollbackStatementCount": null,
+      "rollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "version": "20260812084344",
+      "name": "domain3_semantic_currentness_review_fixes",
+      "statementCount": 1,
+      "statementsSha256": "7c2272dd8fb3b5ce199482e887ed347489e046c46a799d599dbf646e65d971b0",
+      "rollbackStatementCount": null,
+      "rollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "version": "20260815085914",
+      "name": "domain3_propublica_seed_deduplication",
+      "statementCount": 1,
+      "statementsSha256": "2cfbad73f2ebc0667fa54d184fc7c8388dba04afa955e3b27e1328113b1a5a83",
+      "rollbackStatementCount": null,
+      "rollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "version": "20260815090032",
+      "name": "domain3_entity_aware_candidate_semantic_identity",
+      "statementCount": 1,
+      "statementsSha256": "7fb7aed9e687d640c6f176e23d33999e30dcc3ce3f9ee0ba9e856f0cdb67b6cc",
+      "rollbackStatementCount": null,
+      "rollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "version": "20260815090211",
+      "name": "domain3_propublica_sequential_candidate_upsert",
+      "statementCount": 1,
+      "statementsSha256": "b87dd4813cb27cca0a39d57f745d49d53c3c36be1a66c6252f1a09bb9aef6733",
+      "rollbackStatementCount": null,
+      "rollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "version": "20260815090334",
+      "name": "domain3_currentness_upsert_self_conflict_guard",
+      "statementCount": 1,
+      "statementsSha256": "58f318ab0d05331b770eea321e209e404764c3ce5e6a065356622b0745dd8e2a",
+      "rollbackStatementCount": null,
+      "rollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "version": "20260815092738",
+      "name": "domain3_negative_currentness_retirement",
+      "statementCount": 1,
+      "statementsSha256": "6757f5aa587ad1538765a528d94a14b07d359c1f6f99624f374c444b43c548c6",
+      "rollbackStatementCount": null,
+      "rollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "version": "20260822075306",
+      "name": "domain3_integrity_projection_identity",
+      "statementCount": 1,
+      "statementsSha256": "ae5a13e72379967dd78b3c38359cb4dec6417a2380b043b1da224cb8a526bbf8",
+      "rollbackStatementCount": null,
+      "rollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "version": "20260822082205",
+      "name": "stream_runtime_summary_indexed_read",
+      "statementCount": 1,
+      "statementsSha256": "bf70abd5a6f0f41b230e9bd12ad4fec2c18c67fbfdf40a0364932e81a5d3cf69",
+      "rollbackStatementCount": null,
+      "rollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

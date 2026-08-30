@@ -1,0 +1,83 @@
+name: database-migration-gate
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: atlas-supabase-migration-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  database-migration-gate:
+    name: database-migration-gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Validate complete SQL inventory and canonical manifest
+        run: npm run db:validate
+
+      - name: Classify paths and require a complete baseline for database changes
+        id: paths
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
+        run: >-
+          node scripts/validate-supabase-migrations.mjs
+          --changed-from "$BASE_SHA"
+          --github-output
+
+      - name: Install pinned Supabase CLI
+        if: steps.paths.outputs.database_changed == 'true'
+        id: setup-cli
+        uses: supabase/setup-cli@v1
+        with:
+          version: 2.116.0
+
+      - name: Start isolated PostgreSQL 17 Supabase database
+        if: steps.paths.outputs.database_changed == 'true'
+        run: supabase start
+
+      - name: Replay every canonical migration from empty
+        if: steps.paths.outputs.database_changed == 'true'
+        run: supabase db reset --local
+
+      - name: Verify prerequisite schema, extensions, RLS, and grants
+        if: steps.paths.outputs.database_changed == 'true'
+        run: supabase test db
+
+      - name: Fail on database lint errors
+        if: steps.paths.outputs.database_changed == 'true'
+        run: supabase db lint --local --fail-on error
+
+      - name: Prove dirty database replay is a no-op
+        if: steps.paths.outputs.database_changed == 'true'
+        run: |
+          supabase migration list --local > /tmp/atlas-migrations-before.txt
+          supabase migration up --local
+          supabase migration list --local > /tmp/atlas-migrations-after.txt
+          diff --unified /tmp/atlas-migrations-before.txt /tmp/atlas-migrations-after.txt
+
+      - name: Repeat clean replay to detect dirty or order-dependent state
+        if: steps.paths.outputs.database_changed == 'true'
+        run: supabase db reset --local
+
+      - name: Stop isolated Supabase database
+        if: always() && steps.setup-cli.outcome == 'success'
+        run: supabase stop --no-backup
