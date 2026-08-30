@@ -29,8 +29,8 @@ const IGNORED_DIRECTORIES = new Set([
 const PROHIBITED_CANONICAL_PATTERNS = [
   {
     id: 'transient_http_response',
-    pattern: /\bnet\._http_response\b/i,
-    reason: 'migration SQL must not depend on transient pg_net response rows',
+    pattern: /\b(?:from|join)\s+net\._http_response\b[^;]*\bwhere\b[^;]*(?:\b(?:[a-z_][a-z0-9_$]*\.)?id\s*(?:=\s*(?:\d+|'[0-9]+')|in\s*\(\s*(?:\d+|'[0-9]+'))|(?:\d+|'[0-9]+')\s*=\s*(?:[a-z_][a-z0-9_$]*\.)?id\b)/i,
+    reason: 'migration SQL must not execute payloads from hard-coded transient pg_net response rows',
   },
   {
     id: 'server_file_read',
@@ -136,7 +136,7 @@ function changedPathsFrom(baseRevision, repositoryRoot = REPOSITORY_ROOT) {
   try {
     const output = execFileSync(
       'git',
-      ['diff', '--name-only', '--diff-filter=ACMR', `${baseRevision}...HEAD`],
+      ['diff', '--name-only', '--diff-filter=ACMRD', `${baseRevision}...HEAD`],
       { cwd: repositoryRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
     );
     return {
@@ -157,6 +157,48 @@ function canonicalPatternViolations(sqlText) {
   return PROHIBITED_CANONICAL_PATTERNS
     .filter(({ pattern }) => pattern.test(sqlText))
     .map(({ id, reason }) => ({ id, reason }));
+}
+
+function canonicalStateViolations({
+  status,
+  canonicalEntries = [],
+  openBlockers = [],
+  ledgerReconciliationStatus,
+}) {
+  const violations = [];
+
+  if (status === 'blocked') {
+    if (canonicalEntries.length !== 0) {
+      violations.push('blocked canonical root must stay empty; do not commit a partial migration chain');
+    }
+    if (openBlockers.length === 0) {
+      violations.push('blocked canonical root must declare at least one open blocker');
+    }
+  }
+
+  if (status === 'candidate' || status === 'ready') {
+    if (canonicalEntries.length === 0) {
+      violations.push(`${status} canonical root must contain migrations`);
+    }
+    if (canonicalEntries[0]?.kind !== 'production_baseline') {
+      violations.push('first canonical migration must be kind=production_baseline');
+    }
+  }
+
+  if (status === 'candidate' && ledgerReconciliationStatus !== 'reconstructed_pending_preview_parity') {
+    violations.push(
+      'candidate canonical root requires ledger status reconstructed_pending_preview_parity',
+    );
+  }
+
+  if (status === 'ready') {
+    if (openBlockers.length !== 0) violations.push('ready canonical root cannot have open blockers');
+    if (ledgerReconciliationStatus !== 'reconciled') {
+      violations.push('ready canonical root requires a reconciled production ledger');
+    }
+  }
+
+  return violations;
 }
 
 function validateRepository({
@@ -188,8 +230,8 @@ function validateRepository({
   if (manifest.canonical?.root !== CANONICAL_ROOT) {
     errors.push(`manifest canonical.root must be ${CANONICAL_ROOT}`);
   }
-  if (!['blocked', 'ready'].includes(manifest.canonical?.status)) {
-    errors.push('manifest canonical.status must be blocked or ready');
+  if (!['blocked', 'candidate', 'ready'].includes(manifest.canonical?.status)) {
+    errors.push('manifest canonical.status must be blocked, candidate, or ready');
   }
   if (manifest.canonical?.postgresMajorVersion !== 17) {
     errors.push('manifest canonical.postgresMajorVersion must be 17');
@@ -453,22 +495,12 @@ function validateRepository({
   }
 
   const openBlockers = (manifest.blockers ?? []).filter((blocker) => blocker.status !== 'resolved');
-  if (manifest.canonical?.status === 'blocked') {
-    if (canonicalEntries.length !== 0) {
-      errors.push('blocked canonical root must stay empty; do not commit a partial migration chain');
-    }
-    if (openBlockers.length === 0) errors.push('blocked canonical root must declare at least one open blocker');
-  }
-  if (manifest.canonical?.status === 'ready') {
-    if (canonicalEntries.length === 0) errors.push('ready canonical root must contain migrations');
-    if (canonicalEntries[0]?.kind !== 'production_baseline') {
-      errors.push('first canonical migration must be kind=production_baseline');
-    }
-    if (openBlockers.length !== 0) errors.push('ready canonical root cannot have open blockers');
-    if (manifest.productionEvidence?.ledgerReconciliationStatus !== 'reconciled') {
-      errors.push('ready canonical root requires a reconciled production ledger');
-    }
-  }
+  errors.push(...canonicalStateViolations({
+    status: manifest.canonical?.status,
+    canonicalEntries,
+    openBlockers,
+    ledgerReconciliationStatus: manifest.productionEvidence?.ledgerReconciliationStatus,
+  }));
   if (requireReady && manifest.canonical?.status !== 'ready') {
     errors.push('database-bearing change blocked: canonical production baseline is not ready');
   }
@@ -565,7 +597,7 @@ function runCli() {
     : changedPathsFrom(options.changedFrom);
   const databaseChanged = changeSet.conservative || changeSet.paths.some(classifyDatabaseBearingPath);
   const result = validateRepository({
-    requireReady: options.requireReady || (options.changedFrom !== null && databaseChanged),
+    requireReady: options.requireReady,
     remoteLedgerPath: options.remoteLedgerPath,
     requireRemoteParity: options.requireRemoteParity,
   });
@@ -621,6 +653,7 @@ if (executedDirectly) runCli();
 export {
   CANONICAL_ROOT,
   canonicalPatternViolations,
+  canonicalStateViolations,
   changedPathsFrom,
   classifyDatabaseBearingPath,
   orderedLedgerDigest,

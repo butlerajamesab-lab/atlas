@@ -34,7 +34,7 @@ jobs:
       - name: Validate complete SQL inventory and canonical manifest
         run: npm run db:validate
 
-      - name: Classify paths and require a complete baseline for database changes
+      - name: Classify database-bearing paths
         id: paths
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
@@ -44,30 +44,48 @@ jobs:
           --github-output
 
       - name: Install pinned Supabase CLI
-        if: steps.paths.outputs.database_changed == 'true'
+        if: >-
+          steps.paths.outputs.database_changed == 'true' &&
+          (steps.paths.outputs.baseline_status == 'candidate' ||
+          steps.paths.outputs.baseline_status == 'ready')
         id: setup-cli
         uses: supabase/setup-cli@v1
         with:
           version: 2.116.0
 
       - name: Start isolated PostgreSQL 17 Supabase database
-        if: steps.paths.outputs.database_changed == 'true'
+        if: >-
+          steps.paths.outputs.database_changed == 'true' &&
+          (steps.paths.outputs.baseline_status == 'candidate' ||
+          steps.paths.outputs.baseline_status == 'ready')
         run: supabase start
 
       - name: Replay every canonical migration from empty
-        if: steps.paths.outputs.database_changed == 'true'
+        if: >-
+          steps.paths.outputs.database_changed == 'true' &&
+          (steps.paths.outputs.baseline_status == 'candidate' ||
+          steps.paths.outputs.baseline_status == 'ready')
         run: supabase db reset --local
 
       - name: Verify prerequisite schema, extensions, RLS, and grants
-        if: steps.paths.outputs.database_changed == 'true'
+        if: >-
+          steps.paths.outputs.database_changed == 'true' &&
+          (steps.paths.outputs.baseline_status == 'candidate' ||
+          steps.paths.outputs.baseline_status == 'ready')
         run: supabase test db
 
       - name: Fail on database lint errors
-        if: steps.paths.outputs.database_changed == 'true'
+        if: >-
+          steps.paths.outputs.database_changed == 'true' &&
+          (steps.paths.outputs.baseline_status == 'candidate' ||
+          steps.paths.outputs.baseline_status == 'ready')
         run: supabase db lint --local --fail-on error
 
       - name: Prove dirty database replay is a no-op
-        if: steps.paths.outputs.database_changed == 'true'
+        if: >-
+          steps.paths.outputs.database_changed == 'true' &&
+          (steps.paths.outputs.baseline_status == 'candidate' ||
+          steps.paths.outputs.baseline_status == 'ready')
         run: |
           supabase migration list --local > /tmp/atlas-migrations-before.txt
           supabase migration up --local
@@ -75,9 +93,16 @@ jobs:
           diff --unified /tmp/atlas-migrations-before.txt /tmp/atlas-migrations-after.txt
 
       - name: Repeat clean replay to detect dirty or order-dependent state
-        if: steps.paths.outputs.database_changed == 'true'
+        if: >-
+          steps.paths.outputs.database_changed == 'true' &&
+          (steps.paths.outputs.baseline_status == 'candidate' ||
+          steps.paths.outputs.baseline_status == 'ready')
         run: supabase db reset --local
 
       - name: Stop isolated Supabase database
         if: always() && steps.setup-cli.outcome == 'success'
         run: supabase stop --no-backup
+
+      - name: Require reviewed ready baseline for database changes
+        if: always() && steps.paths.outputs.database_changed == 'true'
+        run: npm run db:require-ready

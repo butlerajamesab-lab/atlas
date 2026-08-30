@@ -1,0 +1,683 @@
+{
+  "schemaVersion": 1,
+  "evidenceKind": "Atlas current production-derived baseline reconstruction",
+  "projectRef": "bjdjjgnkhxblnpdrjqtw",
+  "serverVersion": "17.6",
+  "capturedAt": "2026-08-30T20:40:00Z",
+  "productionBoundary": "read_only",
+  "productionLedgerOrderedSha256": "278e15ff6dddc371e0484145c4aaa2fefb82913b83e28acf5729e35cd009af7f",
+  "catalogRootSha256": "5af30282c1b0e3a09de8370e0cac86bf7db78a6d7bdaa36cd2e216db799b7f26",
+  "catalogCounts": {
+    "schemas": 3,
+    "relations": 209,
+    "tables": 114,
+    "views": 61,
+    "columns": 2514,
+    "functionsObserved": 96,
+    "functionsIncluded": 80,
+    "sequences": 34,
+    "triggersObserved": 20,
+    "triggersIncluded": 16,
+    "policies": 45,
+    "constraints": 425,
+    "indexes": 451,
+    "comments": 114
+  },
+  "productionComponentFingerprintsSha256": {
+    "schemas": "e0512b57c118b4b774e32fcddd9b65230ad94cd71ecc7f4ef35ab30238f645f0",
+    "relations": "ed3e07b6d4c346d7ea8c995b51772dcda559a39750d087762688c86725291c23",
+    "columns": "29805f3dae118f84462347216960ca34a10cb901112f8a29207597d8993ae730",
+    "constraints": "cc32e1d7d28f26c7fa5f89e40b34f714d3e6df6ed00b6418f674b87b94c94099",
+    "indexes": "515f841227de8504eb7acd4c35189805fa8f6ecc9266a98610e186436603245a",
+    "sequences": "9c1b981d3ffaa5a4538f154a136f15e92646a900dcad35d19d6bd4b39c6ec522",
+    "functions": "48fcabfffa789540744406f4c4d73c5deef5d8e1c5d5a66819f3a6d546a36f11",
+    "views": "de82f7a2cfadc31b1cab878714cf92fcd94b37de272278573a6f773bc279800c",
+    "triggers": "3ad6133c0ebf821e21bce544ac4e63dc2f97d9a253069b6f82cf239d73c0f439",
+    "policies": "c6fa78a8c2f70e1b7b7e09f58b6be56c8004f3951e2156847b54497bc7a1d477",
+    "comments": "4f54ded9f863357795878f885981de68943e86dac2a33b4d7bd33afe36a37cff"
+  },
+  "sourceEvidence": [
+    {
+      "path": "supabase/evidence/current-production-catalog/extensions.json",
+      "bytes": 1462,
+      "sha256": "5148be0be7ad3f58e3c487e8ea67487f02e2513eaac4382e75840eb8872d89ee"
+    },
+    {
+      "path": "supabase/evidence/current-production-catalog/functions-atlas-01.json",
+      "bytes": 72514,
+      "sha256": "4e6ed0b342c36219138f3c46fc332144c026238a8829c17b37995f94fd8adcb9"
+    },
+    {
+      "path": "supabase/evidence/current-production-catalog/functions-atlas-02.json",
+      "bytes": 38291,
+      "sha256": "24f8949470c076e58b77cc9c74d5232264ee58fcb828a9c09fafed97b93047de"
+    },
+    {
+      "path": "supabase/evidence/current-production-catalog/functions-atlas-03.json",
+      "bytes": 24278,
+      "sha256": "998c168b1505ddcbba0ad7978619713dfc93c37c10e0a3e042749f7339669d78"
+    },
+    {
+      "path": "supabase/evidence/current-production-catalog/functions-public-01.json",
+      "bytes": 55993,
+      "sha256": "0a6ce5d006db8c350c53a4b3c27eba7f6fb92175f1248a2959c404ccfbef0167"
+    },
+    {
+      "path": "supabase/evidence/current-production-catalog/functions-public-02.json",
+      "bytes": 73491,
+      "sha256": "34449369b807d2cb1e6528bc43bfd287948159173abf421b4c248e54a0de587e"
+    },
+    {
+      "path": "supabase/evidence/current-production-catalog/functions-public-03.json",
+      "bytes": 90967,
+      "sha256": "0e24afe6522c29cd7080b337cdc44adbc3e759bed4077dd2443c5f3dc41134dd"
+    },
+    {
+      "path": "supabase/evidence/current-production-catalog/publications.json",
+      "bytes": 991,
+      "sha256": "88a6d2249c0e4a17df19b67530fface2d57325b95104a4a332f8a40cdcdc65e0"
+    },
+    {
+      "path": "supabase/evidence/current-production-catalog/schemas-and-default-acls.json",
+      "bytes": 19559,
+      "sha256": "ccb0490f6aa3d810e52fa703d2ad6f3da1f1910a00b103d26cbf89fba75827fc"
+    },
+    {
+      "path": "supabase/evidence/current-production-catalog/sequences.json",
+      "bytes": 22161,
+      "sha256": "f456c65d1ce32950b63a7e5cad6889656c51170fa557ece459351aba0a3635f8"
+    },
+    {
+      "path": "supabase/evidence/current-production-catalog/tables-atlas-01.json",
+      "bytes": 322132,
+      "sha256": "d3c51bc9f1853f5f7b6799a75c7ad18d2d62c862026dfdfdd34970cc1a49c4b3"
+    },
+    {
+      "path": "supabase/evidence/current-production-catalog/tables-atlas-02.json",
+      "bytes": 317936,
+      "sha256": "dc425ff8b11c8e1bad3769e0be49f69dbe945487819b2a8575619a68049ee697"
+    },
+    {
+      "path": "supabase/evidence/current-production-catalog/tables-atlas-03.json",
+      "bytes": 232122,
+      "sha256": "6b92fc5b9691c187cd2146481f186874fb6ffd9700bfdcb5e863c614d67156b4"
+    },
+    {
+      "path": "supabase/evidence/current-production-catalog/tables-private.json",
+      "bytes": 4140,
+      "sha256": "8ccc8d1a173a629db75cc8dc341e6ba1c1f17ff6a09097038af1648359519ddc"
+    },
+    {
+      "path": "supabase/evidence/current-production-catalog/tables-public.json",
+      "bytes": 364412,
+      "sha256": "ed899b86d48a45bac2f617ef3f4c94912e05fb706e6cb35f9ac5388ea8fa6741"
+    },
+    {
+      "path": "supabase/evidence/current-production-catalog/triggers.json",
+      "bytes": 9589,
+      "sha256": "d96c41d038a0915b5d5aee6b69ec8372795401a69b863ea8fdc531e7625f7a23"
+    },
+    {
+      "path": "supabase/evidence/current-production-catalog/types.json",
+      "bytes": 179,
+      "sha256": "22078909973e54c502cc9ba58f35bc7638c0c25ccb803f2dceeefcb29edecb2c"
+    },
+    {
+      "path": "supabase/evidence/current-production-catalog/views-atlas.json",
+      "bytes": 62360,
+      "sha256": "2d865de959638d04e94029c37df556322c9d6fab8842d6f2420d6262bb8d30f8"
+    },
+    {
+      "path": "supabase/evidence/current-production-catalog/views-public-01.json",
+      "bytes": 101038,
+      "sha256": "9eac8e2b2700a0fb849de748088fd167e7c7f7e6cc69f23042c29328c5d02734"
+    },
+    {
+      "path": "supabase/evidence/current-production-catalog/views-public-02.json",
+      "bytes": 112505,
+      "sha256": "5b88cfb46306673b92f737744b441b91e1ff32d191836f8e5385adab367d09a4"
+    },
+    {
+      "path": "supabase/evidence/current-production-catalog/views-public-03.json",
+      "bytes": 38937,
+      "sha256": "2fb45e89be25fee0b944890faba1a564f5e1d187eb89e3b8cff298c7bb3c8541"
+    }
+  ],
+  "intentionalExclusions": {
+    "functions": [
+      "atlas.bridge_emit_signal_v1()",
+      "atlas.bridge_escalate_convergence(p_convergence_event_id uuid)",
+      "atlas.bridge_escalate_detection_rule(p_rule_id character varying, p_matched_record_ids text[], p_additional_context jsonb)",
+      "atlas.bridge_push_action_to_lighthouse()",
+      "atlas.bridge_push_resources_to_lighthouse()",
+      "atlas.bridge_push_signal_to_lighthouse()",
+      "atlas.bridge_push_signal_to_lighthouse(p_queue_id bigint)",
+      "atlas.bridge_push_to_prism(p_title text, p_description text, p_jurisdiction text, p_finding_summary text, p_finding_confidence text, p_finding_metadata jsonb, p_recommendation_action text, p_recommendation_summary text, p_source_table text, p_source_record_id text)",
+      "atlas.bridge_rebuild_map_pins()",
+      "atlas.bridge_sync_all_to_lighthouse()",
+      "atlas.bridge_sync_all_to_lighthouse_v3()",
+      "atlas.bridge_sync_entity_to_lighthouse()",
+      "atlas.bridge_sync_to_rosetta(p_provider_id character varying, p_batch_size integer)",
+      "atlas.trigger_queue_bridge_v3()",
+      "public.get_connector_status(connector_name text)",
+      "public.trigger_lighthouse_bridge_for_prime_pattern_v1(p_signal jsonb, p_audit_context jsonb, p_process_queue boolean)"
+    ],
+    "triggers": [
+      "atlas.action_queue.trg_bridge_action",
+      "atlas.civic_map_signals.trg_bridge_emit_signal_v1",
+      "atlas.civic_map_signals.trg_queue_bridge_v3",
+      "atlas.entity_registry.trg_bridge_entity"
+    ],
+    "rowData": "all production rows, including bridge_config secrets and allowlist rows",
+    "cronJobs": "none observed; no scheduler state exported"
+  },
+  "intentionalSecurityHardening": {
+    "atlasSchema": "direct namespace usage is service_role only",
+    "functions": [
+      "atlas.bridge_sync_to_lighthouse(p_signal_id bigint, p_batch_size integer)",
+      "atlas.log_provenance()",
+      "public.get_lighthouse_signal_events(p_stream_id text, p_offset bigint, p_limit integer)",
+      "public.get_lighthouse_stream_definition(p_stream_id text)"
+    ],
+    "futureObjectDefaults": "postgres-owned objects in atlas/public/private default to service_role only",
+    "operationalView": "public.v_bridge_operational_status and its Atlas dependency are service_role only",
+    "preservedCurrentPublicSurfaces": "existing table/view grants and RLS policies are retained unless explicitly listed above"
+  },
+  "platformOwnedStateExcluded": {
+    "defaultPrivileges": [
+      "supabase_admin in public (managed by the Supabase platform and not replayable by hosted postgres)"
+    ]
+  },
+  "migrations": [
+    {
+      "path": "supabase/migrations/20260513203455_canonical_jurisdiction_and_workflow_registries.sql",
+      "version": "20260513203455",
+      "name": "canonical_jurisdiction_and_workflow_registries",
+      "kind": "production_baseline",
+      "sha256": "e6388d7bb497073a1c4ea6ffe228a02f19a56b5a70a03064c1190077052d34a8",
+      "productionStatementsSha256": "c8738b389d7cf7efdd350b0377043ce8f11b89c9d709df2274aa6e6e27f52879",
+      "productionRollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reconciliationDisposition": "current_production_schema_squash_at_existing_first_version"
+    },
+    {
+      "path": "supabase/migrations/20260513204002_atlas_registry_safeguards_and_reconciliation_v3.sql",
+      "version": "20260513204002",
+      "name": "atlas_registry_safeguards_and_reconciliation_v3",
+      "kind": "production_ledger_receipt",
+      "sha256": "c33ec4a1e349d06b20ed24485c308107697b03f9e310ca8ddd4014f212303428",
+      "productionStatementsSha256": "5ad540a3ca3d318b69fe802b92110d6d7e513bd3259a47a1d3e9e5b25bfb4be1",
+      "productionRollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reconciliationDisposition": "historical_overlay_superseded_by_current_baseline"
+    },
+    {
+      "path": "supabase/migrations/20260517115802_expand_civic_infrastructure_nodes.sql",
+      "version": "20260517115802",
+      "name": "expand_civic_infrastructure_nodes",
+      "kind": "production_ledger_receipt",
+      "sha256": "f3649dfbfda76bc5070bd5a342051684e86c1d443f9f80dc95b6a3b889305de2",
+      "productionStatementsSha256": "63fd0ea3bfab4dfc73c5c67fccd60a2c31178a1184a6077fb70dc83d21691d2f",
+      "productionRollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reconciliationDisposition": "historical_overlay_superseded_by_current_baseline"
+    },
+    {
+      "path": "supabase/migrations/20260517115822_add_created_at_to_civic_nodes.sql",
+      "version": "20260517115822",
+      "name": "add_created_at_to_civic_nodes",
+      "kind": "production_ledger_receipt",
+      "sha256": "263d3208258934a325f140bacdd5ef7273e25e166f910c6a380eebe317278e57",
+      "productionStatementsSha256": "3a8ab5eea9a73ac74c94f7851b3394020fb156c3ee7ab227e67656da869a0a5b",
+      "productionRollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reconciliationDisposition": "historical_overlay_superseded_by_current_baseline"
+    },
+    {
+      "path": "supabase/migrations/20260517115833_create_unified_civic_infrastructure_view_v2.sql",
+      "version": "20260517115833",
+      "name": "create_unified_civic_infrastructure_view_v2",
+      "kind": "production_ledger_receipt",
+      "sha256": "7557f49e8fec261d5e5566fd5ba87b20a39ce4ac0c241332f49cf0ffc982c69e",
+      "productionStatementsSha256": "a1137ae38d018cf50a954dd6211d781f312b5c4bc1fcf8b12f8b3369883e0840",
+      "productionRollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reconciliationDisposition": "historical_overlay_superseded_by_current_baseline"
+    },
+    {
+      "path": "supabase/migrations/20260602092945_create_signal_intelligence_cards_view_v2.sql",
+      "version": "20260602092945",
+      "name": "create_signal_intelligence_cards_view_v2",
+      "kind": "production_ledger_receipt",
+      "sha256": "66cb3a432ae5a4c71010147156030e41263bebc3131dca1df226a8c8d19e0edf",
+      "productionStatementsSha256": "d1960348c5c5ad841430aa44f1f73d71a37aba844a60e45c8c23b19c6ad71364",
+      "productionRollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reconciliationDisposition": "historical_overlay_superseded_by_current_baseline"
+    },
+    {
+      "path": "supabase/migrations/20260603204953_chronicle_verification_engine_v1.sql",
+      "version": "20260603204953",
+      "name": "chronicle_verification_engine_v1",
+      "kind": "production_ledger_receipt",
+      "sha256": "e3472e771571349387f570ebea6c8757955f0b801b2d25c69ad5be9d5e036201",
+      "productionStatementsSha256": "f77da28b28417b8159a9c84b1260537679ba3cd8348048691332eb65ea351ad6",
+      "productionRollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reconciliationDisposition": "historical_overlay_superseded_by_current_baseline"
+    },
+    {
+      "path": "supabase/migrations/20260603205557_chronicle_candidate_ingest_rpc_v1.sql",
+      "version": "20260603205557",
+      "name": "chronicle_candidate_ingest_rpc_v1",
+      "kind": "production_ledger_receipt",
+      "sha256": "f99402871ff88cd286c030d63f4f586bf947470909aab3b4ca0e4208c62098d7",
+      "productionStatementsSha256": "3355dce4ac803ec56dff7aeb49fa84927f4e97c11c11d4c217ef64b03eed250c",
+      "productionRollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reconciliationDisposition": "historical_overlay_superseded_by_current_baseline"
+    },
+    {
+      "path": "supabase/migrations/20260603213030_chronicle_cohesive_usefulness_gate_v3.sql",
+      "version": "20260603213030",
+      "name": "chronicle_cohesive_usefulness_gate_v3",
+      "kind": "production_ledger_receipt",
+      "sha256": "1a94bbbf1c12fc022b0e94684162a862ed6912730446c808c1b1ed9eb8d42ba5",
+      "productionStatementsSha256": "18ed1f0f7e3d764f15df6b94a649b952fc84a96bcd3bf26d7ed3a90287c98a5f",
+      "productionRollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reconciliationDisposition": "historical_overlay_superseded_by_current_baseline"
+    },
+    {
+      "path": "supabase/migrations/20260729150556_lighthouse_stream_export_contract.sql",
+      "version": "20260729150556",
+      "name": "lighthouse_stream_export_contract",
+      "kind": "production_ledger_receipt",
+      "sha256": "fa7cc8a0ab5fb39964e1ffa186caad4c7823b2d92fa5037b97ede196a0318ed0",
+      "productionStatementsSha256": "fd5db2b7c9c3ae8c4db84e75e406dffd10a0bc80c412ece8066f1e71f2038d0a",
+      "productionRollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reconciliationDisposition": "historical_overlay_superseded_by_current_baseline"
+    },
+    {
+      "path": "supabase/migrations/20260730194805_20260726_event_entity_resolution.sql",
+      "version": "20260730194805",
+      "name": "20260726_event_entity_resolution",
+      "kind": "production_ledger_receipt",
+      "sha256": "4f4efdfb33cae203321ed481f0ecb1962d8e5fe444a673af1d95002cfb63b75a",
+      "productionStatementsSha256": "aea2b1920e735001bf4ce8d03e5447c9788a87d191345e27269a7ef306762fd5",
+      "productionRollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reconciliationDisposition": "historical_overlay_superseded_by_current_baseline"
+    },
+    {
+      "path": "supabase/migrations/20260730195601_20260730_event_entity_resolution_usaspending_extraction_fix.sql",
+      "version": "20260730195601",
+      "name": "20260730_event_entity_resolution_usaspending_extraction_fix",
+      "kind": "production_ledger_receipt",
+      "sha256": "9fa419a00ddb1eb3ae3607e5db8491a7083b2c73e3f92193224b81c9b8f9aacb",
+      "productionStatementsSha256": "b084572002b658571b3ff94bc7ca8be1bd9c5536877eac9707e9f3e3adc66811",
+      "productionRollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reconciliationDisposition": "historical_overlay_superseded_by_current_baseline"
+    },
+    {
+      "path": "supabase/migrations/20260731091207_quarantine_stale_civic_contract_writers.sql",
+      "version": "20260731091207",
+      "name": "quarantine_stale_civic_contract_writers",
+      "kind": "production_ledger_receipt",
+      "sha256": "10e872bf7350d7ad05d6f10173c4b1ea7ff5acdab6877223ef5352b6fc733ef8",
+      "productionStatementsSha256": "3f08957a7ace2f42695a1245ab1a3fe30f115e73fa285bc2ea742712c615ef41",
+      "productionRollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reconciliationDisposition": "historical_overlay_superseded_by_current_baseline"
+    },
+    {
+      "path": "supabase/migrations/20260731092416_complete_stale_lighthouse_queue_quarantine.sql",
+      "version": "20260731092416",
+      "name": "complete_stale_lighthouse_queue_quarantine",
+      "kind": "production_ledger_receipt",
+      "sha256": "a43dccc359b7533896945bd464584184325cfc73d8ee367b25719945e0bb0bd0",
+      "productionStatementsSha256": "4f817048f85ba30a00b6022fe68d0c5be018982c1666f9c2f7b6bfa6586f1b3b",
+      "productionRollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reconciliationDisposition": "historical_overlay_superseded_by_current_baseline"
+    },
+    {
+      "path": "supabase/migrations/20260731092807_disable_stale_lighthouse_queue_trigger.sql",
+      "version": "20260731092807",
+      "name": "disable_stale_lighthouse_queue_trigger",
+      "kind": "production_ledger_receipt",
+      "sha256": "995c3b6491b12bcd1ebb39ec7d3e7cf24322efbdb555c519fa8ec88e910d5f7e",
+      "productionStatementsSha256": "5dd44d424e12a07c0cb540cd10871c7bc258e39c2a0e2af82a4799b54315bebe",
+      "productionRollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reconciliationDisposition": "historical_overlay_superseded_by_current_baseline"
+    },
+    {
+      "path": "supabase/migrations/20260731191916_signal_event_identity_and_live_data_detection.sql",
+      "version": "20260731191916",
+      "name": "signal_event_identity_and_live_data_detection",
+      "kind": "production_ledger_receipt",
+      "sha256": "8ae1671756ee7ed0bbd3798ebf261a5d020e7785d703daeb8f2f93ed3c6431d2",
+      "productionStatementsSha256": "1a15c981475f527cd45d10e7991d89a6f73fb92965e48ee79bb35747cc2044d3",
+      "productionRollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reconciliationDisposition": "historical_overlay_superseded_by_current_baseline"
+    },
+    {
+      "path": "supabase/migrations/20260731192021_signal_event_identity_hardening.sql",
+      "version": "20260731192021",
+      "name": "signal_event_identity_hardening",
+      "kind": "production_ledger_receipt",
+      "sha256": "5e10f0d7e2ae50fbde230d9de90abeef2d73bb952869b394acb78691237eb66d",
+      "productionStatementsSha256": "c265f053cfe6d35218795bc103adb989cc4408900d4a6e822a14a0c066adee23",
+      "productionRollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reconciliationDisposition": "historical_overlay_superseded_by_current_baseline"
+    },
+    {
+      "path": "supabase/migrations/20260731194318_domain3_candidate_identity_receipt.sql",
+      "version": "20260731194318",
+      "name": "domain3_candidate_identity_receipt",
+      "kind": "production_ledger_receipt",
+      "sha256": "b63bad73bccd4c99e26ada154a6a23f43f6f07c13bfe73d706b8d1783683c830",
+      "productionStatementsSha256": "0f9af0f8656021fea2177cf972d56487474b48a93a112e88e464368f08c7896b",
+      "productionRollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reconciliationDisposition": "historical_overlay_superseded_by_current_baseline"
+    },
+    {
+      "path": "supabase/migrations/20260731200914_domain3_pg_net_transport.sql",
+      "version": "20260731200914",
+      "name": "domain3_pg_net_transport",
+      "kind": "production_ledger_receipt",
+      "sha256": "28a80b122218bf89aa91f17a13e9871e676222a858d38036f78fd4989d5bdef8",
+      "productionStatementsSha256": "3ae4c33ba160bc6ec3c073130a061d3a7ff5d5930a5c7a13c4c974b67b85e218",
+      "productionRollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reconciliationDisposition": "historical_overlay_superseded_by_current_baseline"
+    },
+    {
+      "path": "supabase/migrations/20260801233925_atlas_convergence_v21_atomic_persistence.sql",
+      "version": "20260801233925",
+      "name": "atlas_convergence_v21_atomic_persistence",
+      "kind": "production_ledger_receipt",
+      "sha256": "2fb0c06a5705c489117a89af473a54fe86941a22ca8dc56d181f62a8036f02d1",
+      "productionStatementsSha256": "ca5d7f232724778a91d866f7572f57cfc44f24fc810c206d6b56a7ce654094c6",
+      "productionRollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reconciliationDisposition": "historical_overlay_superseded_by_current_baseline"
+    },
+    {
+      "path": "supabase/migrations/20260801235025_atlas_convergence_v21_persistence_timeout.sql",
+      "version": "20260801235025",
+      "name": "atlas_convergence_v21_persistence_timeout",
+      "kind": "production_ledger_receipt",
+      "sha256": "8b18cbbbc5c12679a847ccba0f9a62500b75883a10e07118f90a605ecc54507d",
+      "productionStatementsSha256": "85e3740b2582325178f463d49bede89e2f757cf929f3f675cd8138a8949e3121",
+      "productionRollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reconciliationDisposition": "historical_overlay_superseded_by_current_baseline"
+    },
+    {
+      "path": "supabase/migrations/20260804060700_convergence_replay_snapshot_contract.sql",
+      "version": "20260804060700",
+      "name": "convergence_replay_snapshot_contract",
+      "kind": "production_ledger_receipt",
+      "sha256": "c3eda7c2fbf78a486cd7b0e06d4e3de2e0ae6cebc895a1b71578e81a2864eb27",
+      "productionStatementsSha256": "c1920694a47efbc79e4811f7c26fde230da765296b3e100f0796790aec9cd75a",
+      "productionRollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reconciliationDisposition": "historical_overlay_superseded_by_current_baseline"
+    },
+    {
+      "path": "supabase/migrations/20260804061454_convergence_source_identity_stability.sql",
+      "version": "20260804061454",
+      "name": "convergence_source_identity_stability",
+      "kind": "production_ledger_receipt",
+      "sha256": "b3fc820b41b525537a544d9037c9a82139a3f9d3fba78de87d454c59346490f2",
+      "productionStatementsSha256": "a19bc14b0963959c177aa5c56b4b40c14c324f917e6cb70b63b71c195f659ce7",
+      "productionRollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reconciliationDisposition": "historical_overlay_superseded_by_current_baseline"
+    },
+    {
+      "path": "supabase/migrations/20260804062745_legacy_verification_chronicle_quarantine.sql",
+      "version": "20260804062745",
+      "name": "legacy_verification_chronicle_quarantine",
+      "kind": "production_ledger_receipt",
+      "sha256": "67a682635d61317ff13953b6009d18220c388d1c4b1e0ee1ca7f22710e40e6fa",
+      "productionStatementsSha256": "5041f3cb975e1a6437085585c90c120bd169890921cda3502796271b7fe2658e",
+      "productionRollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reconciliationDisposition": "historical_overlay_superseded_by_current_baseline"
+    },
+    {
+      "path": "supabase/migrations/20260806050236_domain3_http_transport_activation.sql",
+      "version": "20260806050236",
+      "name": "domain3_http_transport_activation",
+      "kind": "production_ledger_receipt",
+      "sha256": "abb22a8bb0ccfb7be1b8725a676bfe1dafe6cab1aab1e33ec91e8a7d1a37bfb1",
+      "productionStatementsSha256": "aa79ef7da941d50240ede9c006b7a2f59c5fe9657f2ac074b5f114c6de82accc",
+      "productionRollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reconciliationDisposition": "historical_overlay_superseded_by_current_baseline"
+    },
+    {
+      "path": "supabase/migrations/20260806054334_domain3_direct_lighthouse_receipt_endpoint.sql",
+      "version": "20260806054334",
+      "name": "domain3_direct_lighthouse_receipt_endpoint",
+      "kind": "production_ledger_receipt",
+      "sha256": "a810f725d24359b53392a09226ca4dfaf4137fc834c1479484d41c2f9ca84a96",
+      "productionStatementsSha256": "6974b2e164861fa6c34fee772df0ab72bd851fae6e01768cd354e1ecd6114aeb",
+      "productionRollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reconciliationDisposition": "historical_overlay_superseded_by_current_baseline"
+    },
+    {
+      "path": "supabase/migrations/20260806195023_atlas_source_health_receipts_v1.sql",
+      "version": "20260806195023",
+      "name": "atlas_source_health_receipts_v1",
+      "kind": "production_ledger_receipt",
+      "sha256": "3240a576c965c60893d8f72319e50d19fc54ccb0b073738d3943c7bde4a7038c",
+      "productionStatementsSha256": "a90340185b2f025fe579684bf27509c008fbf4eb7d321be85cb47d61086e8b1f",
+      "productionRollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reconciliationDisposition": "historical_overlay_superseded_by_current_baseline"
+    },
+    {
+      "path": "supabase/migrations/20260806204135_civic_genome_external_snapshot_intake_v1.sql",
+      "version": "20260806204135",
+      "name": "civic_genome_external_snapshot_intake_v1",
+      "kind": "production_ledger_receipt",
+      "sha256": "3cbdc816bbefd79651f0dba63ae5c36629d3db28eb6dbd6c97ab33b5e1b9e508",
+      "productionStatementsSha256": "36f4e7c937a4fae2a9d1150ebd03f1e7a7f9aa0c1df6070ed4f7888b6a7261a9",
+      "productionRollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reconciliationDisposition": "historical_overlay_superseded_by_current_baseline"
+    },
+    {
+      "path": "supabase/migrations/20260806224714_civic_genome_legislative_projection_v1.sql",
+      "version": "20260806224714",
+      "name": "civic_genome_legislative_projection_v1",
+      "kind": "production_ledger_receipt",
+      "sha256": "377198fc4f4f98a60be36b4060f2907642902912e3e43bf86e13a42057627ab3",
+      "productionStatementsSha256": "d6960b667d2f32b1c167406eac98409e7cef0d6ab6e423341cf849e8d7ec183d",
+      "productionRollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reconciliationDisposition": "historical_overlay_superseded_by_current_baseline"
+    },
+    {
+      "path": "supabase/migrations/20260806225709_civic_genome_trait_binding_accounting_v1.sql",
+      "version": "20260806225709",
+      "name": "civic_genome_trait_binding_accounting_v1",
+      "kind": "production_ledger_receipt",
+      "sha256": "fa1745037602c2e5c65e87cee35c77964abbd9a894d8e8ea0843e382144a71c6",
+      "productionStatementsSha256": "15141539b71e8e29d77ae31b97232a9eecc9c53bb1ba6245f6004600f595d5f9",
+      "productionRollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reconciliationDisposition": "historical_overlay_superseded_by_current_baseline"
+    },
+    {
+      "path": "supabase/migrations/20260806230022_fix_trait_accounting_lock_expression.sql",
+      "version": "20260806230022",
+      "name": "fix_trait_accounting_lock_expression",
+      "kind": "production_ledger_receipt",
+      "sha256": "d8328a6e8c1420e97b1d860ffdfd00e3b47b6d3fb86f56e41a07e5305829d612",
+      "productionStatementsSha256": "1819db2363706f3610fb9afb86d12c9dd57451f86c42d6ffb18fae13ad91ad08",
+      "productionRollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reconciliationDisposition": "historical_overlay_superseded_by_current_baseline"
+    },
+    {
+      "path": "supabase/migrations/20260809155505_atlas_live_operator_surface.sql",
+      "version": "20260809155505",
+      "name": "atlas_live_operator_surface",
+      "kind": "production_ledger_receipt",
+      "sha256": "af859c866846ca2e4e0c994b4389f1de2012bddaabe0359c6dc678ebc050c3db",
+      "productionStatementsSha256": "a0fc0eb93c52e0c9e0460d4718f316d10211420c7c1ed718574c0784c3b711b4",
+      "productionRollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reconciliationDisposition": "historical_overlay_superseded_by_current_baseline"
+    },
+    {
+      "path": "supabase/migrations/20260809155739_atlas_live_operator_surface_security.sql",
+      "version": "20260809155739",
+      "name": "atlas_live_operator_surface_security",
+      "kind": "production_ledger_receipt",
+      "sha256": "bac097351596c93338f42a45e7704feb409ed50e662f3343a80367379a9187d7",
+      "productionStatementsSha256": "97148df245922123ac74be3a3eb4d40911bea518eeceb532c7df509ab25689a9",
+      "productionRollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reconciliationDisposition": "historical_overlay_superseded_by_current_baseline"
+    },
+    {
+      "path": "supabase/migrations/20260809160901_atlas_live_operator_surface_compact_reads.sql",
+      "version": "20260809160901",
+      "name": "atlas_live_operator_surface_compact_reads",
+      "kind": "production_ledger_receipt",
+      "sha256": "2044c8e6b6b17e72df5011ac1d11ecdddcb269d19b24a3ec31925ec66236db2e",
+      "productionStatementsSha256": "d8294b1e635af7c5e619017c2e678807b2ff2ff750145ebf1e60fcc33f4d557d",
+      "productionRollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reconciliationDisposition": "historical_overlay_superseded_by_current_baseline"
+    },
+    {
+      "path": "supabase/migrations/20260809170900_atlas_signal_ontology_read_model.sql",
+      "version": "20260809170900",
+      "name": "atlas_signal_ontology_read_model",
+      "kind": "production_ledger_receipt",
+      "sha256": "b462177a6c31890b0f8ed06a0a114d5e6b380c2db4afc144c02d595e6dc5dced",
+      "productionStatementsSha256": "57f224852e14936c323d00d9e485cb4b8131ba8651bb92ae8ad6133d20a86084",
+      "productionRollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reconciliationDisposition": "historical_overlay_superseded_by_current_baseline"
+    },
+    {
+      "path": "supabase/migrations/20260809171314_atlas_signal_ontology_read_model_privileges.sql",
+      "version": "20260809171314",
+      "name": "atlas_signal_ontology_read_model_privileges",
+      "kind": "production_ledger_receipt",
+      "sha256": "7f7164e99187232723d38910f384032c43aa725453edd7cfda019aeb4bf41133",
+      "productionStatementsSha256": "0e70f09716f384d4b1ceab36627e6030323022504c0aace744e8b7a5136fb083",
+      "productionRollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reconciliationDisposition": "historical_overlay_superseded_by_current_baseline"
+    },
+    {
+      "path": "supabase/migrations/20260811121639_domain3_population_persistence_rpc.sql",
+      "version": "20260811121639",
+      "name": "domain3_population_persistence_rpc",
+      "kind": "production_ledger_receipt",
+      "sha256": "046c5cbc92bfe97b23164697d36ece5db648c658a38414fe98f79268b3970700",
+      "productionStatementsSha256": "389b4e5c9816c474c0f42135378ad17ee000aabf8d82a06939cd6ad76b788eaa",
+      "productionRollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reconciliationDisposition": "historical_overlay_superseded_by_current_baseline"
+    },
+    {
+      "path": "supabase/migrations/20260811122914_domain3_lighthouse_state_projection.sql",
+      "version": "20260811122914",
+      "name": "domain3_lighthouse_state_projection",
+      "kind": "production_ledger_receipt",
+      "sha256": "b27c6271066f9920d398311dda961cff120c716b6f89787da8aa03c9e2722730",
+      "productionStatementsSha256": "58636d83f48e7a0caf323751a0a10619e4ac74bc4f8ffb0b017a21cdf9fa2c61",
+      "productionRollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reconciliationDisposition": "historical_overlay_superseded_by_current_baseline"
+    },
+    {
+      "path": "supabase/migrations/20260811152908_atlas_stream_runtime_projection_bridge.sql",
+      "version": "20260811152908",
+      "name": "atlas_stream_runtime_projection_bridge",
+      "kind": "production_ledger_receipt",
+      "sha256": "bf218bc3d732416400c6be02d760b3bd36ce66c8b7e3242b8555e6676af7d564",
+      "productionStatementsSha256": "393a7988feb27e760b22f9be3a9db2e246256623eb2cd842969ce69504a44c5c",
+      "productionRollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reconciliationDisposition": "historical_overlay_superseded_by_current_baseline"
+    },
+    {
+      "path": "supabase/migrations/20260811161224_domain3_candidate_semantic_currentness.sql",
+      "version": "20260811161224",
+      "name": "domain3_candidate_semantic_currentness",
+      "kind": "production_ledger_receipt",
+      "sha256": "54fc75e273013ee954dc633df75c74c98a87529e9a735c38e8990b0ce0d7ae9f",
+      "productionStatementsSha256": "1c53d2fec30c75d14e7c2857932aa8b539bab7b40a130ebd398a50837d6154a8",
+      "productionRollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reconciliationDisposition": "historical_overlay_superseded_by_current_baseline"
+    },
+    {
+      "path": "supabase/migrations/20260811161803_signal_ontology_currentness_read_model.sql",
+      "version": "20260811161803",
+      "name": "signal_ontology_currentness_read_model",
+      "kind": "production_ledger_receipt",
+      "sha256": "472a28c8c69169b3e3da59d548d07657b595ed42009bce9d452f9f519cc3a9b3",
+      "productionStatementsSha256": "bd423d81d99a411d891feafab161df5630b3cd6e12bacf3b9ca97af35c502fc5",
+      "productionRollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reconciliationDisposition": "historical_overlay_superseded_by_current_baseline"
+    },
+    {
+      "path": "supabase/migrations/20260812084344_domain3_semantic_currentness_review_fixes.sql",
+      "version": "20260812084344",
+      "name": "domain3_semantic_currentness_review_fixes",
+      "kind": "production_ledger_receipt",
+      "sha256": "4069c4dbdf7fbc34026ec258716b778ac2acdecf9b14d12de3c485a01f9f9705",
+      "productionStatementsSha256": "7c2272dd8fb3b5ce199482e887ed347489e046c46a799d599dbf646e65d971b0",
+      "productionRollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reconciliationDisposition": "historical_overlay_superseded_by_current_baseline"
+    },
+    {
+      "path": "supabase/migrations/20260815085914_domain3_propublica_seed_deduplication.sql",
+      "version": "20260815085914",
+      "name": "domain3_propublica_seed_deduplication",
+      "kind": "production_ledger_receipt",
+      "sha256": "3ec8b01f20c21d0e6564994b919f9c555075ceecdb0e72624a4216a1dfdfff39",
+      "productionStatementsSha256": "2cfbad73f2ebc0667fa54d184fc7c8388dba04afa955e3b27e1328113b1a5a83",
+      "productionRollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reconciliationDisposition": "historical_overlay_superseded_by_current_baseline"
+    },
+    {
+      "path": "supabase/migrations/20260815090032_domain3_entity_aware_candidate_semantic_identity.sql",
+      "version": "20260815090032",
+      "name": "domain3_entity_aware_candidate_semantic_identity",
+      "kind": "production_ledger_receipt",
+      "sha256": "78d977e8c629b989f7e79dda10fdc8e9b18c2cbcd59400ffb503f1dd84133cc9",
+      "productionStatementsSha256": "7fb7aed9e687d640c6f176e23d33999e30dcc3ce3f9ee0ba9e856f0cdb67b6cc",
+      "productionRollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reconciliationDisposition": "historical_overlay_superseded_by_current_baseline"
+    },
+    {
+      "path": "supabase/migrations/20260815090211_domain3_propublica_sequential_candidate_upsert.sql",
+      "version": "20260815090211",
+      "name": "domain3_propublica_sequential_candidate_upsert",
+      "kind": "production_ledger_receipt",
+      "sha256": "e1b6e625331a3688ef02cce15b1265712599adc2cdf9befbccdb2c88dc693a4b",
+      "productionStatementsSha256": "b87dd4813cb27cca0a39d57f745d49d53c3c36be1a66c6252f1a09bb9aef6733",
+      "productionRollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reconciliationDisposition": "historical_overlay_superseded_by_current_baseline"
+    },
+    {
+      "path": "supabase/migrations/20260815090334_domain3_currentness_upsert_self_conflict_guard.sql",
+      "version": "20260815090334",
+      "name": "domain3_currentness_upsert_self_conflict_guard",
+      "kind": "production_ledger_receipt",
+      "sha256": "3885f2cddcb8e549a1d0a3fddd34f7cf8d921391ba281bc16b388a37049c70fb",
+      "productionStatementsSha256": "58f318ab0d05331b770eea321e209e404764c3ce5e6a065356622b0745dd8e2a",
+      "productionRollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reconciliationDisposition": "historical_overlay_superseded_by_current_baseline"
+    },
+    {
+      "path": "supabase/migrations/20260815092738_domain3_negative_currentness_retirement.sql",
+      "version": "20260815092738",
+      "name": "domain3_negative_currentness_retirement",
+      "kind": "production_ledger_receipt",
+      "sha256": "fd3059677c02a5b0597f2a46e93dff12c3145485f130954984fbc5b02cdbbd26",
+      "productionStatementsSha256": "6757f5aa587ad1538765a528d94a14b07d359c1f6f99624f374c444b43c548c6",
+      "productionRollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reconciliationDisposition": "historical_overlay_superseded_by_current_baseline"
+    },
+    {
+      "path": "supabase/migrations/20260822075306_domain3_integrity_projection_identity.sql",
+      "version": "20260822075306",
+      "name": "domain3_integrity_projection_identity",
+      "kind": "production_ledger_receipt",
+      "sha256": "ac4a2444bf9cf7cf876a5580e9ccf0ee573be70645cea409b4933a3abbb3c959",
+      "productionStatementsSha256": "ae5a13e72379967dd78b3c38359cb4dec6417a2380b043b1da224cb8a526bbf8",
+      "productionRollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reconciliationDisposition": "historical_overlay_superseded_by_current_baseline"
+    },
+    {
+      "path": "supabase/migrations/20260822082205_stream_runtime_summary_indexed_read.sql",
+      "version": "20260822082205",
+      "name": "stream_runtime_summary_indexed_read",
+      "kind": "production_ledger_receipt",
+      "sha256": "1a8d2fd69555c262b2f4820953e9c803ece6485a674b5ccab1d81e2f430912a1",
+      "productionStatementsSha256": "bf70abd5a6f0f41b230e9bd12ad4fec2c18c67fbfdf40a0364932e81a5d3cf69",
+      "productionRollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reconciliationDisposition": "historical_overlay_superseded_by_current_baseline"
+    }
+  ]
+}

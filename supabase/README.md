@@ -1,9 +1,10 @@
 # Atlas Supabase migration boundary
 
-`supabase/migrations/` is the only canonical migration root. It is deliberately
-empty and marked `blocked` in `migration-manifest.json`; Atlas does not yet have
-a reviewed, production-derived baseline that can rebuild an empty database.
-This is a safety state, not a claim that Atlas has no database changes.
+`supabase/migrations/` is the only canonical migration root. It now contains a
+generated 49-version `candidate` chain: one current production-derived schema
+squash at the existing first production-ledger version and 48 historical
+ledger receipts. `candidate` is deliberately not `ready`; it lets isolated
+replay run while the final gate remains fail-closed.
 
 ## Retrieved production observations (2026-08-30)
 
@@ -16,29 +17,43 @@ This is a safety state, not a claim that Atlas has no database changes.
   `supabase/evidence/production-migration-ledger.json` (file SHA-256
   `7bb1cad2173705e1ff645132484e9c4bdca63c44cb9d2baa82da2e9b73d08c07`).
   The validator recomputes its ordered digest on every run.
-- Live schema fingerprint SHA-256:
-  `c030cce77d6c9d11c4bda304c05902b49f08708eecd687ca042afc7a304b6582`.
+- The complete read-only catalog capture covers 3 application schemas, 209
+  relations, 2,514 columns, 425 constraints, 451 indexes, 34 sequences, 96
+  functions, 61 views, 20 triggers, 45 policies, and 114 comments. The
+  deterministic evidence-root SHA-256 is
+  `5af30282c1b0e3a09de8370e0cac86bf7db78a6d7bdaa36cd2e216db799b7f26`.
 - Production extensions include `pgcrypto`, `http`, `pg_net`, `uuid-ossp`,
   `pg_stat_statements`, `supabase_vault`, and `plpgsql`. The baseline must not
   pin extension versions.
 - A catalog/FK dependency closure identified 22 foundational relations absent
   from the represented ledger before first use. The closure evidence SHA-256
   is `cd88ccc1e64eb54bccd55274ddd4e74509c8c3060d715d0f90c583eae0b11317`.
-  Current catalog state does not prove every historical pre-ledger shape.
+  Lost pre-ledger shapes are explicitly represented as a current-state squash,
+  not fabricated history.
 - Two ledger rows executed SQL obtained from transient
   `net._http_response` rows. Those response rows no longer exist. Exact source
   payloads were recovered by content hash at
   `src/schema/20260726_event_entity_resolution.sql` and
   `src/schema/20260730_event_entity_resolution_usaspending_extraction_fix.sql`;
-  the ledger itself remains non-replayable.
-- `pg_net` exists in production and is required by a later ledger migration,
-  but no ledger statement creates it.
+  neither transient row nor runtime fetch is used by the canonical chain.
+- The candidate baseline declares `pg_net` without pinning its version before
+  any dependent function.
+- Sixteen retired, invalid, or unsupported runtime functions and four bridge
+  triggers are intentionally excluded. The `atlas` schema and four sensitive
+  bridge/export functions are tightened to `service_role` only. These are
+  reviewed target differences from the captured production catalog, not
+  accidental drift.
+- Platform-owned `supabase_admin` default ACLs are evidence only and are not
+  replayed by the unprivileged hosted migration role. Future postgres-owned
+  objects in `atlas`, `public`, and `private` default to `service_role` access;
+  existing public table/view grants and RLS policies remain represented unless
+  an object is explicitly listed as hardened.
 
 ## Repository classifications
 
 | Root | Classification | Rule |
 | --- | --- | --- |
-| `supabase/migrations/` | Canonical | Reviewed, timestamped Supabase CLI migrations only |
+| `supabase/migrations/` | Canonical | Deterministically generated baseline and ledger receipts |
 | `supabase/tests/` | Validation SQL | pgTAP acceptance checks; never schema source |
 | `src/schema/` | Noncanonical input | Hash-inventoried legacy SQL, dumps, and verification scripts |
 | `sql/openstates/` | Noncanonical input | Duplicate destructive operational cleanup SQL |
@@ -55,8 +70,8 @@ tooling, or matching workflow change as database-bearing. If Git history is
 too shallow or the comparison base is unavailable, classification is
 conservatively database-bearing.
 
-For a database-bearing change, the gate requires `canonical.status=ready`, then
-uses pinned Supabase CLI 2.116.0 and `major_version = 17` to:
+For a database-bearing change, `candidate` and `ready` states use pinned
+Supabase CLI 2.116.0 and `major_version = 17` to:
 
 1. start an isolated local Supabase stack;
 2. replay every canonical migration from empty;
@@ -64,30 +79,25 @@ uses pinned Supabase CLI 2.116.0 and `major_version = 17` to:
 4. fail on database lint errors;
 5. compare the local ledger before and after `supabase migration up --local`
    to prove dirty replay is a no-op; and
-6. reset and replay a second time to expose order-dependent state.
+6. reset and replay a second time to expose order-dependent state; and
+7. require `canonical.status=ready` as the final step.
 
-With the baseline blocked, non-database PRs can pass the static inventory
-check, while database-bearing PRs fail closed before a misleading preview can
-be treated as success.
+That ordering produces replay evidence for a candidate without allowing the
+check to turn green prematurely. Deleted migration-boundary files are included
+in path classification.
 
 ## Baseline closure procedure
 
-No production command was run by this repair. Production remains read-only.
-To move the manifest to `ready`, a reviewer must:
+Production has remained read-only. The catalog capture, deterministic
+reconstruction, historical receipts, explicit exclusions, conservative grant
+decision, and source hashes are complete. To move `candidate` to `ready`, this
+same commit must still:
 
-1. obtain a complete schema-only export from the Atlas project through an
-   explicitly approved, read-only workflow;
-2. reconcile catalog-derived DDL, all 49 ledger rows, the two recovered
-   transient payloads, foundational extensions, roles, grants, RLS, policies,
-   default privileges, triggers, functions, and materialized views;
-   do not substitute current final-state Atlas DDL for unknown historical DDL;
-3. create the baseline filename with the Supabase CLI (never handcraft the
-   timestamp), review it, and record its SHA-256 in the manifest;
-4. prove an empty PostgreSQL 17-compatible Supabase reset, a dirty
+1. prove an empty PostgreSQL 17-compatible Supabase reset, a dirty
    `supabase migration up --local` no-op, and a second clean reset;
-5. run `supabase test db`, `supabase db lint --local --fail-on error`, and the
+2. run `supabase test db`, `supabase db lint --local --fail-on error`, and the
    Supabase security advisors; and
-6. create a fresh isolated branch preview and confirm local/remote migration
+3. create a fresh isolated branch preview and confirm local/remote migration
    parity before any merge or deployment.
 
 Supabase's current workflow documentation recommends `supabase db pull` when
@@ -105,16 +115,17 @@ ledger and is not an acceptable normal deployment path.
 
 ## Current unknowns
 
-- A complete, reviewable production schema-only export is not yet available.
-- The 22-relation dependency closure is inventoried, but original historical
-  DDL for Atlas-schema core relations and pre-20260517 policies/grants for
-  `public.civic_infrastructure_nodes` remain unknown.
-- Production default privileges, all function ownership/search paths, and all
-  RLS/grant equivalence have not yet been reconciled into a replayable file.
-- Whether anonymous/authenticated execution on the two Lighthouse export RPCs
-  remains intended requires a product/security decision.
-- No fresh Atlas Supabase preview has passed the canonical chain because that
-  chain is intentionally not claimed complete.
+- Original pre-ledger history is irrecoverable. The accepted operational model
+  is a transparent current production-derived squash, and must always be
+  described that way.
+- Local PG17 replay has not yet run on a GitHub runner.
+- The fresh hosted Atlas preview has not yet applied and fingerprinted this
+  49-version candidate chain.
+- Fresh preview security-advisor output has not yet confirmed the intended
+  removal of the four Lighthouse SECURITY DEFINER warnings.
+- The production Data API exposed-schema setting still requires direct
+  verification; the candidate nevertheless revokes `atlas` usage from
+  anonymous and authenticated roles.
 
 References: [Supabase local development workflow](https://supabase.com/docs/guides/local-development/cli-workflows),
 [database migrations](https://supabase.com/docs/guides/local-development/database-migrations),

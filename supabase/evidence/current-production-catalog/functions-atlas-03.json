@@ -1,0 +1,394 @@
+{
+  "schemaVersion": 1,
+  "evidenceKind": "Atlas current production function catalog",
+  "capturedAt": "2026-08-30T20:40:00Z",
+  "projectRef": "bjdjjgnkhxblnpdrjqtw",
+  "schema": "atlas",
+  "offset": 30,
+  "functions": [
+    {
+      "kind": "f",
+      "name": "log_provenance",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public, atlas"
+      ],
+      "grants": [
+        {
+          "grantee": "PUBLIC",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "trigger",
+      "schema": "atlas",
+      "strict": false,
+      "comment": null,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION atlas.log_provenance()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public', 'atlas'\nAS $function$\nBEGIN\n    INSERT INTO atlas.provenance (table_name, record_id, action, actor_id, old_data, new_data, created_at)\n    VALUES (\n        TG_TABLE_NAME,\n        COALESCE(NEW.id, OLD.id),\n        TG_OP,\n        auth.uid(),\n        to_jsonb(OLD),\n        to_jsonb(NEW),\n        now()\n    );\n    RETURN COALESCE(NEW, OLD);\nEND;\n$function$\n",
+      "volatility": "v",
+      "security_definer": true,
+      "identity_arguments": ""
+    },
+    {
+      "kind": "f",
+      "name": "map_severity_to_enum",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public, atlas"
+      ],
+      "grants": [
+        {
+          "grantee": "PUBLIC",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "text",
+      "schema": "atlas",
+      "strict": false,
+      "comment": null,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION atlas.map_severity_to_enum(p_severity numeric)\n RETURNS text\n LANGUAGE plpgsql\n SET search_path TO 'pg_catalog', 'public', 'atlas'\nAS $function$\nBEGIN\n    IF p_severity >= 0.90 THEN\n        RETURN 'critical';\n    ELSIF p_severity >= 0.80 THEN\n        RETURN 'high';\n    ELSIF p_severity >= 0.60 THEN\n        RETURN 'medium';\n    ELSE\n        RETURN 'low';\n    END IF;\nEND;\n$function$\n",
+      "volatility": "v",
+      "security_definer": false,
+      "identity_arguments": "p_severity numeric"
+    },
+    {
+      "kind": "f",
+      "name": "prevent_civic_genome_legislative_projection_mutation",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, atlas"
+      ],
+      "grants": [
+        {
+          "grantee": "PUBLIC",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "trigger",
+      "schema": "atlas",
+      "strict": false,
+      "comment": null,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION atlas.prevent_civic_genome_legislative_projection_mutation()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO 'pg_catalog', 'atlas'\nAS $function$\nbegin\n  raise exception 'Atlas Civic Genome legislative projection receipts are immutable';\nend;\n$function$\n",
+      "volatility": "v",
+      "security_definer": false,
+      "identity_arguments": ""
+    },
+    {
+      "kind": "f",
+      "name": "prevent_civic_genome_snapshot_mutation",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, atlas"
+      ],
+      "grants": [
+        {
+          "grantee": "PUBLIC",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "trigger",
+      "schema": "atlas",
+      "strict": false,
+      "comment": null,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION atlas.prevent_civic_genome_snapshot_mutation()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO 'pg_catalog', 'atlas'\nAS $function$ begin raise exception 'Atlas Civic Genome external snapshots are immutable'; end; $function$\n",
+      "volatility": "v",
+      "security_definer": false,
+      "identity_arguments": ""
+    },
+    {
+      "kind": "f",
+      "name": "prevent_civic_genome_trait_accounting_mutation",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, atlas"
+      ],
+      "grants": [
+        {
+          "grantee": "PUBLIC",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "trigger",
+      "schema": "atlas",
+      "strict": false,
+      "comment": null,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION atlas.prevent_civic_genome_trait_accounting_mutation()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO 'pg_catalog', 'atlas'\nAS $function$\nbegin\n  raise exception 'Atlas Civic Genome trait accounting receipts are immutable';\nend;\n$function$\n",
+      "volatility": "v",
+      "security_definer": false,
+      "identity_arguments": ""
+    },
+    {
+      "kind": "f",
+      "name": "prevent_convergence_mutation",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, atlas"
+      ],
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "trigger",
+      "schema": "atlas",
+      "strict": false,
+      "comment": null,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION atlas.prevent_convergence_mutation()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO 'pg_catalog', 'atlas'\nAS $function$\nbegin\n  raise exception 'Atlas convergence persistence is immutable';\nend;\n$function$\n",
+      "volatility": "v",
+      "security_definer": false,
+      "identity_arguments": ""
+    },
+    {
+      "kind": "f",
+      "name": "resolve_signal_event_entity_candidate_exact_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public, atlas, extensions"
+      ],
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "TABLE(expected_resolution_status text, expected_match_method text, expected_entity_id text, expected_candidate_entity_ids text[])",
+      "schema": "atlas",
+      "strict": false,
+      "comment": null,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION atlas.resolve_signal_event_entity_candidate_exact_v1(p_normalized_entity_value text, p_source_identifier_type text, p_normalized_identifier_value text, p_expected_entity_type text)\n RETURNS TABLE(expected_resolution_status text, expected_match_method text, expected_entity_id text, expected_candidate_entity_ids text[])\n LANGUAGE plpgsql\n STABLE\n SET search_path TO 'pg_catalog', 'public', 'atlas', 'extensions'\nAS $function$\nDECLARE\n  v_identifier_type text := lower(NULLIF(btrim(p_source_identifier_type), ''));\n  v_identifier_ids text[] := ARRAY[]::text[];\n  v_primary_ids text[] := ARRAY[]::text[];\n  v_variant_ids text[] := ARRAY[]::text[];\n  v_alias_ids text[] := ARRAY[]::text[];\n  v_name_ids text[] := ARRAY[]::text[];\n  v_all_ids text[] := ARRAY[]::text[];\n  v_status text := 'unresolved';\n  v_method text;\n  v_entity_id text := NULL;\n  v_prospective_entity_id text := NULL;\n  v_actual_entity_type text;\nBEGIN\n  v_method := CASE\n    WHEN p_normalized_identifier_value IS NOT NULL OR p_normalized_entity_value IS NOT NULL\n      THEN 'no_exact_match'\n    ELSE 'no_usable_identity_value'\n  END;\n\n  IF p_normalized_identifier_value IS NOT NULL AND v_identifier_type IS NOT NULL THEN\n    IF v_identifier_type = 'canonical_entity_id' THEN\n      SELECT COALESCE(array_agg(er.entity_id::text ORDER BY er.entity_id::text), ARRAY[]::text[])\n      INTO v_identifier_ids\n      FROM atlas.entity_registry er\n      WHERE er.is_active IS DISTINCT FROM false\n        AND er.entity_id::text = p_normalized_identifier_value;\n    ELSE\n      SELECT COALESCE(\n        array_agg(DISTINCT er.entity_id::text ORDER BY er.entity_id::text),\n        ARRAY[]::text[]\n      )\n      INTO v_identifier_ids\n      FROM atlas.entity_registry er\n      WHERE er.is_active IS DISTINCT FROM false\n        AND (\n          public.atlas_normalize_entity_identifier_v1(\n            v_identifier_type,\n            er.metadata->>v_identifier_type\n          ) = p_normalized_identifier_value\n          OR (\n            atlas.infer_entity_identifier_type_v1(\n              er.source_population_table,\n              er.source_systems,\n              er.metadata,\n              er.source_external_id\n            ) = v_identifier_type\n            AND public.atlas_normalize_entity_identifier_v1(\n              v_identifier_type,\n              er.source_external_id\n            ) = p_normalized_identifier_value\n          )\n          OR (\n            atlas.infer_entity_identifier_type_v1(\n              er.source_population_table,\n              er.source_systems,\n              er.metadata,\n              er.source_population_id\n            ) = v_identifier_type\n            AND public.atlas_normalize_entity_identifier_v1(\n              v_identifier_type,\n              er.source_population_id\n            ) = p_normalized_identifier_value\n          )\n        );\n    END IF;\n  END IF;\n\n  IF p_normalized_entity_value IS NOT NULL THEN\n    SELECT COALESCE(\n      array_agg(DISTINCT er.entity_id::text ORDER BY er.entity_id::text),\n      ARRAY[]::text[]\n    )\n    INTO v_primary_ids\n    FROM atlas.entity_registry er\n    WHERE er.is_active IS DISTINCT FROM false\n      AND public.atlas_normalize_entity_name_v1(er.primary_name) = p_normalized_entity_value;\n\n    SELECT COALESCE(\n      array_agg(DISTINCT er.entity_id::text ORDER BY er.entity_id::text),\n      ARRAY[]::text[]\n    )\n    INTO v_variant_ids\n    FROM atlas.entity_registry er\n    WHERE er.is_active IS DISTINCT FROM false\n      AND EXISTS (\n        SELECT 1\n        FROM jsonb_array_elements(\n          CASE\n            WHEN jsonb_typeof(er.name_variants) = 'array' THEN er.name_variants\n            ELSE '[]'::jsonb\n          END\n        ) AS variant(value)\n        WHERE public.atlas_normalize_entity_name_v1(\n          CASE\n            WHEN jsonb_typeof(variant.value) = 'string' THEN variant.value #>> '{}'\n            WHEN jsonb_typeof(variant.value) = 'object' THEN COALESCE(\n              variant.value->>'name',\n              variant.value->>'value',\n              variant.value->>'alias'\n            )\n            ELSE NULL\n          END\n        ) = p_normalized_entity_value\n      );\n\n    SELECT COALESCE(\n      array_agg(DISTINCT er.entity_id::text ORDER BY er.entity_id::text),\n      ARRAY[]::text[]\n    )\n    INTO v_alias_ids\n    FROM atlas.entity_aliases ea\n    JOIN atlas.entity_registry er ON er.entity_id = ea.entity_id\n    WHERE er.is_active IS DISTINCT FROM false\n      AND ea.alias_type IS DISTINCT FROM 'fuzzy_match'\n      AND ea.confidence_score = 1.00\n      AND public.atlas_normalize_entity_name_v1(ea.alias_text) = p_normalized_entity_value;\n  END IF;\n\n  SELECT COALESCE(array_agg(DISTINCT candidate_id ORDER BY candidate_id), ARRAY[]::text[])\n  INTO v_name_ids\n  FROM (\n    SELECT unnest(v_primary_ids) AS candidate_id\n    UNION ALL\n    SELECT unnest(v_variant_ids) AS candidate_id\n    UNION ALL\n    SELECT unnest(v_alias_ids) AS candidate_id\n  ) names;\n\n  SELECT COALESCE(array_agg(DISTINCT candidate_id ORDER BY candidate_id), ARRAY[]::text[])\n  INTO v_all_ids\n  FROM (\n    SELECT unnest(v_identifier_ids) AS candidate_id\n    UNION ALL\n    SELECT unnest(v_name_ids) AS candidate_id\n  ) candidates;\n\n  IF cardinality(v_identifier_ids) = 1 THEN\n    v_prospective_entity_id := v_identifier_ids[1];\n    IF EXISTS (\n      SELECT 1\n      FROM unnest(v_name_ids) AS name_candidate(name_entity_id)\n      WHERE name_entity_id <> v_prospective_entity_id\n    ) THEN\n      v_status := 'ambiguous';\n      v_method := 'identifier_name_conflict';\n      v_prospective_entity_id := NULL;\n    ELSE\n      v_method := CASE\n        WHEN v_identifier_type = 'canonical_entity_id' THEN 'exact_canonical_entity_id'\n        ELSE 'exact_external_identifier'\n      END;\n    END IF;\n  ELSIF cardinality(v_identifier_ids) > 1 THEN\n    v_status := 'ambiguous';\n    v_method := 'duplicate_external_identifier';\n  ELSIF cardinality(v_name_ids) = 1 THEN\n    v_prospective_entity_id := v_name_ids[1];\n    v_method := CASE\n      WHEN v_prospective_entity_id = ANY(v_primary_ids) THEN 'exact_primary_name'\n      WHEN v_prospective_entity_id = ANY(v_variant_ids) THEN 'exact_name_variant'\n      ELSE 'exact_alias'\n    END;\n  ELSIF cardinality(v_name_ids) > 1 THEN\n    v_status := 'ambiguous';\n    v_method := 'duplicate_exact_name';\n  END IF;\n\n  IF v_prospective_entity_id IS NOT NULL THEN\n    SELECT er.entity_type\n    INTO v_actual_entity_type\n    FROM atlas.entity_registry er\n    WHERE er.entity_id = v_prospective_entity_id\n      AND er.is_active IS DISTINCT FROM false;\n\n    IF atlas.entity_type_compatible_v1(p_expected_entity_type, v_actual_entity_type) THEN\n      v_status := 'resolved';\n      v_entity_id := v_prospective_entity_id;\n    ELSE\n      v_status := 'unresolved';\n      v_method := 'exact_match_entity_type_mismatch';\n      v_entity_id := NULL;\n    END IF;\n  END IF;\n\n  RETURN QUERY SELECT v_status, v_method, v_entity_id, v_all_ids;\nEND;\n$function$\n",
+      "volatility": "s",
+      "security_definer": false,
+      "identity_arguments": "p_normalized_entity_value text, p_source_identifier_type text, p_normalized_identifier_value text, p_expected_entity_type text"
+    },
+    {
+      "kind": "f",
+      "name": "signal_event_identity_hash_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, extensions"
+      ],
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "text",
+      "schema": "atlas",
+      "strict": true,
+      "comment": null,
+      "language": "sql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION atlas.signal_event_identity_hash_v1(p_stream_id text, p_timestamp timestamp with time zone, p_signal_type text, p_spacetime jsonb, p_provenance jsonb, p_payload jsonb, p_source_id text, p_jurisdiction_id text, p_module_hint text)\n RETURNS text\n LANGUAGE sql\n IMMUTABLE STRICT\n SET search_path TO 'pg_catalog', 'extensions'\nAS $function$\n  select encode(\n    extensions.digest(\n      convert_to(\n        jsonb_build_object(\n          'stream_id', p_stream_id,\n          'timestamp', to_char(p_timestamp at time zone 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"'),\n          'signal_type', p_signal_type,\n          'spacetime', coalesce(p_spacetime, '{}'::jsonb),\n          'provenance', coalesce(p_provenance, '{}'::jsonb) - 'received_at' - 'ingested_at',\n          'payload', coalesce(p_payload, '{}'::jsonb) - 'provenance_tracking',\n          'source_id', p_source_id,\n          'jurisdiction_id', p_jurisdiction_id,\n          'module_hint', p_module_hint\n        )::text,\n        'UTF8'\n      ),\n      'sha256'\n    ),\n    'hex'\n  );\n$function$\n",
+      "volatility": "i",
+      "security_definer": false,
+      "identity_arguments": "p_stream_id text, p_timestamp timestamp with time zone, p_signal_type text, p_spacetime jsonb, p_provenance jsonb, p_payload jsonb, p_source_id text, p_jurisdiction_id text, p_module_hint text"
+    },
+    {
+      "kind": "f",
+      "name": "signal_event_source_record_key_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, extensions"
+      ],
+      "grants": [
+        {
+          "grantee": "PUBLIC",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "text",
+      "schema": "atlas",
+      "strict": false,
+      "comment": null,
+      "language": "sql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION atlas.signal_event_source_record_key_v1(p_payload jsonb, p_provenance jsonb)\n RETURNS text\n LANGUAGE sql\n IMMUTABLE\n SET search_path TO 'pg_catalog', 'extensions'\nAS $function$\n  select encode(\n    extensions.digest(\n      convert_to(\n        concat_ws(\n          '|',\n          coalesce(p_payload->>'external_id', ''),\n          coalesce(p_payload->>'opportunity_number', ''),\n          coalesce(p_payload->>'pdf_url', ''),\n          coalesce(p_payload->>'source_url', ''),\n          coalesce(p_provenance->>'source_url', ''),\n          coalesce(p_payload#>>'{raw,id}', ''),\n          coalesce(p_payload#>>'{raw,ein}', ''),\n          coalesce(p_payload#>>'{raw,updated}', '')\n        ),\n        'UTF8'\n      ),\n      'sha256'\n    ),\n    'hex'\n  );\n$function$\n",
+      "volatility": "i",
+      "security_definer": false,
+      "identity_arguments": "p_payload jsonb, p_provenance jsonb"
+    },
+    {
+      "kind": "f",
+      "name": "trigger_queue_bridge_v3",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public, atlas"
+      ],
+      "grants": [
+        {
+          "grantee": "PUBLIC",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "trigger",
+      "schema": "atlas",
+      "strict": false,
+      "comment": null,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION atlas.trigger_queue_bridge_v3()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO 'pg_catalog', 'public', 'atlas'\nAS $function$\nDECLARE\n    v_domain_code TEXT;\n    v_location TEXT;\nBEGIN\n    -- Live atlas.civic_map_signals exposes:\n    -- signal_id, signal_type, geography_key, severity_score,\n    -- metadata_json, detected_at, confidence_score.\n    -- It does NOT expose source_domain, location, or active.\n    v_domain_code := COALESCE(\n        NEW.metadata_json->>'source_domain',\n        NEW.metadata_json->>'domain',\n        'atlas'\n    );\n\n    v_location := COALESCE(\n        NEW.metadata_json->>'city',\n        NEW.metadata_json->>'location',\n        NEW.geography_key,\n        'Unknown'\n    );\n\n    INSERT INTO atlas.lighthouse_bridge_queue (\n        atlas_signal_id,\n        bridge_type,\n        domain_code,\n        payload_json,\n        status\n    )\n    VALUES (\n        NEW.signal_id,\n        'signal',\n        v_domain_code,\n        jsonb_build_object(\n            'signal_type', NEW.signal_type,\n            'severity_score', NEW.severity_score,\n            'confidence_score', NEW.confidence_score,\n            'geography_key', NEW.geography_key,\n            'source_domain', v_domain_code,\n            'metadata_json', NEW.metadata_json,\n            'detected_at', NEW.detected_at,\n            'location', v_location\n        ),\n        'pending'\n    );\n\n    RETURN NEW;\nEND;\n$function$\n",
+      "volatility": "v",
+      "security_definer": false,
+      "identity_arguments": ""
+    },
+    {
+      "kind": "f",
+      "name": "trigger_queue_pdf_extraction",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public, atlas"
+      ],
+      "grants": [
+        {
+          "grantee": "PUBLIC",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "trigger",
+      "schema": "atlas",
+      "strict": false,
+      "comment": "Auto-queues PDFs for text extraction when raw_ table receives a row with analyzePhaseConfig enabled. Attach to each PDF-bearing raw table.",
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION atlas.trigger_queue_pdf_extraction()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO 'pg_catalog', 'public', 'atlas'\nAS $function$\nDECLARE\n    v_schema_def JSONB;\n    v_pdf_url_field TEXT;\n    v_pdf_url TEXT;\n    v_has_analyze BOOLEAN;\nBEGIN\n    -- Check if this schema has analyze phase enabled\n    SELECT schema_def INTO v_schema_def\n    FROM schema_registry\n    WHERE schema_name = TG_TABLE_NAME;  -- raw table name matches schema name convention\n\n    IF v_schema_def IS NULL THEN\n        RETURN NEW;\n    END IF;\n\n    v_has_analyze := (v_schema_def->'analyzePhaseConfig'->>'enabled')::BOOLEAN;\n\n    IF NOT v_has_analyze THEN\n        RETURN NEW;\n    END IF;\n\n    -- Extract PDF URL from raw payload\n    v_pdf_url_field := v_schema_def->'analyzePhaseConfig'->>'pdfUrlField';\n    v_pdf_url := NEW.raw_payload->>v_pdf_url_field;\n\n    IF v_pdf_url IS NULL OR v_pdf_url = '' THEN\n        RETURN NEW;\n    END IF;\n\n    -- Insert into queue\n    INSERT INTO pdf_extraction_queue (\n        schema_name, raw_record_id, source_record_id, pdf_url, extraction_status\n    ) VALUES (\n        TG_TABLE_NAME,\n        NEW.raw_record_id,  -- assumes raw table has this PK\n        COALESCE(NEW.raw_payload->>'id', NEW.raw_payload->>'award_id', 'unknown'),\n        v_pdf_url,\n        'pending'\n    )\n    ON CONFLICT DO NOTHING;\n\n    RETURN NEW;\nEND;\n$function$\n",
+      "volatility": "v",
+      "security_definer": false,
+      "identity_arguments": ""
+    },
+    {
+      "kind": "f",
+      "name": "trigger_set_timestamp",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public, atlas"
+      ],
+      "grants": [
+        {
+          "grantee": "PUBLIC",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "trigger",
+      "schema": "atlas",
+      "strict": false,
+      "comment": null,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION atlas.trigger_set_timestamp()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO 'pg_catalog', 'public', 'atlas'\nAS $function$\nBEGIN\n    NEW.updated_at = now();\n    RETURN NEW;\nEND;\n$function$\n",
+      "volatility": "v",
+      "security_definer": false,
+      "identity_arguments": ""
+    }
+  ]
+}
