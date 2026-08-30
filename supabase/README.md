@@ -1,12 +1,12 @@
 # Atlas Supabase migration boundary
 
-`supabase/migrations/` is the only canonical migration root. It now contains a
-generated 51-version `candidate` chain: one current production-derived schema
+`supabase/migrations/` is the only canonical migration root. It contains a
+generated 51-version `ready` chain: one current production-derived schema
 squash at the existing first production-ledger version, 48 historical ledger
-receipts, and two pending forward repairs (operational hardening and explicit
-PostgreSQL 17 function-lint repairs). `candidate` is
-deliberately not `ready`; it lets isolated replay run while the final gate
-remains fail-closed.
+receipts, and two preview-accepted forward repairs (operational hardening and
+explicit PostgreSQL 17 function-lint repairs). `ready` means the chain passed
+isolated replay and hosted-preview acceptance; it does not mean the draft PR
+was merged or either repair was applied to production.
 
 ## Retrieved production observations (2026-08-30)
 
@@ -38,7 +38,7 @@ remains fail-closed.
   `src/schema/20260726_event_entity_resolution.sql` and
   `src/schema/20260730_event_entity_resolution_usaspending_extraction_fix.sql`;
   neither transient row nor runtime fetch is used by the canonical chain.
-- The candidate baseline declares `pg_net` without pinning its version before
+- The baseline declares `pg_net` without pinning its version before
   any dependent function.
 - Eighteen retired, invalid, or unsupported runtime functions and four bridge
   triggers are intentionally excluded. The `atlas` schema and four sensitive
@@ -66,10 +66,12 @@ runtime payload dependency fails `npm run db:validate`.
 
 ## Gate behavior
 
-The `database-migration-gate` workflow and job return the stable check name
-`database-migration-gate`. It classifies any SQL, Supabase boundary, migration
-tooling, or matching workflow change as database-bearing. If Git history is
-too shallow or the comparison base is unavailable, classification is
+The workflow separates immutable candidate evidence from the stable required
+check. `database-replay-evidence` runs the full database proof, while
+`database-migration-gate` verifies the accepted candidate ancestry and receipt
+before requiring `ready`. It classifies any SQL, Supabase boundary, migration
+tooling, or matching workflow change as database-bearing. If Git history is too
+shallow or the comparison base is unavailable, classification is
 conservatively database-bearing.
 
 For a database-bearing change, `candidate` and `ready` states use pinned
@@ -84,23 +86,27 @@ Supabase CLI 2.116.0 and `major_version = 17` to:
 6. reset and replay a second time to expose order-dependent state; and
 7. require `canonical.status=ready` as the final step.
 
-That ordering produces replay evidence for a candidate without allowing the
-check to turn green prematurely. Deleted migration-boundary files are included
-in path classification.
+The candidate replay job can succeed while the stable gate remains red. The
+ready metadata commit must be exactly one child of the accepted candidate and
+may change only the manifest, acceptance receipt, and this README. The stable
+gate verifies the recorded candidate run and all five replay phases through the
+GitHub API before it can turn green. Deleted migration-boundary files are
+included in path classification.
 
 ## Baseline closure procedure
 
-Production has remained read-only. The catalog capture, deterministic
-reconstruction, historical receipts, explicit exclusions, conservative grant
-decision, and source hashes are complete. To move `candidate` to `ready`, this
-same commit must still:
+Production remained read-only. Candidate commit
+`e4daf550d983c11250558bbae19ee2ea651d86ae` passed GitHub run
+`33336833312`, replay-evidence job `99325144249`: empty PostgreSQL 17 replay,
+56/56 pgTAP assertions, zero-error lint, dirty no-op replay, and a second clean
+replay. The isolated hosted preview `pfslrupnskktspdaayfq` independently proved
+the exact 51-version ledger on PostgreSQL 17.6, the expected catalog counts,
+the intended retired-object exclusions and grants, and fresh advisors with 26
+INFO, 0 WARN, and 0 ERROR findings. The hash-bound receipt is
+`supabase/evidence/hosted-preview-acceptance.json`.
 
-1. prove an empty PostgreSQL 17-compatible Supabase reset, a dirty
-   `supabase migration up --local` no-op, and a second clean reset;
-2. run `supabase test db`, `supabase db lint --local --fail-on error`, and the
-   Supabase security advisors; and
-3. create a fresh isolated branch preview and confirm local/remote migration
-   parity before any merge or deployment.
+Production is still at its original 49-row ledger. The two forward repairs are
+preview-only, the PR remains draft and unmerged, and Render was not deployed.
 
 Supabase's current workflow documentation recommends `supabase db pull` when
 adopting an existing project because it creates a baseline and records it as
@@ -120,14 +126,11 @@ ledger and is not an acceptable normal deployment path.
 - Original pre-ledger history is irrecoverable. The accepted operational model
   is a transparent current production-derived squash, and must always be
   described that way.
-- Local PG17 replay has not yet run on a GitHub runner.
-- The fresh hosted Atlas preview has not yet applied and fingerprinted this
-  51-version candidate chain (49 represented production-ledger identities plus
-  two pending forward repairs).
-- Fresh preview security-advisor output has not yet confirmed the intended
-  removal of the four Lighthouse SECURITY DEFINER warnings.
+- Platform-owned `supabase_admin` default ACLs remain outside this migration's
+  authority. Application DDL must remain `postgres`-owned or receive a renewed
+  ACL review.
 - The production Data API exposed-schema setting still requires direct
-  verification; the candidate nevertheless revokes `atlas` usage from
+  verification; the accepted chain nevertheless revokes `atlas` usage from
   anonymous and authenticated roles.
 
 References: [Supabase local development workflow](https://supabase.com/docs/guides/local-development/cli-workflows),
