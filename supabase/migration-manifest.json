@@ -15,7 +15,7 @@
         "version": "20260513203455",
         "name": "canonical_jurisdiction_and_workflow_registries",
         "kind": "production_baseline",
-        "sha256": "7b0e9bd5a1dd17a28b6a9063e125c8ffd444c527e52190b8c258c9b33a1d87f4",
+        "sha256": "f552a96eefb6e106e3a18cbd2584ce13ba0a9bcd6f76279015d2dbdeaf218006",
         "productionStatementsSha256": "c8738b389d7cf7efdd350b0377043ce8f11b89c9d709df2274aa6e6e27f52879",
         "productionRollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "reconciliationDisposition": "current_production_schema_squash_at_existing_first_version"
@@ -507,6 +507,14 @@
         "kind": "forward_repair",
         "sha256": "3c099712dbdb0e58eb036dd64cf6a3d6ee61cfa20e711ccbb07f58e1e78c7bee",
         "reconciliationDisposition": "pending_production_forward_repair_after_preview_acceptance"
+      },
+      {
+        "path": "supabase/migrations/20260830212000_atlas_function_lint_repairs.sql",
+        "version": "20260830212000",
+        "name": "atlas_function_lint_repairs",
+        "kind": "forward_repair",
+        "sha256": "16212d6c24a88d1b43c4f8727dcc602b41d1ff009d8643d58314f98e3f9d77ee",
+        "reconciliationDisposition": "pending_production_function_repairs_after_preview_acceptance"
       }
     ]
   },
@@ -530,7 +538,7 @@
   ],
   "validationSql": [
     {
-      "sha256": "43ff07ccd92ec3b145797c2a617cda24d9d37156f87b1a381812f260d0931bc9",
+      "sha256": "69a2e57913f2edb1ff5df236ef5d235381b428bfd42ea7e6791b9e2657328b56",
       "path": "supabase/tests/0001_baseline_prerequisites.sql",
       "kind": "pgtap_acceptance"
     }
@@ -756,7 +764,7 @@
     "currentProductionCatalog": {
       "evidenceRoot": "supabase/evidence/current-production-catalog",
       "reconstructionManifestPath": "supabase/evidence/current-production-catalog/reconstruction-manifest.json",
-      "reconstructionManifestSha256": "6dce3d3f791ad95e77722a3c24cfcd0408c6d61cce6ba17804724d3130fc5201",
+      "reconstructionManifestSha256": "8c239ca41bfb182e07171b755393ca20fce2c6125a92d95e82389a462890d84d",
       "catalogRootSha256": "5af30282c1b0e3a09de8370e0cac86bf7db78a6d7bdaa36cd2e216db799b7f26",
       "counts": {
         "schemas": 3,
@@ -916,7 +924,7 @@
       "status": "candidate_pending_preview_replay",
       "evidence": "The 49-row production ledger is neither a complete baseline nor self-contained executable history.",
       "recovery": "Reconcile a catalog-derived schema baseline with all ledger rows and recovered payloads.",
-      "disposition": "The baseline plus 48 historical receipts and one pending forward repair forms a 50-version candidate chain; empty PG17 and hosted preview replay are still required."
+      "disposition": "The baseline plus 48 historical receipts and two pending forward repairs forms a 51-version candidate chain; empty PG17 and hosted preview replay are still required."
     },
     {
       "id": "historical_atlas_schema_shapes_unknown",

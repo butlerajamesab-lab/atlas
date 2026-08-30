@@ -1,9 +1,10 @@
 # Atlas Supabase migration boundary
 
 `supabase/migrations/` is the only canonical migration root. It now contains a
-generated 50-version `candidate` chain: one current production-derived schema
+generated 51-version `candidate` chain: one current production-derived schema
 squash at the existing first production-ledger version, 48 historical ledger
-receipts, and one pending forward operational repair. `candidate` is
+receipts, and two pending forward repairs (operational hardening and explicit
+PostgreSQL 17 function-lint repairs). `candidate` is
 deliberately not `ready`; it lets isolated replay run while the final gate
 remains fail-closed.
 
@@ -121,8 +122,8 @@ ledger and is not an acceptable normal deployment path.
   described that way.
 - Local PG17 replay has not yet run on a GitHub runner.
 - The fresh hosted Atlas preview has not yet applied and fingerprinted this
-  50-version candidate chain (49 represented production-ledger identities plus
-  one pending forward repair).
+  51-version candidate chain (49 represented production-ledger identities plus
+  two pending forward repairs).
 - Fresh preview security-advisor output has not yet confirmed the intended
   removal of the four Lighthouse SECURITY DEFINER warnings.
 - The production Data API exposed-schema setting still requires direct

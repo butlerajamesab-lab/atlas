@@ -26,6 +26,8 @@ const reconstructionPath = path.join(
 );
 const FORWARD_REPAIR_VERSION = '20260830210636';
 const FORWARD_REPAIR_NAME = 'atlas_operational_rebuild_hardening';
+const FUNCTION_REPAIR_VERSION = '20260830212000';
+const FUNCTION_REPAIR_NAME = 'atlas_function_lint_repairs';
 const boundaryManifestPath = path.join(
   root,
   'supabase/migration-manifest.json',
@@ -80,6 +82,11 @@ const SERVICE_ONLY_FUNCTIONS = [
   'public.get_lighthouse_stream_definition(p_stream_id text)',
 ];
 
+const LINT_REPAIRED_FUNCTIONS = [
+  'atlas.complete_pdf_extraction(p_queue_id bigint, p_extracted_text text, p_extraction_method character varying, p_extraction_confidence numeric, p_page_count integer, p_clauses_found jsonb)',
+  'atlas.engine_activate_discovered_schema(p_draft_id bigint, p_reviewed_by character varying, p_review_notes text)',
+];
+
 function readJson(repositoryPath) {
   return JSON.parse(readFileSync(path.join(root, repositoryPath), 'utf8'));
 }
@@ -111,9 +118,34 @@ function endStatement(value) {
 
 function qualifyExtensionCalls(sql) {
   return sql
-    .replace(/(?<![A-Za-z0-9_."])(uuid_generate_v4)\s*\(/g, 'extensions.$1(')
-    .replace(/(?<![A-Za-z0-9_."])(uuid_generate_v5)\s*\(/g, 'extensions.$1(')
-    .replace(/(?<![A-Za-z0-9_."])(digest)\s*\(/g, 'extensions.$1(');
+    .replace(/(?<![A-Za-z0-9_."])(uuid_generate_v4)\s*\(/gi, 'extensions.$1(')
+    .replace(/(?<![A-Za-z0-9_."])(uuid_generate_v5)\s*\(/gi, 'extensions.$1(')
+    .replace(/(?<![A-Za-z0-9_."])(digest)\s*\(/gi, 'extensions.$1(');
+}
+
+function reviewedFunctionDefinition(fn) {
+  let definition = fn.definition;
+  if (
+    functionKey(fn) ===
+    'atlas.engine_activate_discovered_schema(p_draft_id bigint, p_reviewed_by character varying, p_review_notes text)'
+  ) {
+    definition = definition
+      .replace(
+        'ON CONFLICT (connector_id) DO NOTHING;',
+        'ON CONFLICT ON CONSTRAINT connector_registry_pkey DO NOTHING;',
+      )
+      .replace(
+        'ON CONFLICT (schema_name) DO UPDATE SET',
+        'ON CONFLICT ON CONSTRAINT schema_registry_pkey DO UPDATE SET',
+      );
+    if (
+      !definition.includes('ON CONFLICT ON CONSTRAINT connector_registry_pkey') ||
+      !definition.includes('ON CONFLICT ON CONSTRAINT schema_registry_pkey')
+    ) {
+      throw new Error('engine_activate_discovered_schema lint repair did not apply');
+    }
+  }
+  return qualifyExtensionCalls(definition);
 }
 
 function loadCatalog() {
@@ -456,7 +488,7 @@ function buildBaseline(catalog, ledger) {
     .filter((fn) => !RETIRED_FUNCTIONS.has(functionKey(fn)))
     .sort((a, b) => functionKey(a).localeCompare(functionKey(b)));
   for (const fn of includedFunctions) {
-    output.push(endStatement(fn.definition));
+    output.push(endStatement(reviewedFunctionDefinition(fn)));
   }
 
   section('views');
@@ -695,6 +727,28 @@ function forwardRepairMigration(catalog) {
   return output.join('\n').replace(/[ \t]+$/gm, '');
 }
 
+function functionLintRepairMigration(catalog) {
+  const functionsByKey = new Map(
+    catalog.functions.map((fn) => [functionKey(fn), fn]),
+  );
+  const output = [
+    '-- Atlas forward function lint repairs.',
+    '-- These two captured production functions failed PostgreSQL 17 plpgsql_check.',
+    '-- The repairs preserve their signatures and intended behavior while making',
+    '-- extension resolution and conflict targets explicit.',
+    '',
+    'set search_path = pg_catalog, public, extensions;',
+    '',
+  ];
+  for (const key of LINT_REPAIRED_FUNCTIONS) {
+    const fn = functionsByKey.get(key);
+    if (!fn) throw new Error(`lint-repaired function missing from catalog: ${key}`);
+    output.push(endStatement(reviewedFunctionDefinition(fn)), '');
+  }
+  output.push('reset search_path;', '');
+  return output.join('\n').replace(/[ \t]+$/gm, '');
+}
+
 function syncBoundaryManifest(reconstruction) {
   const manifest = JSON.parse(readFileSync(boundaryManifestPath, 'utf8'));
   manifest.canonical.status = 'candidate';
@@ -734,7 +788,7 @@ function syncBoundaryManifest(reconstruction) {
     production_ledger_not_replayable_from_empty: {
       status: 'candidate_pending_preview_replay',
       disposition:
-        'The baseline plus 48 historical receipts and one pending forward repair forms a 50-version candidate chain; empty PG17 and hosted preview replay are still required.',
+        'The baseline plus 48 historical receipts and two pending forward repairs forms a 51-version candidate chain; empty PG17 and hosted preview replay are still required.',
     },
     historical_atlas_schema_shapes_unknown: {
       status: 'accepted_current_state_squash_pending_replay',
@@ -826,6 +880,19 @@ function main() {
     sha256: sha256(forwardSql),
     reconciliationDisposition:
       'pending_production_forward_repair_after_preview_acceptance',
+  });
+  const functionRepairFileName =
+    `${FUNCTION_REPAIR_VERSION}_${FUNCTION_REPAIR_NAME}.sql`;
+  const functionRepairSql = functionLintRepairMigration(catalog);
+  writeFileSync(path.join(migrationRoot, functionRepairFileName), functionRepairSql);
+  migrations.push({
+    path: `supabase/migrations/${functionRepairFileName}`,
+    version: FUNCTION_REPAIR_VERSION,
+    name: FUNCTION_REPAIR_NAME,
+    kind: 'forward_repair',
+    sha256: sha256(functionRepairSql),
+    reconciliationDisposition:
+      'pending_production_function_repairs_after_preview_acceptance',
   });
 
   const evidenceFiles = readdirSync(evidenceRoot)

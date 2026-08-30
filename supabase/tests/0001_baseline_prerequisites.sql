@@ -1,6 +1,6 @@
 begin;
 
-select plan(54);
+select plan(56);
 
 select ok(
   current_setting('server_version_num')::integer / 10000 = 17,
@@ -260,6 +260,33 @@ select ok(
     and has_function_privilege('service_role', 'public.get_lighthouse_signal_events(text,bigint,integer)', 'EXECUTE')
     and has_function_privilege('service_role', 'public.get_lighthouse_stream_definition(text)', 'EXECUTE'),
   'service_role retains the four reviewed bridge and export functions'
+);
+select ok(
+  position(
+    'extensions.digest' in lower(
+      pg_get_functiondef(
+        'atlas.complete_pdf_extraction(bigint,text,character varying,numeric,integer,jsonb)'::regprocedure
+      )
+    )
+  ) > 0,
+  'PDF completion resolves digest through the extensions schema'
+);
+select ok(
+  position(
+    'on conflict on constraint connector_registry_pkey' in lower(
+      pg_get_functiondef(
+        'atlas.engine_activate_discovered_schema(bigint,character varying,text)'::regprocedure
+      )
+    )
+  ) > 0
+    and position(
+      'on conflict on constraint schema_registry_pkey' in lower(
+        pg_get_functiondef(
+          'atlas.engine_activate_discovered_schema(bigint,character varying,text)'::regprocedure
+        )
+      )
+    ) > 0,
+  'schema activation uses unambiguous conflict constraints'
 );
 select ok(
   to_regprocedure('atlas.compute_entity_risk_tier(character varying)') is null

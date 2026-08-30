@@ -2918,7 +2918,7 @@ BEGIN
     SET
         extraction_status = 'analyzed',
         extracted_text = p_extracted_text,
-        text_hash = ENCODE(DIGEST(p_extracted_text, 'sha256'), 'hex'),
+        text_hash = ENCODE(extensions.DIGEST(p_extracted_text, 'sha256'), 'hex'),
         extraction_method = p_extraction_method,
         extraction_confidence = p_extraction_confidence,
         page_count = p_page_count,
@@ -3066,11 +3066,11 @@ BEGIN
         (SELECT default_pagination_strategy FROM atlas.discovery_platforms WHERE platform_id = v_queue.platform_id),
         (SELECT rate_limit_rps FROM atlas.discovery_platforms WHERE platform_id = v_queue.platform_id),
         NOW()
-    ON CONFLICT (connector_id) DO NOTHING;
+    ON CONFLICT ON CONSTRAINT connector_registry_pkey DO NOTHING;
 
     INSERT INTO atlas.schema_registry (schema_name, schema_def, created_at)
     VALUES (v_schema_name, v_draft.draft_schema_json, NOW())
-    ON CONFLICT (schema_name) DO UPDATE SET
+    ON CONFLICT ON CONSTRAINT schema_registry_pkey DO UPDATE SET
         schema_def = EXCLUDED.schema_def,
         updated_at = NOW();
 

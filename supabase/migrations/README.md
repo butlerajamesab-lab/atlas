@@ -7,10 +7,11 @@ The first 49 filenames preserve Atlas production's exact migration-ledger
 version/name order. The first existing production version contains a transparent
 current production-derived schema squash. The next 48 files are immutable no-op
 ledger receipts: they preserve historical identity without pretending the
-incomplete production overlay was founding DDL. The final, 50th file is the
-pending forward operational repair that makes the reviewed exclusions and
-hardening executable on an existing database where those 49 identities are
-already applied.
+incomplete production overlay was founding DDL. The final two files are pending
+forward repairs: the 50th makes the reviewed exclusions and hardening executable
+on an existing database where those 49 identities are already applied, and the
+51st repairs two PostgreSQL 17 lint errors without changing either function's
+signature or intended behavior.
 
 `../migration-manifest.json` records the chain as `candidate` until a fresh
 PostgreSQL 17/Supabase replay, dirty no-op replay, second clean replay, hosted
