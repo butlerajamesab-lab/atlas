@@ -14,7 +14,7 @@
     "views": 61,
     "columns": 2514,
     "functionsObserved": 96,
-    "functionsIncluded": 80,
+    "functionsIncluded": 78,
     "sequences": 34,
     "triggersObserved": 20,
     "triggersIncluded": 16,
@@ -158,7 +158,9 @@
       "atlas.bridge_sync_all_to_lighthouse_v3()",
       "atlas.bridge_sync_entity_to_lighthouse()",
       "atlas.bridge_sync_to_rosetta(p_provider_id character varying, p_batch_size integer)",
+      "atlas.compute_entity_risk_tier(p_entity_id character varying)",
       "atlas.trigger_queue_bridge_v3()",
+      "atlas.trigger_queue_pdf_extraction()",
       "public.get_connector_status(connector_name text)",
       "public.trigger_lighthouse_bridge_for_prime_pattern_v1(p_signal jsonb, p_audit_context jsonb, p_process_queue boolean)"
     ],
@@ -194,7 +196,7 @@
       "version": "20260513203455",
       "name": "canonical_jurisdiction_and_workflow_registries",
       "kind": "production_baseline",
-      "sha256": "e6388d7bb497073a1c4ea6ffe228a02f19a56b5a70a03064c1190077052d34a8",
+      "sha256": "7b0e9bd5a1dd17a28b6a9063e125c8ffd444c527e52190b8c258c9b33a1d87f4",
       "productionStatementsSha256": "c8738b389d7cf7efdd350b0377043ce8f11b89c9d709df2274aa6e6e27f52879",
       "productionRollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "reconciliationDisposition": "current_production_schema_squash_at_existing_first_version"
@@ -678,6 +680,14 @@
       "productionStatementsSha256": "bf70abd5a6f0f41b230e9bd12ad4fec2c18c67fbfdf40a0364932e81a5d3cf69",
       "productionRollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "reconciliationDisposition": "historical_overlay_superseded_by_current_baseline"
+    },
+    {
+      "path": "supabase/migrations/20260830210636_atlas_operational_rebuild_hardening.sql",
+      "version": "20260830210636",
+      "name": "atlas_operational_rebuild_hardening",
+      "kind": "forward_repair",
+      "sha256": "3c099712dbdb0e58eb036dd64cf6a3d6ee61cfa20e711ccbb07f58e1e78c7bee",
+      "reconciliationDisposition": "pending_production_forward_repair_after_preview_acceptance"
     }
   ]
 }

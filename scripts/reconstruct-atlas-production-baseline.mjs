@@ -24,6 +24,8 @@ const reconstructionPath = path.join(
   root,
   'supabase/evidence/current-production-catalog/reconstruction-manifest.json',
 );
+const FORWARD_REPAIR_VERSION = '20260830210636';
+const FORWARD_REPAIR_NAME = 'atlas_operational_rebuild_hardening';
 const boundaryManifestPath = path.join(
   root,
   'supabase/migration-manifest.json',
@@ -44,6 +46,7 @@ const PRODUCTION_COMPONENT_FINGERPRINTS = {
 };
 
 const RETIRED_FUNCTIONS = new Set([
+  'atlas.compute_entity_risk_tier(p_entity_id character varying)',
   'atlas.bridge_emit_signal_v1()',
   'atlas.bridge_escalate_convergence(p_convergence_event_id uuid)',
   'atlas.bridge_escalate_detection_rule(p_rule_id character varying, p_matched_record_ids text[], p_additional_context jsonb)',
@@ -58,6 +61,7 @@ const RETIRED_FUNCTIONS = new Set([
   'atlas.bridge_sync_entity_to_lighthouse()',
   'atlas.bridge_sync_to_rosetta(p_provider_id character varying, p_batch_size integer)',
   'atlas.trigger_queue_bridge_v3()',
+  'atlas.trigger_queue_pdf_extraction()',
   'public.get_connector_status(connector_name text)',
   'public.trigger_lighthouse_bridge_for_prime_pattern_v1(p_signal jsonb, p_audit_context jsonb, p_process_queue boolean)',
 ]);
@@ -279,6 +283,39 @@ function defaultAclSql(schemaState) {
         (grantable === 'true' ? ' with grant option;' : ';'),
       );
     }
+  }
+  return output;
+}
+
+function securityHardeningSql(includedFunctions) {
+  const output = [
+    'revoke all on schema atlas from PUBLIC, anon, authenticated;',
+    'grant usage on schema atlas to service_role;',
+    'grant select on table atlas.v_bridge_operational_status to service_role;',
+    'revoke select on table public.v_bridge_operational_status from PUBLIC, anon, authenticated;',
+    'grant select on table public.v_bridge_operational_status to service_role;',
+  ];
+  for (const schema of ['atlas', 'public', 'private']) {
+    output.push(
+      `alter default privileges for role postgres in schema ${schema} revoke execute on functions from PUBLIC, anon, authenticated;`,
+      `alter default privileges for role postgres in schema ${schema} grant execute on functions to service_role;`,
+      `alter default privileges for role postgres in schema ${schema} revoke all on tables from PUBLIC, anon, authenticated;`,
+      `alter default privileges for role postgres in schema ${schema} grant select, insert, update, delete, truncate, references, trigger on tables to service_role;`,
+      `alter default privileges for role postgres in schema ${schema} revoke all on sequences from PUBLIC, anon, authenticated;`,
+      `alter default privileges for role postgres in schema ${schema} grant usage, select, update on sequences to service_role;`,
+    );
+  }
+
+  const includedByKey = new Map(
+    includedFunctions.map((fn) => [functionKey(fn), fn]),
+  );
+  for (const signature of SERVICE_ONLY_FUNCTIONS) {
+    const fn = includedByKey.get(signature);
+    if (!fn) throw new Error(`service-only function missing: ${signature}`);
+    output.push(
+      `revoke all on function ${functionSignature(fn)} from PUBLIC, anon, authenticated;`,
+      `grant execute on function ${functionSignature(fn)} to service_role;`,
+    );
   }
   return output;
 }
@@ -591,42 +628,7 @@ function buildBaseline(catalog, ledger) {
   }
 
   section('intentional security hardening');
-  output.push(
-    'revoke all on schema atlas from PUBLIC, anon, authenticated;',
-    'grant usage on schema atlas to service_role;',
-    'grant select on table atlas.v_bridge_operational_status to service_role;',
-    'revoke select on table public.v_bridge_operational_status from PUBLIC, anon, authenticated;',
-    'grant select on table public.v_bridge_operational_status to service_role;',
-    'alter default privileges for role postgres in schema atlas revoke execute on functions from PUBLIC, anon, authenticated;',
-    'alter default privileges for role postgres in schema atlas grant execute on functions to service_role;',
-    'alter default privileges for role postgres in schema atlas revoke all on tables from PUBLIC, anon, authenticated;',
-    'alter default privileges for role postgres in schema atlas grant select, insert, update, delete, truncate, references, trigger on tables to service_role;',
-    'alter default privileges for role postgres in schema atlas revoke all on sequences from PUBLIC, anon, authenticated;',
-    'alter default privileges for role postgres in schema atlas grant usage, select, update on sequences to service_role;',
-    'alter default privileges for role postgres in schema public revoke execute on functions from PUBLIC, anon, authenticated;',
-    'alter default privileges for role postgres in schema public grant execute on functions to service_role;',
-    'alter default privileges for role postgres in schema public revoke all on tables from PUBLIC, anon, authenticated;',
-    'alter default privileges for role postgres in schema public grant select, insert, update, delete, truncate, references, trigger on tables to service_role;',
-    'alter default privileges for role postgres in schema public revoke all on sequences from PUBLIC, anon, authenticated;',
-    'alter default privileges for role postgres in schema public grant usage, select, update on sequences to service_role;',
-    'alter default privileges for role postgres in schema private revoke execute on functions from PUBLIC, anon, authenticated;',
-    'alter default privileges for role postgres in schema private grant execute on functions to service_role;',
-    'alter default privileges for role postgres in schema private revoke all on tables from PUBLIC, anon, authenticated;',
-    'alter default privileges for role postgres in schema private grant select, insert, update, delete, truncate, references, trigger on tables to service_role;',
-    'alter default privileges for role postgres in schema private revoke all on sequences from PUBLIC, anon, authenticated;',
-    'alter default privileges for role postgres in schema private grant usage, select, update on sequences to service_role;',
-  );
-  const includedByKey = new Map(
-    includedFunctions.map((fn) => [functionKey(fn), fn]),
-  );
-  for (const signature of SERVICE_ONLY_FUNCTIONS) {
-    const fn = includedByKey.get(signature);
-    if (!fn) throw new Error(`service-only function missing: ${signature}`);
-    output.push(
-      `revoke all on function ${functionSignature(fn)} from PUBLIC, anon, authenticated;`,
-      `grant execute on function ${functionSignature(fn)} to service_role;`,
-    );
-  }
+  output.push(...securityHardeningSql(includedFunctions));
 
   output.push('', 'reset search_path;', 'reset check_function_bodies;', '');
   return qualifyExtensionCalls(
@@ -652,6 +654,45 @@ function receiptMigration(row) {
     '$atlas_ledger_receipt$;',
     '',
   ].join('\n');
+}
+
+function forwardRepairMigration(catalog) {
+  const functionsByKey = new Map(
+    catalog.functions.map((fn) => [functionKey(fn), fn]),
+  );
+  const includedFunctions = catalog.functions.filter(
+    (fn) => !RETIRED_FUNCTIONS.has(functionKey(fn)),
+  );
+  const output = [
+    '-- Atlas forward operational rebuild repair.',
+    '-- This is the only migration in this candidate that is not already present',
+    '-- in the 49-row production ledger. It remains unmerged and unapplied to',
+    '-- production until isolated replay, preview parity, advisors, and review pass.',
+    '',
+    'set search_path = pg_catalog, public, extensions;',
+    '',
+    '-- Remove captured triggers that invoke retired or invalid cross-service writers.',
+    'drop trigger if exists trg_bridge_action on atlas.action_queue;',
+    'drop trigger if exists trg_bridge_emit_signal_v1 on atlas.civic_map_signals;',
+    'drop trigger if exists trg_queue_bridge_v3 on atlas.civic_map_signals;',
+    'drop trigger if exists trg_bridge_entity on atlas.entity_registry;',
+    '',
+    '-- Remove the retired/invalid functions without CASCADE; undeclared dependencies fail closed.',
+  ];
+  for (const key of [...RETIRED_FUNCTIONS].sort()) {
+    const fn = functionsByKey.get(key);
+    if (!fn) throw new Error(`retired function missing from catalog: ${key}`);
+    output.push(`drop function if exists ${functionSignature(fn)};`);
+  }
+  output.push(
+    '',
+    '-- Apply reviewed namespace, RPC, operational-view, and future-object hardening.',
+    ...securityHardeningSql(includedFunctions),
+    '',
+    'reset search_path;',
+    '',
+  );
+  return output.join('\n').replace(/[ \t]+$/gm, '');
 }
 
 function syncBoundaryManifest(reconstruction) {
@@ -693,7 +734,7 @@ function syncBoundaryManifest(reconstruction) {
     production_ledger_not_replayable_from_empty: {
       status: 'candidate_pending_preview_replay',
       disposition:
-        'The baseline plus 48 historical receipts forms a 49-version candidate chain; empty PG17 and hosted preview replay are still required.',
+        'The baseline plus 48 historical receipts and one pending forward repair forms a 50-version candidate chain; empty PG17 and hosted preview replay are still required.',
     },
     historical_atlas_schema_shapes_unknown: {
       status: 'accepted_current_state_squash_pending_replay',
@@ -708,7 +749,7 @@ function syncBoundaryManifest(reconstruction) {
     retired_cross_service_writers_must_stay_retired: {
       status: 'resolved',
       disposition:
-        `${RETIRED_FUNCTIONS.size} retired or invalid runtime functions and ${RETIRED_TRIGGERS.size} bridge triggers are deliberately excluded and asserted absent.`,
+        `${RETIRED_FUNCTIONS.size} retired or invalid runtime functions and ${RETIRED_TRIGGERS.size} bridge triggers are deliberately excluded from the baseline and removed by the forward repair.`,
     },
     lighthouse_rpc_access_decision_pending: {
       status: 'resolved',
@@ -773,6 +814,19 @@ function main() {
         : 'historical_overlay_superseded_by_current_baseline',
     });
   }
+  const forwardFileName =
+    `${FORWARD_REPAIR_VERSION}_${FORWARD_REPAIR_NAME}.sql`;
+  const forwardSql = forwardRepairMigration(catalog);
+  writeFileSync(path.join(migrationRoot, forwardFileName), forwardSql);
+  migrations.push({
+    path: `supabase/migrations/${forwardFileName}`,
+    version: FORWARD_REPAIR_VERSION,
+    name: FORWARD_REPAIR_NAME,
+    kind: 'forward_repair',
+    sha256: sha256(forwardSql),
+    reconciliationDisposition:
+      'pending_production_forward_repair_after_preview_acceptance',
+  });
 
   const evidenceFiles = readdirSync(evidenceRoot)
     .filter((file) => file.endsWith('.json') && file !== path.basename(reconstructionPath))

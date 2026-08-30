@@ -4,7 +4,7 @@
 -- No production rows, bridge secrets, cron jobs, or runtime response rows are included.
 -- This is a transparent current-state squash, not a claim about lost pre-ledger history.
 -- Production ledger receipt: 278e15ff6dddc371e0484145c4aaa2fefb82913b83e28acf5729e35cd009af7f.
--- Intentional exclusions: 16 retired/unsupported functions and 4 retired triggers.
+-- Intentional exclusions: 18 retired/unsupported functions and 4 retired triggers.
 -- Intentional hardening: direct Atlas namespace access and 4 sensitive functions are service-role-only.
 
 set check_function_bodies = false;
@@ -2957,34 +2957,6 @@ BEGIN
     RETURN v_count;
 END;
 $function$;
-CREATE OR REPLACE FUNCTION atlas.compute_entity_risk_tier(p_entity_id character varying)
- RETURNS character varying
- LANGUAGE plpgsql
- SET search_path TO 'pg_catalog', 'public', 'atlas'
-AS $function$
-DECLARE
-    v_max_sev DECIMAL(3,2);
-    v_signal_count INT;
-BEGIN
-    SELECT MAX(severity_score), COUNT(*)
-    INTO v_max_sev, v_signal_count
-    FROM civic_map_signals
-    WHERE metadata_json->>'entity_id' = p_entity_id
-;
-
-    IF v_signal_count = 0 OR v_max_sev IS NULL THEN
-        RETURN 'low';
-    ELSIF v_max_sev >= 0.90 AND v_signal_count >= 5 THEN
-        RETURN 'critical';
-    ELSIF v_max_sev >= 0.75 OR v_signal_count >= 3 THEN
-        RETURN 'high';
-    ELSIF v_max_sev >= 0.60 THEN
-        RETURN 'medium';
-    ELSE
-        RETURN 'low';
-    END IF;
-END;
-$function$;
 CREATE OR REPLACE FUNCTION atlas.enforce_live_data_signal_candidate_currentness_v1()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -3854,55 +3826,6 @@ AS $function$
     ),
     'hex'
   );
-$function$;
-CREATE OR REPLACE FUNCTION atlas.trigger_queue_pdf_extraction()
- RETURNS trigger
- LANGUAGE plpgsql
- SET search_path TO 'pg_catalog', 'public', 'atlas'
-AS $function$
-DECLARE
-    v_schema_def JSONB;
-    v_pdf_url_field TEXT;
-    v_pdf_url TEXT;
-    v_has_analyze BOOLEAN;
-BEGIN
-    -- Check if this schema has analyze phase enabled
-    SELECT schema_def INTO v_schema_def
-    FROM schema_registry
-    WHERE schema_name = TG_TABLE_NAME;  -- raw table name matches schema name convention
-
-    IF v_schema_def IS NULL THEN
-        RETURN NEW;
-    END IF;
-
-    v_has_analyze := (v_schema_def->'analyzePhaseConfig'->>'enabled')::BOOLEAN;
-
-    IF NOT v_has_analyze THEN
-        RETURN NEW;
-    END IF;
-
-    -- Extract PDF URL from raw payload
-    v_pdf_url_field := v_schema_def->'analyzePhaseConfig'->>'pdfUrlField';
-    v_pdf_url := NEW.raw_payload->>v_pdf_url_field;
-
-    IF v_pdf_url IS NULL OR v_pdf_url = '' THEN
-        RETURN NEW;
-    END IF;
-
-    -- Insert into queue
-    INSERT INTO pdf_extraction_queue (
-        schema_name, raw_record_id, source_record_id, pdf_url, extraction_status
-    ) VALUES (
-        TG_TABLE_NAME,
-        NEW.raw_record_id,  -- assumes raw table has this PK
-        COALESCE(NEW.raw_payload->>'id', NEW.raw_payload->>'award_id', 'unknown'),
-        v_pdf_url,
-        'pending'
-    )
-    ON CONFLICT DO NOTHING;
-
-    RETURN NEW;
-END;
 $function$;
 CREATE OR REPLACE FUNCTION atlas.trigger_set_timestamp()
  RETURNS trigger
@@ -9633,7 +9556,6 @@ comment on function "atlas"."engine_extract_entity"(p_schema_name character vary
 comment on function "atlas"."engine_probe_platform"(p_platform_id character varying, p_jurisdiction character varying, p_listing_response jsonb) is 'Processes a platform listing response JSONB and populates endpoint_probe_queue.';
 comment on function "atlas"."fail_pdf_extraction"(p_queue_id bigint, p_error_message text) is 'Worker calls this on extraction failure. Implements exponential backoff retry or permanent failure.';
 comment on function "atlas"."live_data_signal_candidate_semantic_key_v2"(p_rule_id text, p_signal_type text, p_primary_stream_id text, p_jurisdiction_id text, p_title text, p_entity_ids text[]) is 'Entity-aware semantic currentness identity. ProPublica entity-specific data-quality signals include resolved entity IDs so independent entities cannot retire one another; all other v1 signal semantics remain unchanged.';
-comment on function "atlas"."trigger_queue_pdf_extraction"() is 'Auto-queues PDFs for text extraction when raw_ table receives a row with analyzePhaseConfig enabled. Attach to each PDF-bearing raw table.';
 comment on function "public"."atlas_convergence_get_replay_bundle_v1"(p_run_key text) is 'Returns an immutable Atlas convergence replay bundle using engine-contract snapshot key records; records_json remains an internal storage-column name.';
 comment on function "public"."atlas_convergence_persist_run_v1"(p_bundle jsonb) is 'Atomically persists Atlas v2.1 convergence manifests, immutable population snapshots, per-geography receipts, and complete output payloads. Function-local statement timeout: 120 seconds.';
 comment on function "public"."atlas_convergence_source_population_page_v1"(p_from_timestamp timestamp with time zone, p_to_timestamp timestamp with time zone, p_after_stream_id text, p_after_offset bigint, p_limit integer) is 'Returns the immutable canonical event population for Atlas convergence. Mutable replay_count, historical aggregates, latest offsets, and last_seen_at remain operational telemetry and are excluded from governed hashes.';
@@ -10203,8 +10125,6 @@ revoke all privileges on function "atlas"."claim_pdf_extraction_job"(p_worker_id
 grant execute on function "atlas"."claim_pdf_extraction_job"(p_worker_id character varying) to PUBLIC;
 revoke all privileges on function "atlas"."complete_pdf_extraction"(p_queue_id bigint, p_extracted_text text, p_extraction_method character varying, p_extraction_confidence numeric, p_page_count integer, p_clauses_found jsonb) from PUBLIC, "anon", "authenticated", "service_role";
 grant execute on function "atlas"."complete_pdf_extraction"(p_queue_id bigint, p_extracted_text text, p_extraction_method character varying, p_extraction_confidence numeric, p_page_count integer, p_clauses_found jsonb) to PUBLIC;
-revoke all privileges on function "atlas"."compute_entity_risk_tier"(p_entity_id character varying) from PUBLIC, "anon", "authenticated", "service_role";
-grant execute on function "atlas"."compute_entity_risk_tier"(p_entity_id character varying) to PUBLIC;
 revoke all privileges on function "atlas"."enforce_live_data_signal_candidate_currentness_v1"() from PUBLIC, "anon", "authenticated", "service_role";
 grant execute on function "atlas"."enforce_live_data_signal_candidate_currentness_v1"() to PUBLIC;
 revoke all privileges on function "atlas"."engine_activate_discovered_schema"(p_draft_id bigint, p_reviewed_by character varying, p_review_notes text) from PUBLIC, "anon", "authenticated", "service_role";
@@ -10242,8 +10162,6 @@ revoke all privileges on function "atlas"."signal_event_identity_hash_v1"(p_stre
 grant execute on function "atlas"."signal_event_identity_hash_v1"(p_stream_id text, p_timestamp timestamp with time zone, p_signal_type text, p_spacetime jsonb, p_provenance jsonb, p_payload jsonb, p_source_id text, p_jurisdiction_id text, p_module_hint text) to "service_role";
 revoke all privileges on function "atlas"."signal_event_source_record_key_v1"(p_payload jsonb, p_provenance jsonb) from PUBLIC, "anon", "authenticated", "service_role";
 grant execute on function "atlas"."signal_event_source_record_key_v1"(p_payload jsonb, p_provenance jsonb) to PUBLIC;
-revoke all privileges on function "atlas"."trigger_queue_pdf_extraction"() from PUBLIC, "anon", "authenticated", "service_role";
-grant execute on function "atlas"."trigger_queue_pdf_extraction"() to PUBLIC;
 revoke all privileges on function "atlas"."trigger_set_timestamp"() from PUBLIC, "anon", "authenticated", "service_role";
 grant execute on function "atlas"."trigger_set_timestamp"() to PUBLIC;
 revoke all privileges on function "public"."atlas_bridge_config_for"(p_bridge_id text) from PUBLIC, "anon", "authenticated", "service_role";

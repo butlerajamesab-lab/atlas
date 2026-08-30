@@ -116,8 +116,8 @@ select is(
     join pg_namespace n on n.oid = p.pronamespace
     where n.nspname in ('atlas', 'public', 'private')
   ),
-  80::bigint,
-  'candidate contains 80 application functions after intentional exclusions'
+  78::bigint,
+  'candidate contains 78 application functions after intentional exclusions'
 );
 select is(
   (
@@ -262,7 +262,8 @@ select ok(
   'service_role retains the four reviewed bridge and export functions'
 );
 select ok(
-  to_regprocedure('atlas.bridge_emit_signal_v1()') is null
+  to_regprocedure('atlas.compute_entity_risk_tier(character varying)') is null
+    and to_regprocedure('atlas.bridge_emit_signal_v1()') is null
     and to_regprocedure('atlas.bridge_push_action_to_lighthouse()') is null
     and to_regprocedure('atlas.bridge_push_resources_to_lighthouse()') is null
     and to_regprocedure('atlas.bridge_rebuild_map_pins()') is null
@@ -275,6 +276,7 @@ select ok(
     and to_regprocedure('atlas.bridge_push_signal_to_lighthouse()') is null
     and to_regprocedure('atlas.bridge_push_signal_to_lighthouse(bigint)') is null
     and to_regprocedure('atlas.bridge_sync_all_to_lighthouse_v3()') is null
+    and to_regprocedure('atlas.trigger_queue_pdf_extraction()') is null
     and to_regprocedure('public.trigger_lighthouse_bridge_for_prime_pattern_v1(jsonb,jsonb,boolean)') is null,
   'retired cross-service writers are not resurrected by the baseline'
 );

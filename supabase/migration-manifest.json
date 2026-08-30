@@ -15,7 +15,7 @@
         "version": "20260513203455",
         "name": "canonical_jurisdiction_and_workflow_registries",
         "kind": "production_baseline",
-        "sha256": "e6388d7bb497073a1c4ea6ffe228a02f19a56b5a70a03064c1190077052d34a8",
+        "sha256": "7b0e9bd5a1dd17a28b6a9063e125c8ffd444c527e52190b8c258c9b33a1d87f4",
         "productionStatementsSha256": "c8738b389d7cf7efdd350b0377043ce8f11b89c9d709df2274aa6e6e27f52879",
         "productionRollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "reconciliationDisposition": "current_production_schema_squash_at_existing_first_version"
@@ -499,6 +499,14 @@
         "productionStatementsSha256": "bf70abd5a6f0f41b230e9bd12ad4fec2c18c67fbfdf40a0364932e81a5d3cf69",
         "productionRollbackSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "reconciliationDisposition": "historical_overlay_superseded_by_current_baseline"
+      },
+      {
+        "path": "supabase/migrations/20260830210636_atlas_operational_rebuild_hardening.sql",
+        "version": "20260830210636",
+        "name": "atlas_operational_rebuild_hardening",
+        "kind": "forward_repair",
+        "sha256": "3c099712dbdb0e58eb036dd64cf6a3d6ee61cfa20e711ccbb07f58e1e78c7bee",
+        "reconciliationDisposition": "pending_production_forward_repair_after_preview_acceptance"
       }
     ]
   },
@@ -522,7 +530,7 @@
   ],
   "validationSql": [
     {
-      "sha256": "8cdf7ff2bb4e79dded58aaad260be7eec1e776a270854fa320715c97962f48b4",
+      "sha256": "d8fafea0c227cbed4ae2185d336330ee0408a32f13787b13278c0a44b55c5eb8",
       "path": "supabase/tests/0001_baseline_prerequisites.sql",
       "kind": "pgtap_acceptance"
     }
@@ -748,7 +756,7 @@
     "currentProductionCatalog": {
       "evidenceRoot": "supabase/evidence/current-production-catalog",
       "reconstructionManifestPath": "supabase/evidence/current-production-catalog/reconstruction-manifest.json",
-      "reconstructionManifestSha256": "623a2f8a15fa1d43840f9b3c7085f4040a3705816d009e8aed68ada50b03ea16",
+      "reconstructionManifestSha256": "6dce3d3f791ad95e77722a3c24cfcd0408c6d61cce6ba17804724d3130fc5201",
       "catalogRootSha256": "5af30282c1b0e3a09de8370e0cac86bf7db78a6d7bdaa36cd2e216db799b7f26",
       "counts": {
         "schemas": 3,
@@ -757,7 +765,7 @@
         "views": 61,
         "columns": 2514,
         "functionsObserved": 96,
-        "functionsIncluded": 80,
+        "functionsIncluded": 78,
         "sequences": 34,
         "triggersObserved": 20,
         "triggersIncluded": 16,
@@ -908,7 +916,7 @@
       "status": "candidate_pending_preview_replay",
       "evidence": "The 49-row production ledger is neither a complete baseline nor self-contained executable history.",
       "recovery": "Reconcile a catalog-derived schema baseline with all ledger rows and recovered payloads.",
-      "disposition": "The baseline plus 48 historical receipts forms a 49-version candidate chain; empty PG17 and hosted preview replay are still required."
+      "disposition": "The baseline plus 48 historical receipts and one pending forward repair forms a 50-version candidate chain; empty PG17 and hosted preview replay are still required."
     },
     {
       "id": "historical_atlas_schema_shapes_unknown",
@@ -927,7 +935,7 @@
       "status": "resolved",
       "evidence": "Eight retired functions and trg_queue_bridge_v3 are referenced only by quarantine operations; recreating them would expand the dependency and secret surface.",
       "recovery": "Use to_regprocedure and pg_trigger guards so revoke/disable steps are conditional.",
-      "disposition": "16 retired or invalid runtime functions and 4 bridge triggers are deliberately excluded and asserted absent."
+      "disposition": "18 retired or invalid runtime functions and 4 bridge triggers are deliberately excluded from the baseline and removed by the forward repair."
     },
     {
       "id": "lighthouse_rpc_access_decision_pending",
