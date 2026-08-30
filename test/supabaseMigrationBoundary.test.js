@@ -50,6 +50,9 @@ async function createValidatorFixture(t) {
   );
   manifest.canonical.status = 'blocked';
   manifest.canonical.migrations = [];
+  // Fixtures intentionally move a ready repository back to blocked/candidate
+  // states. A real non-ready manifest must not retain the ready-only receipt.
+  delete manifest.acceptanceEvidence;
   manifest.productionEvidence.ledgerReconciliationStatus = 'blocked';
   const baselineBlocker = manifest.blockers.find(
     (blocker) => blocker.id === 'production_schema_baseline_missing',
