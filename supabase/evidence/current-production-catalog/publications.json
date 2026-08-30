@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "evidenceKind": "Atlas current production publication catalog",
+  "capturedAt": "2026-08-30T20:40:00Z",
+  "projectRef": "bjdjjgnkhxblnpdrjqtw",
+  "publication_state": {
+    "members": [
+      {
+        "table": "atlas_case_links",
+        "schema": "atlas",
+        "publication": "supabase_realtime"
+      },
+      {
+        "table": "convergence_events",
+        "schema": "atlas",
+        "publication": "supabase_realtime"
+      },
+      {
+        "table": "corruption_indicators",
+        "schema": "atlas",
+        "publication": "supabase_realtime"
+      },
+      {
+        "table": "signals",
+        "schema": "atlas",
+        "publication": "supabase_realtime"
+      }
+    ],
+    "publications": [
+      {
+        "name": "supabase_realtime",
+        "owner": "postgres",
+        "delete": true,
+        "insert": true,
+        "update": true,
+        "truncate": true,
+        "all_tables": false,
+        "via_partition_root": false
+      }
+    ]
+  }
+}

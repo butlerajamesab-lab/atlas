@@ -1,0 +1,186 @@
+{
+  "schemaVersion": 1,
+  "subject": {
+    "repository": "butlerajamesab-lab/atlas",
+    "pullRequest": 68,
+    "branch": "codex/fail-closed-atlas-baseline-20260830",
+    "candidateCommitSha": "9cefe9bfa6ce175400bcf498eaa889b1947e921e",
+    "candidateTreeSha": "a33d265b67ece9c63ee2118aaab78fffc2c9a673",
+    "canonicalRoot": "supabase/migrations",
+    "canonicalMigrationCount": 51,
+    "canonicalChainSha256": "deac60dc35001b1b4dc1f7266be64db7c4b7685469bb72a0214399ab55a8d988"
+  },
+  "productionBoundary": {
+    "mode": "read_only",
+    "productionProjectRef": "bjdjjgnkhxblnpdrjqtw",
+    "postgresVersion": "17.6",
+    "productionMigrationCount": 49,
+    "firstMigrationVersion": "20260513203455",
+    "lastMigrationVersion": "20260822082205",
+    "capturedAt": "2026-08-30T21:45:32.515Z",
+    "orderedLedgerSha256": "278e15ff6dddc371e0484145c4aaa2fefb82913b83e28acf5729e35cd009af7f",
+    "orderedVersionNameSha256": "5f2fa5cf0adb18a44cd0d48b9d4ae43eb0c4b8cfa55dca8ccb9236b56f0a6913",
+    "render": {
+      "serviceId": "srv-d845j5vaqgkc73acfgeg",
+      "environmentId": "evm-d7vfl97aqgkc7396igag",
+      "repository": "butlerajamesab-lab/atlas",
+      "branch": "main",
+      "serviceUrl": "https://atlas-streaming-engine.onrender.com",
+      "latestObservedCommitSha": "72d6c698cc8a7d7e44165e93817054604c491d41",
+      "pullRequestPreviewsEnabled": false,
+      "activePullRequestPreviewCount": 0,
+      "mutated": false
+    }
+  },
+  "localVerification": {
+    "workflow": "database-migration-gate",
+    "workflowRunUrl": "https://github.com/butlerajamesab-lab/atlas/actions/runs/33337344595",
+    "runId": 33337344595,
+    "runAttempt": 1,
+    "jobName": "database-replay-evidence",
+    "jobId": 99326512006,
+    "headSha": "9cefe9bfa6ce175400bcf498eaa889b1947e921e",
+    "postgresMajorVersion": 17,
+    "cleanReplay": {
+      "conclusion": "success",
+      "canonicalMigrationCount": 51
+    },
+    "pgTap": {
+      "conclusion": "success",
+      "planned": 56,
+      "executed": 56,
+      "failed": 0
+    },
+    "lint": {
+      "conclusion": "success",
+      "errorCount": 0,
+      "warningCount": 5,
+      "warningDisposition": "Non-blocking behavior and unused-value warnings retained as explicit residual lint debt; no error-level finding remains."
+    },
+    "dirtyReplay": {
+      "conclusion": "success",
+      "result": "migration list unchanged and local database already up to date"
+    },
+    "secondCleanReplay": {
+      "conclusion": "success",
+      "canonicalMigrationCount": 51
+    },
+    "requiredStepConclusions": {
+      "Replay every canonical migration from empty": "success",
+      "Verify prerequisite schema, extensions, RLS, and grants": "success",
+      "Fail on database lint errors": "success",
+      "Prove dirty database replay is a no-op": "success",
+      "Repeat clean replay to detect dirty or order-dependent state": "success"
+    },
+    "otherCandidateWorkflows": {
+      "Node.js CI": "success",
+      "Event entity resolution contracts": "success",
+      "Atlas Esquire bridge contract": "success"
+    }
+  },
+  "hostedPreview": {
+    "productionProjectRef": "bjdjjgnkhxblnpdrjqtw",
+    "previewProjectRef": "pfslrupnskktspdaayfq",
+    "branchId": "4f70f9c3-9629-45bb-92fc-03e455ca36c4",
+    "pullRequest": 68,
+    "headSha": "9cefe9bfa6ce175400bcf498eaa889b1947e921e",
+    "headBinding": {
+      "method": "GitHub PR head plus Supabase integration comment updated after that head",
+      "supabaseBotComment": "https://github.com/butlerajamesab-lab/atlas/pull/68#issuecomment-5470472881",
+      "commentUpdatedAt": "2026-08-30T21:47:08Z",
+      "databaseTaskUpdatedAt": "2026-08-30T21:47:07Z",
+      "databaseLedgerCommitColumnAvailable": false
+    },
+    "branchStatus": "ACTIVE_HEALTHY",
+    "withProductionData": false,
+    "postgresVersion": "17.6",
+    "serverVersionNumber": 170006,
+    "capturedAt": "2026-08-30T21:49:56.874Z",
+    "migrationCount": 51,
+    "firstMigrationVersion": "20260513203455",
+    "lastMigrationVersion": "20260830212000",
+    "orderedVersionNameSha256": "387b7bd5f6595bf7d967f1bd88dad85364d0f3eb36f7296c719403f60fb8264d",
+    "catalogCounts": {
+      "schemas": 3,
+      "relations": 209,
+      "tables": 114,
+      "views": 61,
+      "columns": 2514,
+      "constraints": 425,
+      "indexes": 451,
+      "sequences": 34,
+      "functions": 78,
+      "triggers": 16,
+      "policies": 45
+    },
+    "retiredFunctionsExpected": 18,
+    "retiredFunctionsPresent": 0,
+    "retiredTriggersExpected": 4,
+    "retiredTriggersPresent": 0,
+    "bridgeConfigRows": 0,
+    "lighthouseAllowlistRows": 0,
+    "atlasSchemaUsage": {
+      "anon": false,
+      "authenticated": false,
+      "service_role": true
+    },
+    "sensitiveFunctionExecute": {
+      "publicAnonOrAuthenticatedGrantCount": 0,
+      "serviceRoleMissingCount": 0
+    },
+    "realtimeRelations": [
+      "atlas.atlas_case_links",
+      "atlas.convergence_events",
+      "atlas.corruption_indicators",
+      "atlas.signals"
+    ],
+    "operationalViews": {
+      "publicSecurityInvoker": true,
+      "publicAnonOrAuthenticatedSelect": false,
+      "publicServiceRoleSelect": true,
+      "atlasAnonOrAuthenticatedSelect": false,
+      "atlasServiceRoleSelect": true
+    },
+    "functionRepairs": {
+      "completePdfDigestQualified": true,
+      "connectorConflictConstraintExplicit": true,
+      "schemaConflictConstraintExplicit": true
+    }
+  },
+  "securityAdvisors": {
+    "previewProjectRef": "pfslrupnskktspdaayfq",
+    "headSha": "9cefe9bfa6ce175400bcf498eaa889b1947e921e",
+    "capturedAt": "2026-08-30T21:50:02.243Z",
+    "infoCount": 26,
+    "warningCount": 0,
+    "errorCount": 0,
+    "findingName": "rls_enabled_no_policy",
+    "intentionalDenyByDefaultTableCounts": {
+      "atlas": 17,
+      "public": 9
+    },
+    "disposition": "Accepted INFO-only deny-by-default tables; no permissive policy was added merely to silence an advisor.",
+    "remediationReference": "https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy"
+  },
+  "securityReview": {
+    "applicationOwnerRole": "postgres",
+    "postgresDefaultAclLeakCount": 0,
+    "serviceRoleDefaultAclPairs": 9,
+    "sensitiveSecurityDefinerFunctionsReviewed": 4,
+    "platformOwnerBoundary": "supabase_admin default ACLs remain platform-owned and outside this migration's authority",
+    "ownerDiscipline": "Future application DDL must remain postgres-owned or receive renewed ACL review.",
+    "hostedLintBoundary": "plpgsql_check is not installed on the hosted preview; live function definitions were verified there and zero-error lint was established by the isolated PG17 workflow job."
+  },
+  "decision": {
+    "status": "accepted",
+    "productionMutated": false,
+    "pullRequestMerged": false,
+    "renderDeployed": false,
+    "scope": "Canonical chain is ready for review; both forward repairs remain preview-only until separately approved merge and deployment.",
+    "residualUnknowns": [
+      "Original pre-ledger object history is irrecoverable; the accepted model is an explicitly labeled current production-derived squash.",
+      "The production Data API exposed-schema setting was not directly verified; Atlas schema usage is nevertheless revoked from anon and authenticated.",
+      "The hosted migration ledger has no Git commit column; head binding is supplied by the GitHub PR head and the Supabase integration result, while the database independently proves the exact 51-version chain."
+    ]
+  }
+}

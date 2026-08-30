@@ -1,0 +1,713 @@
+{
+  "schemaVersion": 1,
+  "evidenceKind": "Atlas current production function catalog",
+  "capturedAt": "2026-08-30T20:40:00Z",
+  "projectRef": "bjdjjgnkhxblnpdrjqtw",
+  "schema": "public",
+  "offset": 0,
+  "functions": [
+    {
+      "kind": "f",
+      "name": "atlas_bridge_config_for",
+      "owner": "postgres",
+      "config": [
+        "search_path=atlas, public"
+      ],
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "TABLE(target_url text, target_service_key text, enabled boolean)",
+      "schema": "public",
+      "strict": false,
+      "comment": null,
+      "language": "sql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION public.atlas_bridge_config_for(p_bridge_id text)\n RETURNS TABLE(target_url text, target_service_key text, enabled boolean)\n LANGUAGE sql\n SECURITY DEFINER\n SET search_path TO 'atlas', 'public'\nAS $function$\n  select bridge_config.target_url, bridge_config.target_service_key, bridge_config.enabled\n  from atlas.bridge_config\n  where bridge_config.bridge_id = p_bridge_id\n  limit 1;\n$function$\n",
+      "volatility": "v",
+      "security_definer": true,
+      "identity_arguments": "p_bridge_id text"
+    },
+    {
+      "kind": "f",
+      "name": "atlas_bridge_latest_log_for",
+      "owner": "postgres",
+      "config": [
+        "search_path=atlas, public"
+      ],
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "TABLE(bridge_id text, sync_type text, source_table text, source_record_id text, target_table text, target_record_id text, status text, request_payload jsonb, response_payload jsonb, error_message text, synced_at timestamp with time zone)",
+      "schema": "public",
+      "strict": false,
+      "comment": null,
+      "language": "sql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION public.atlas_bridge_latest_log_for(p_bridge_id text, p_sync_type text, p_source_record_id text)\n RETURNS TABLE(bridge_id text, sync_type text, source_table text, source_record_id text, target_table text, target_record_id text, status text, request_payload jsonb, response_payload jsonb, error_message text, synced_at timestamp with time zone)\n LANGUAGE sql\n SECURITY DEFINER\n SET search_path TO 'atlas', 'public'\nAS $function$\n  select\n    bridge_sync_log.bridge_id,\n    bridge_sync_log.sync_type,\n    bridge_sync_log.source_table,\n    bridge_sync_log.source_record_id,\n    bridge_sync_log.target_table,\n    bridge_sync_log.target_record_id,\n    bridge_sync_log.status,\n    bridge_sync_log.request_payload,\n    bridge_sync_log.response_payload,\n    bridge_sync_log.error_message,\n    bridge_sync_log.synced_at\n  from atlas.bridge_sync_log\n  where bridge_sync_log.bridge_id = p_bridge_id\n    and bridge_sync_log.sync_type = p_sync_type\n    and bridge_sync_log.source_record_id = p_source_record_id\n  order by bridge_sync_log.synced_at desc\n  limit 1;\n$function$\n",
+      "volatility": "v",
+      "security_definer": true,
+      "identity_arguments": "p_bridge_id text, p_sync_type text, p_source_record_id text"
+    },
+    {
+      "kind": "f",
+      "name": "atlas_bridge_was_sent",
+      "owner": "postgres",
+      "config": [
+        "search_path=atlas, public"
+      ],
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "boolean",
+      "schema": "public",
+      "strict": false,
+      "comment": null,
+      "language": "sql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION public.atlas_bridge_was_sent(p_bridge_id text, p_sync_type text, p_source_table text, p_source_record_id text)\n RETURNS boolean\n LANGUAGE sql\n SECURITY DEFINER\n SET search_path TO 'atlas', 'public'\nAS $function$\n  select exists (\n    select 1\n    from atlas.bridge_sync_log\n    where bridge_id = p_bridge_id\n      and sync_type = p_sync_type\n      and source_table = p_source_table\n      and source_record_id = p_source_record_id\n      and status = 'sent'\n    limit 1\n  );\n$function$\n",
+      "volatility": "v",
+      "security_definer": true,
+      "identity_arguments": "p_bridge_id text, p_sync_type text, p_source_table text, p_source_record_id text"
+    },
+    {
+      "kind": "f",
+      "name": "atlas_civic_genome_legislative_projection_persist_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public, atlas"
+      ],
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "jsonb",
+      "schema": "public",
+      "strict": false,
+      "comment": null,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION public.atlas_civic_genome_legislative_projection_persist_v1(p_bundle jsonb)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public', 'atlas'\nAS $function$\ndeclare\n  v_projection_key text := p_bundle->>'projection_key';\n  v_snapshot_id text := p_bundle->>'source_snapshot_id';\n  v_snapshot_hash text := p_bundle->>'source_snapshot_hash';\n  v_observation_count integer := (p_bundle->>'observation_count')::integer;\n  v_existing atlas.civic_genome_legislative_projection_run%rowtype;\n  v_source atlas.civic_genome_external_snapshot%rowtype;\n  v_observation jsonb;\n  v_ingest jsonb;\n  v_receipt jsonb;\nbegin\n  if p_bundle->>'bundle_version' <> 'atlas_civic_genome_legislative_projection.v1' then\n    raise exception 'atlas_civic_genome_projection_bundle_version_invalid';\n  end if;\n  if v_projection_key !~ '^[0-9a-f]{64}$'\n     or p_bundle->>'mapping_rule_hash' !~ '^[0-9a-f]{64}$'\n     or p_bundle->>'version_manifest_hash' !~ '^[0-9a-f]{64}$'\n     or p_bundle->>'observation_hash' !~ '^[0-9a-f]{64}$' then\n    raise exception 'atlas_civic_genome_projection_hash_invalid';\n  end if;\n  if jsonb_typeof(p_bundle->'observations') <> 'array'\n     or jsonb_array_length(p_bundle->'observations') <> v_observation_count then\n    raise exception 'atlas_civic_genome_projection_observation_count_mismatch';\n  end if;\n\n  perform pg_advisory_xact_lock(hashtextextended(v_projection_key, 0));\n  select * into v_existing\n  from atlas.civic_genome_legislative_projection_run\n  where projection_key = v_projection_key;\n  if found then\n    if v_existing.source_snapshot_hash is distinct from v_snapshot_hash\n       or v_existing.observation_hash is distinct from p_bundle->>'observation_hash'\n       or v_existing.version_manifest_hash is distinct from p_bundle->>'version_manifest_hash'\n       or v_existing.observation_count is distinct from v_observation_count then\n      raise exception 'atlas_civic_genome_projection_identity_collision';\n    end if;\n    return jsonb_build_object(\n      'status','idempotent',\n      'projection_key',v_existing.projection_key,\n      'source_snapshot_id',v_existing.source_snapshot_id,\n      'observation_count',v_existing.observation_count,\n      'events_inserted',v_existing.events_inserted,\n      'replays_suppressed',v_existing.replays_suppressed,\n      'persisted_at',v_existing.persisted_at\n    );\n  end if;\n\n  select * into v_source\n  from atlas.civic_genome_external_snapshot\n  where source_snapshot_id = v_snapshot_id;\n  if not found or v_source.source_snapshot_hash is distinct from v_snapshot_hash then\n    raise exception 'atlas_civic_genome_projection_source_snapshot_mismatch';\n  end if;\n  if v_source.methodology_version <> 'civic_genome_external_family_snapshot.1.1.0' then\n    raise exception 'atlas_civic_genome_projection_source_methodology_invalid';\n  end if;\n\n  for v_observation in select value from jsonb_array_elements(p_bundle->'observations')\n  loop\n    if v_observation->>'stream_id' <> 'civic_genome_legislative_versions'\n       or v_observation->>'source_id' <> 'lighthouse_civic_genome_snapshot'\n       or v_observation->>'module_hint' <> 'legislative_history'\n       or v_observation->'payload'->>'source_snapshot_id' <> v_snapshot_id\n       or v_observation->'payload'->>'source_snapshot_hash' <> v_snapshot_hash\n       or v_observation->'payload'->>'mapping_rule_hash' <> p_bundle->>'mapping_rule_hash' then\n      raise exception 'atlas_civic_genome_projection_observation_boundary_invalid';\n    end if;\n  end loop;\n\n  select public.persist_signal_event_batch_v2(p_bundle->'observations') into v_ingest;\n  if v_ingest->>'status' <> 'completed'\n     or coalesce((v_ingest->>'records_failed')::integer, 0) <> 0 then\n    raise exception 'atlas_civic_genome_projection_signal_ingest_failed: %', v_ingest::text;\n  end if;\n\n  v_receipt := jsonb_build_object(\n    'projection_key',v_projection_key,\n    'mapping_rule_id',p_bundle->'mapping_rule'->>'rule_id',\n    'mapping_rule_version',p_bundle->'mapping_rule'->>'rule_version',\n    'mapping_rule_hash',p_bundle->>'mapping_rule_hash',\n    'source_snapshot_id',v_snapshot_id,\n    'source_snapshot_hash',v_snapshot_hash,\n    'version_manifest_hash',p_bundle->>'version_manifest_hash',\n    'source_version_count',(p_bundle->>'source_version_count')::integer,\n    'observation_count',v_observation_count,\n    'observation_hash',p_bundle->>'observation_hash',\n    'ingest',v_ingest,\n    'no_upstream_mutation',true,\n    'no_consequence_interpretation',true\n  );\n\n  insert into atlas.civic_genome_legislative_projection_run (\n    projection_key,mapping_rule_id,mapping_rule_version,mapping_rule_hash,\n    source_snapshot_id,source_snapshot_hash,version_manifest_hash,\n    source_version_count,observation_count,observation_hash,ingest_run_id,\n    events_inserted,replays_suppressed,status,receipt_json\n  ) values (\n    v_projection_key,\n    p_bundle->'mapping_rule'->>'rule_id',\n    p_bundle->'mapping_rule'->>'rule_version',\n    p_bundle->>'mapping_rule_hash',\n    v_snapshot_id,v_snapshot_hash,p_bundle->>'version_manifest_hash',\n    (p_bundle->>'source_version_count')::integer,\n    v_observation_count,p_bundle->>'observation_hash',(v_ingest->>'run_id')::uuid,\n    (v_ingest->>'events_inserted')::integer,\n    (v_ingest->>'replays_suppressed')::integer,\n    'completed',v_receipt\n  );\n\n  return jsonb_build_object(\n    'status','inserted',\n    'projection_key',v_projection_key,\n    'source_snapshot_id',v_snapshot_id,\n    'source_version_count',(p_bundle->>'source_version_count')::integer,\n    'observation_count',v_observation_count,\n    'events_inserted',(v_ingest->>'events_inserted')::integer,\n    'replays_suppressed',(v_ingest->>'replays_suppressed')::integer,\n    'ingest_run_id',v_ingest->>'run_id'\n  );\nend;\n$function$\n",
+      "volatility": "v",
+      "security_definer": true,
+      "identity_arguments": "p_bundle jsonb"
+    },
+    {
+      "kind": "f",
+      "name": "atlas_civic_genome_legislative_trait_accounting_persist_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public, atlas"
+      ],
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "jsonb",
+      "schema": "public",
+      "strict": false,
+      "comment": null,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION public.atlas_civic_genome_legislative_trait_accounting_persist_v1(p_receipt jsonb)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public', 'atlas'\nAS $function$\ndeclare\n  v_existing atlas.civic_genome_legislative_trait_binding_accounting%rowtype;\n  v_projection atlas.civic_genome_legislative_projection_run%rowtype;\n  v_source atlas.civic_genome_external_snapshot%rowtype;\n  v_projection_key text := p_receipt->>'projection_key';\n  v_snapshot_id text := p_receipt->>'source_snapshot_id';\n  v_accounting_hash text := p_receipt->>'accounting_hash';\nbegin\n  if v_accounting_hash !~ '^[0-9a-f]{64}$'\n     or p_receipt->>'accounting_rule_hash' !~ '^[0-9a-f]{64}$'\n     or p_receipt->>'source_snapshot_hash' !~ '^[0-9a-f]{64}$' then\n    raise exception 'atlas_civic_genome_trait_accounting_hash_invalid';\n  end if;\n  if (p_receipt->>'total_trait_count')::integer\n     <> (p_receipt->>'exact_version_bound_trait_count')::integer\n      + (p_receipt->>'historical_same_source_trait_count')::integer\n      + (p_receipt->>'unresolved_trait_count')::integer then\n    raise exception 'atlas_civic_genome_trait_accounting_count_mismatch';\n  end if;\n\n  perform pg_advisory_xact_lock(\n    hashtextextended(v_projection_key || ':' || (p_receipt->>'accounting_rule_hash'), 0)\n  );\n  select * into v_existing\n  from atlas.civic_genome_legislative_trait_binding_accounting\n  where projection_key=v_projection_key\n    and accounting_rule_hash=p_receipt->>'accounting_rule_hash';\n  if found then\n    if v_existing.accounting_hash is distinct from v_accounting_hash\n       or v_existing.receipt_json is distinct from p_receipt then\n      raise exception 'atlas_civic_genome_trait_accounting_identity_collision';\n    end if;\n    return jsonb_build_object(\n      'status','idempotent',\n      'accounting_hash',v_existing.accounting_hash,\n      'projection_key',v_existing.projection_key,\n      'total_trait_count',v_existing.total_trait_count,\n      'exact_version_bound_trait_count',v_existing.exact_version_bound_trait_count,\n      'historical_same_source_trait_count',v_existing.historical_same_source_trait_count,\n      'unresolved_trait_count',v_existing.unresolved_trait_count,\n      'completeness_state',v_existing.completeness_state,\n      'persisted_at',v_existing.persisted_at\n    );\n  end if;\n\n  select * into v_projection\n  from atlas.civic_genome_legislative_projection_run\n  where projection_key=v_projection_key;\n  if not found or v_projection.source_snapshot_id is distinct from v_snapshot_id then\n    raise exception 'atlas_civic_genome_trait_accounting_projection_mismatch';\n  end if;\n  select * into v_source\n  from atlas.civic_genome_external_snapshot\n  where source_snapshot_id=v_snapshot_id;\n  if not found or v_source.source_snapshot_hash is distinct from p_receipt->>'source_snapshot_hash' then\n    raise exception 'atlas_civic_genome_trait_accounting_source_mismatch';\n  end if;\n\n  insert into atlas.civic_genome_legislative_trait_binding_accounting (\n    accounting_hash,accounting_rule_id,accounting_rule_version,accounting_rule_hash,\n    projection_key,source_snapshot_id,source_snapshot_hash,total_trait_count,\n    exact_version_bound_trait_count,historical_same_source_trait_count,\n    unresolved_trait_count,completeness_state,receipt_json\n  ) values (\n    v_accounting_hash,\n    p_receipt->'accounting_rule'->>'rule_id',\n    p_receipt->'accounting_rule'->>'rule_version',\n    p_receipt->>'accounting_rule_hash',\n    v_projection_key,v_snapshot_id,p_receipt->>'source_snapshot_hash',\n    (p_receipt->>'total_trait_count')::integer,\n    (p_receipt->>'exact_version_bound_trait_count')::integer,\n    (p_receipt->>'historical_same_source_trait_count')::integer,\n    (p_receipt->>'unresolved_trait_count')::integer,\n    p_receipt->>'completeness_state',p_receipt\n  );\n\n  return jsonb_build_object(\n    'status','inserted',\n    'accounting_hash',v_accounting_hash,\n    'projection_key',v_projection_key,\n    'total_trait_count',(p_receipt->>'total_trait_count')::integer,\n    'exact_version_bound_trait_count',(p_receipt->>'exact_version_bound_trait_count')::integer,\n    'historical_same_source_trait_count',(p_receipt->>'historical_same_source_trait_count')::integer,\n    'unresolved_trait_count',(p_receipt->>'unresolved_trait_count')::integer,\n    'completeness_state',p_receipt->>'completeness_state'\n  );\nend;\n$function$\n",
+      "volatility": "v",
+      "security_definer": true,
+      "identity_arguments": "p_receipt jsonb"
+    },
+    {
+      "kind": "f",
+      "name": "atlas_civic_genome_snapshot_get_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, atlas"
+      ],
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "jsonb",
+      "schema": "public",
+      "strict": false,
+      "comment": null,
+      "language": "sql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION public.atlas_civic_genome_snapshot_get_v1(p_snapshot_id text)\n RETURNS jsonb\n LANGUAGE sql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'atlas'\nAS $function$\n  select snapshot_json\n  from atlas.civic_genome_external_snapshot\n  where source_snapshot_id = p_snapshot_id\n$function$\n",
+      "volatility": "v",
+      "security_definer": true,
+      "identity_arguments": "p_snapshot_id text"
+    },
+    {
+      "kind": "f",
+      "name": "atlas_civic_genome_snapshot_persist_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public, atlas"
+      ],
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "jsonb",
+      "schema": "public",
+      "strict": false,
+      "comment": null,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION public.atlas_civic_genome_snapshot_persist_v1(p_record jsonb)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public', 'atlas'\nAS $function$\ndeclare\n  v_snapshot jsonb := p_record->'snapshot';\n  v_existing atlas.civic_genome_external_snapshot%rowtype;\n  v_snapshot_id text := v_snapshot->>'snapshot_id';\n  v_snapshot_hash text := v_snapshot->>'snapshot_hash';\n  v_component_count integer := (v_snapshot->>'component_count')::integer;\nbegin\n  if p_record->>'source_schema_id' <> 'https://luminari.org/civic-genome/contracts/external-snapshot.v1.schema.json' then\n    raise exception 'atlas_civic_genome_source_schema_mismatch';\n  end if;\n  if v_snapshot->>'contract_id' <> 'civic_genome.external_snapshot.v1'\n     or v_snapshot->>'contract_version' <> '1.0.0'\n     or v_snapshot->>'canonical_owner' <> 'lighthouse/civic_genome'\n     or v_snapshot->>'snapshot_kind' <> 'baseline_export'\n     or coalesce((v_snapshot->>'immutable')::boolean, false) is distinct from true then\n    raise exception 'atlas_civic_genome_source_contract_mismatch';\n  end if;\n  if v_snapshot_id is null or v_snapshot_hash !~ '^[0-9a-f]{64}$' then\n    raise exception 'atlas_civic_genome_snapshot_identity_invalid';\n  end if;\n  if jsonb_typeof(v_snapshot->'components') <> 'array'\n     or jsonb_array_length(v_snapshot->'components') <> v_component_count then\n    raise exception 'atlas_civic_genome_component_count_mismatch';\n  end if;\n  if p_record->>'atlas_binding_hash' !~ '^[0-9a-f]{64}$'\n     or p_record->>'delivery_receipt_hash' !~ '^[0-9a-f]{64}$' then\n    raise exception 'atlas_civic_genome_delivery_identity_invalid';\n  end if;\n\n  perform pg_advisory_xact_lock(hashtextextended(v_snapshot_id, 0));\n  select * into v_existing from atlas.civic_genome_external_snapshot\n   where source_snapshot_id = v_snapshot_id;\n\n  if found then\n    if v_existing.source_snapshot_hash is distinct from v_snapshot_hash then\n      raise exception 'atlas_civic_genome_snapshot_identity_collision';\n    end if;\n    return jsonb_build_object(\n      'status','idempotent',\n      'source_snapshot_id',v_existing.source_snapshot_id,\n      'source_snapshot_hash',v_existing.source_snapshot_hash,\n      'atlas_binding_hash',v_existing.atlas_binding_hash,\n      'received_at',v_existing.received_at\n    );\n  end if;\n\n  insert into atlas.civic_genome_external_snapshot (\n    source_snapshot_id, source_snapshot_hash, source_schema_id,\n    source_contract_id, source_contract_version, source_owner, snapshot_kind,\n    source_as_of, methodology_version, scope_json, component_count,\n    completeness_state, unresolved_conditions, excluded_component_types,\n    source_export_receipt_id, source_export_receipt_hash, deterministic_replay_key,\n    source_commit_sha, snapshot_json, atlas_binding_hash, delivery_key_id,\n    delivery_receipt_hash\n  ) values (\n    v_snapshot_id,\n    v_snapshot_hash,\n    p_record->>'source_schema_id',\n    v_snapshot->>'contract_id',\n    v_snapshot->>'contract_version',\n    v_snapshot->>'canonical_owner',\n    v_snapshot->>'snapshot_kind',\n    (v_snapshot->>'as_of')::timestamptz,\n    v_snapshot->>'methodology_version',\n    v_snapshot->'scope',\n    v_component_count,\n    v_snapshot->>'completeness_state',\n    coalesce(v_snapshot->'unresolved_conditions','[]'::jsonb),\n    coalesce(v_snapshot->'excluded_component_types','[]'::jsonb),\n    v_snapshot->'export_receipt'->>'export_receipt_id',\n    v_snapshot->'export_receipt'->>'export_receipt_hash',\n    v_snapshot->'export_receipt'->>'deterministic_replay_key',\n    nullif(v_snapshot->'export_receipt'->>'source_commit_sha',''),\n    v_snapshot,\n    p_record->>'atlas_binding_hash',\n    p_record->>'delivery_key_id',\n    p_record->>'delivery_receipt_hash'\n  );\n\n  return jsonb_build_object(\n    'status','inserted',\n    'source_snapshot_id',v_snapshot_id,\n    'source_snapshot_hash',v_snapshot_hash,\n    'atlas_binding_hash',p_record->>'atlas_binding_hash'\n  );\nend;\n$function$\n",
+      "volatility": "v",
+      "security_definer": true,
+      "identity_arguments": "p_record jsonb"
+    },
+    {
+      "kind": "f",
+      "name": "atlas_convergence_get_replay_bundle_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public, atlas"
+      ],
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "jsonb",
+      "schema": "public",
+      "strict": false,
+      "comment": "Returns an immutable Atlas convergence replay bundle using engine-contract snapshot key records; records_json remains an internal storage-column name.",
+      "language": "sql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION public.atlas_convergence_get_replay_bundle_v1(p_run_key text)\n RETURNS jsonb\n LANGUAGE sql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public', 'atlas'\nAS $function$\n  select jsonb_build_object(\n    'manifest', to_jsonb(manifest) - 'persisted_at',\n    'registry', jsonb_build_object(\n      'registry_hash', registry.registry_hash,\n      'registry_version', registry.registry_version,\n      'jurisdiction', registry.jurisdiction,\n      'analysis_level', registry.analysis_level,\n      'source_id', registry.source_id,\n      'source_version', registry.source_version,\n      'source_url', registry.source_url,\n      'entries_json', registry.entries_json,\n      'provenance_records', registry.provenance_records\n    ),\n    'snapshots', coalesce((\n      select jsonb_agg(\n        jsonb_build_object(\n          'run_key', snapshot.run_key,\n          'snapshot_type', snapshot.snapshot_type,\n          'population_hash', snapshot.population_hash,\n          'record_count', snapshot.record_count,\n          'records', snapshot.records_json\n        )\n        order by snapshot.snapshot_type\n      )\n      from atlas.convergence_signal_snapshot snapshot\n      where snapshot.run_key = manifest.run_key\n    ), '[]'::jsonb),\n    'receipts', coalesce((\n      select jsonb_agg(to_jsonb(receipt) - 'persisted_at' order by receipt.geography_id)\n      from atlas.convergence_receipt receipt\n      where receipt.run_key = manifest.run_key\n    ), '[]'::jsonb),\n    'result', to_jsonb(result) - 'persisted_at'\n  )\n  from atlas.convergence_run_manifest manifest\n  join atlas.geography_registry_snapshot registry\n    on registry.registry_hash = manifest.analysis_registry_hash\n  join atlas.convergence_result_payload result using (run_key)\n  where manifest.run_key = p_run_key\n$function$\n",
+      "volatility": "v",
+      "security_definer": true,
+      "identity_arguments": "p_run_key text"
+    },
+    {
+      "kind": "f",
+      "name": "atlas_convergence_get_run_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public, atlas"
+      ],
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "jsonb",
+      "schema": "public",
+      "strict": false,
+      "comment": null,
+      "language": "sql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION public.atlas_convergence_get_run_v1(p_run_key text)\n RETURNS jsonb\n LANGUAGE sql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public', 'atlas'\nAS $function$\n  select jsonb_build_object(\n    'manifest', to_jsonb(manifest) - 'persisted_at',\n    'result', to_jsonb(result) - 'persisted_at',\n    'receipts', coalesce((\n      select jsonb_agg(to_jsonb(receipt) - 'persisted_at' order by receipt.geography_id)\n      from atlas.convergence_receipt receipt\n      where receipt.run_key = manifest.run_key\n    ), '[]'::jsonb)\n  )\n  from atlas.convergence_run_manifest manifest\n  join atlas.convergence_result_payload result using (run_key)\n  where manifest.run_key = p_run_key\n$function$\n",
+      "volatility": "v",
+      "security_definer": true,
+      "identity_arguments": "p_run_key text"
+    },
+    {
+      "kind": "f",
+      "name": "atlas_convergence_persist_run_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public, atlas",
+        "statement_timeout=120s"
+      ],
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "jsonb",
+      "schema": "public",
+      "strict": false,
+      "comment": "Atomically persists Atlas v2.1 convergence manifests, immutable population snapshots, per-geography receipts, and complete output payloads. Function-local statement timeout: 120 seconds.",
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION public.atlas_convergence_persist_run_v1(p_bundle jsonb)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public', 'atlas'\n SET statement_timeout TO '120s'\nAS $function$\ndeclare\n  v_registry jsonb := p_bundle->'registry';\n  v_manifest jsonb := p_bundle->'manifest';\n  v_result jsonb := p_bundle->'result';\n  v_snapshot jsonb;\n  v_receipt jsonb;\n  v_run_key text := v_manifest->>'run_key';\n  v_existing_manifest atlas.convergence_run_manifest%rowtype;\n  v_existing_registry atlas.geography_registry_snapshot%rowtype;\n  v_existing_result atlas.convergence_result_payload%rowtype;\n  v_expected_receipts integer := jsonb_array_length(coalesce(p_bundle->'receipts', '[]'::jsonb));\n  v_expected_snapshots integer := jsonb_array_length(coalesce(p_bundle->'snapshots', '[]'::jsonb));\nbegin\n  if p_bundle->>'bundle_version' <> 'atlas_convergence_persistence.v2.1.0' then\n    raise exception 'unsupported convergence persistence bundle version';\n  end if;\n  if v_run_key is null or v_run_key !~ '^[a-f0-9]{64}$' then\n    raise exception 'invalid convergence run_key';\n  end if;\n  if v_expected_receipts < 1 or v_expected_receipts <> (v_manifest->>'receipt_count')::integer then\n    raise exception 'receipt count does not match manifest';\n  end if;\n  if v_expected_snapshots <> 3 then\n    raise exception 'exactly three source/transformed/deduplicated snapshots are required';\n  end if;\n\n  perform pg_advisory_xact_lock(hashtextextended(v_run_key, 0));\n\n  select * into v_existing_manifest\n  from atlas.convergence_run_manifest\n  where run_key = v_run_key;\n\n  if found then\n    select * into v_existing_result\n    from atlas.convergence_result_payload\n    where run_key = v_run_key;\n\n    if v_existing_manifest.output_hash is distinct from v_result->>'output_hash'\n       or v_existing_manifest.configuration_json is distinct from v_manifest->'configuration_json'\n       or v_existing_manifest.source_population_hash is distinct from v_manifest->>'source_population_hash'\n       or v_existing_manifest.receipt_count is distinct from v_expected_receipts\n       or v_existing_result.output_hash is distinct from v_result->>'output_hash'\n       or v_existing_result.payload_json is distinct from v_result->'payload_json'\n       or v_existing_result.receipt_count is distinct from v_expected_receipts then\n      raise exception 'run_key % already exists with different governed content', v_run_key;\n    end if;\n\n    return jsonb_build_object(\n      'status', 'idempotent',\n      'run_key', v_run_key,\n      'output_hash', v_existing_result.output_hash,\n      'receipt_count', v_existing_result.receipt_count\n    );\n  end if;\n\n  insert into atlas.geography_registry_snapshot (\n    registry_hash, registry_version, jurisdiction, analysis_level,\n    source_id, source_version, source_url, record_count,\n    entries_json, provenance_records\n  ) values (\n    v_registry->>'registry_hash',\n    v_registry->>'registry_version',\n    v_registry->>'jurisdiction',\n    v_registry->>'analysis_level',\n    v_registry->>'source_id',\n    v_registry->>'source_version',\n    v_registry->>'source_url',\n    jsonb_array_length(v_registry->'entries_json'->'entries'),\n    v_registry->'entries_json',\n    v_registry->'provenance_records'\n  ) on conflict (registry_hash) do nothing;\n\n  select * into v_existing_registry\n  from atlas.geography_registry_snapshot\n  where registry_hash = v_registry->>'registry_hash';\n\n  if not found\n     or v_existing_registry.registry_version is distinct from v_registry->>'registry_version'\n     or v_existing_registry.analysis_level is distinct from v_registry->>'analysis_level'\n     or v_existing_registry.entries_json is distinct from v_registry->'entries_json'\n     or v_existing_registry.provenance_records is distinct from v_registry->'provenance_records' then\n    raise exception 'geography registry hash conflict';\n  end if;\n\n  insert into atlas.convergence_run_manifest (\n    run_key, engine_version, as_of, time_window_ms, temporal_bucket_ms,\n    geography_registry_version, analysis_registry_hash, analysis_level,\n    rule_manifest_hash, configuration_hash, configuration_json,\n    source_population_hash, transformed_population_hash,\n    deduplicated_population_hash, total_source_rows, total_signals_raw,\n    total_signals_deduplicated, total_geographies, receipt_count, output_hash\n  ) values (\n    v_run_key,\n    v_manifest->>'engine_version',\n    (v_manifest->>'as_of')::bigint,\n    (v_manifest->>'time_window_ms')::bigint,\n    (v_manifest->>'temporal_bucket_ms')::bigint,\n    v_manifest->>'geography_registry_version',\n    v_manifest->>'analysis_registry_hash',\n    v_manifest->>'analysis_level',\n    v_manifest->>'rule_manifest_hash',\n    v_manifest->>'configuration_hash',\n    v_manifest->'configuration_json',\n    v_manifest->>'source_population_hash',\n    v_manifest->>'transformed_population_hash',\n    v_manifest->>'deduplicated_population_hash',\n    (v_manifest->>'total_source_rows')::integer,\n    (v_manifest->>'total_signals_raw')::integer,\n    (v_manifest->>'total_signals_deduplicated')::integer,\n    (v_manifest->>'total_geographies')::integer,\n    (v_manifest->>'receipt_count')::integer,\n    v_manifest->>'output_hash'\n  );\n\n  for v_snapshot in select value from jsonb_array_elements(p_bundle->'snapshots')\n  loop\n    insert into atlas.convergence_signal_snapshot (\n      run_key, snapshot_type, population_hash, record_count, records_json\n    ) values (\n      v_run_key,\n      v_snapshot->>'snapshot_type',\n      v_snapshot->>'population_hash',\n      jsonb_array_length(v_snapshot->'records'),\n      v_snapshot->'records'\n    );\n  end loop;\n\n  for v_receipt in select value from jsonb_array_elements(p_bundle->'receipts')\n  loop\n    if v_receipt->>'run_key' is distinct from v_run_key then\n      raise exception 'receipt run_key mismatch';\n    end if;\n    insert into atlas.convergence_receipt (\n      run_key, geography_id, receipt_identity, equation_id, engine_version,\n      rule_manifest_hash, as_of, configuration_hash, source_population_hash,\n      input_hash, output_hash, source_signal_ids, geography_registry_version,\n      expected_count, observed_count, z_score, convergence_detected, status,\n      reason_unresolved, computed_outputs, timestamp_computed\n    ) values (\n      v_run_key,\n      v_receipt->>'geography_id',\n      v_receipt->>'receipt_identity',\n      v_receipt->>'equation_id',\n      v_receipt->>'engine_version',\n      v_receipt->>'rule_manifest_hash',\n      (v_receipt->>'as_of')::bigint,\n      v_receipt->>'configuration_hash',\n      v_receipt->>'source_population_hash',\n      v_receipt->>'input_hash',\n      v_receipt->>'output_hash',\n      v_receipt->'source_signal_ids',\n      v_receipt->>'geography_registry_version',\n      nullif(v_receipt->>'expected_count', '')::numeric,\n      (v_receipt->>'observed_count')::integer,\n      nullif(v_receipt->>'z_score', '')::numeric,\n      (v_receipt->>'convergence_detected')::boolean,\n      v_receipt->>'status',\n      v_receipt->>'reason_unresolved',\n      v_receipt->'computed_outputs',\n      (v_receipt->>'timestamp_computed')::bigint\n    );\n  end loop;\n\n  insert into atlas.convergence_result_payload (\n    run_key, output_hash, payload_json, receipt_count\n  ) values (\n    v_run_key,\n    v_result->>'output_hash',\n    v_result->'payload_json',\n    (v_result->>'receipt_count')::integer\n  );\n\n  return jsonb_build_object(\n    'status', 'created',\n    'run_key', v_run_key,\n    'output_hash', v_result->>'output_hash',\n    'receipt_count', v_expected_receipts\n  );\nend;\n$function$\n",
+      "volatility": "v",
+      "security_definer": true,
+      "identity_arguments": "p_bundle jsonb"
+    },
+    {
+      "kind": "f",
+      "name": "atlas_convergence_source_population_page_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public, atlas"
+      ],
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "TABLE(row_json jsonb)",
+      "schema": "public",
+      "strict": false,
+      "comment": "Returns the immutable canonical event population for Atlas convergence. Mutable replay_count, historical aggregates, latest offsets, and last_seen_at remain operational telemetry and are excluded from governed hashes.",
+      "language": "sql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION public.atlas_convergence_source_population_page_v1(p_from_timestamp timestamp with time zone, p_to_timestamp timestamp with time zone, p_after_stream_id text DEFAULT NULL::text, p_after_offset bigint DEFAULT NULL::bigint, p_limit integer DEFAULT 1000)\n RETURNS TABLE(row_json jsonb)\n LANGUAGE sql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public', 'atlas'\nAS $function$\n  select jsonb_build_object(\n    'stream_id', event.stream_id,\n    'offset', event.offset::text,\n    'timestamp', event.timestamp,\n    'signal_type', event.signal_type,\n    'spacetime', event.spacetime,\n    'provenance', event.provenance,\n    'payload', event.payload,\n    'source_id', event.source_id,\n    'jurisdiction_id', event.jurisdiction_id,\n    'module_hint', event.module_hint,\n    'ingested_at', event.ingested_at,\n    'event_identity_hash', identity.event_identity_hash,\n    'canonical_identity', jsonb_build_object(\n      'canonical_offset', identity.canonical_offset::text,\n      'source_record_key', identity.source_record_key,\n      'first_seen_at', identity.first_seen_at,\n      'source_timestamp', identity.source_timestamp\n    )\n  ) as row_json\n  from public.signal_events event\n  join atlas.signal_event_identity identity\n    on identity.stream_id = event.stream_id\n   and identity.canonical_offset = event.offset\n   and identity.event_identity_hash = event.event_identity_hash\n  where event.timestamp >= p_from_timestamp\n    and event.timestamp <= p_to_timestamp\n    and (\n      p_after_stream_id is null\n      or event.stream_id > p_after_stream_id\n      or (event.stream_id = p_after_stream_id and event.offset > p_after_offset)\n    )\n  order by event.stream_id, event.offset\n  limit least(greatest(coalesce(p_limit, 1000), 1), 1000)\n$function$\n",
+      "volatility": "v",
+      "security_definer": true,
+      "identity_arguments": "p_from_timestamp timestamp with time zone, p_to_timestamp timestamp with time zone, p_after_stream_id text, p_after_offset bigint, p_limit integer"
+    },
+    {
+      "kind": "f",
+      "name": "atlas_event_entity_candidate_key_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public, extensions"
+      ],
+      "grants": [
+        {
+          "grantee": "PUBLIC",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "text",
+      "schema": "public",
+      "strict": false,
+      "comment": null,
+      "language": "sql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION public.atlas_event_entity_candidate_key_v1(p_rule_id text, p_rule_version text, p_entity_role text, p_source_field text, p_normalized_entity_value text, p_source_identifier_field text, p_source_identifier_type text, p_normalized_identifier_value text, p_expected_entity_type text)\n RETURNS text\n LANGUAGE sql\n IMMUTABLE\n SET search_path TO 'pg_catalog', 'public', 'extensions'\nAS $function$\n  SELECT encode(\n    digest(\n      concat_ws(\n        chr(31),\n        COALESCE(p_rule_id, ''),\n        COALESCE(p_rule_version, ''),\n        COALESCE(p_entity_role, ''),\n        COALESCE(p_source_field, ''),\n        COALESCE(p_normalized_entity_value, ''),\n        COALESCE(p_source_identifier_field, ''),\n        COALESCE(p_source_identifier_type, ''),\n        COALESCE(p_normalized_identifier_value, ''),\n        COALESCE(p_expected_entity_type, '')\n      ),\n      'sha256'\n    ),\n    'hex'\n  );\n$function$\n",
+      "volatility": "i",
+      "security_definer": false,
+      "identity_arguments": "p_rule_id text, p_rule_version text, p_entity_role text, p_source_field text, p_normalized_entity_value text, p_source_identifier_field text, p_source_identifier_type text, p_normalized_identifier_value text, p_expected_entity_type text"
+    },
+    {
+      "kind": "f",
+      "name": "atlas_event_entity_resolution_hash_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public, extensions"
+      ],
+      "grants": [
+        {
+          "grantee": "PUBLIC",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "text",
+      "schema": "public",
+      "strict": false,
+      "comment": null,
+      "language": "sql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION public.atlas_event_entity_resolution_hash_v1(p_event_input_hash text, p_entity_index_hash text, p_rule_manifest_hash text, p_rule_id text, p_rule_version text, p_candidate_key text, p_entity_role text, p_source_field text, p_normalized_entity_value text, p_source_identifier_field text, p_source_identifier_type text, p_normalized_identifier_value text, p_expected_entity_type text, p_resolution_status text, p_entity_id text, p_match_method text, p_candidate_entity_ids text[], p_resolver_id text, p_resolver_version text)\n RETURNS text\n LANGUAGE sql\n IMMUTABLE\n SET search_path TO 'pg_catalog', 'public', 'extensions'\nAS $function$\n  SELECT encode(\n    digest(\n      concat_ws(\n        chr(31),\n        COALESCE(p_event_input_hash, ''),\n        COALESCE(p_entity_index_hash, ''),\n        COALESCE(p_rule_manifest_hash, ''),\n        COALESCE(p_rule_id, ''),\n        COALESCE(p_rule_version, ''),\n        COALESCE(p_candidate_key, ''),\n        COALESCE(p_entity_role, ''),\n        COALESCE(p_source_field, ''),\n        COALESCE(p_normalized_entity_value, ''),\n        COALESCE(p_source_identifier_field, ''),\n        COALESCE(p_source_identifier_type, ''),\n        COALESCE(p_normalized_identifier_value, ''),\n        COALESCE(p_expected_entity_type, ''),\n        COALESCE(p_resolution_status, ''),\n        COALESCE(p_entity_id, ''),\n        COALESCE(p_match_method, ''),\n        COALESCE((\n          SELECT string_agg(candidate_id, chr(30) ORDER BY candidate_id)\n          FROM unnest(COALESCE(p_candidate_entity_ids, ARRAY[]::text[])) AS candidate(candidate_id)\n        ), ''),\n        COALESCE(p_resolver_id, ''),\n        COALESCE(p_resolver_version, '')\n      ),\n      'sha256'\n    ),\n    'hex'\n  );\n$function$\n",
+      "volatility": "i",
+      "security_definer": false,
+      "identity_arguments": "p_event_input_hash text, p_entity_index_hash text, p_rule_manifest_hash text, p_rule_id text, p_rule_version text, p_candidate_key text, p_entity_role text, p_source_field text, p_normalized_entity_value text, p_source_identifier_field text, p_source_identifier_type text, p_normalized_identifier_value text, p_expected_entity_type text, p_resolution_status text, p_entity_id text, p_match_method text, p_candidate_entity_ids text[], p_resolver_id text, p_resolver_version text"
+    },
+    {
+      "kind": "f",
+      "name": "atlas_event_entity_source_value_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public, extensions"
+      ],
+      "grants": [
+        {
+          "grantee": "PUBLIC",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "text",
+      "schema": "public",
+      "strict": false,
+      "comment": null,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION public.atlas_event_entity_source_value_v1(p_rule_id text, p_source_field text, p_source_field_value text)\n RETURNS text\n LANGUAGE plpgsql\n IMMUTABLE\n SET search_path TO 'pg_catalog', 'public', 'extensions'\nAS $function$\nDECLARE\n  v_value text;\n  v_match text[];\nBEGIN\n  IF p_source_field = '__none__' OR p_source_field_value IS NULL THEN\n    RETURN NULL;\n  END IF;\n\n  v_value := NULLIF(btrim(p_source_field_value), '');\n  IF v_value IS NULL THEN\n    RETURN NULL;\n  END IF;\n\n  IF p_rule_id = 'usa_spending.award_recipient'\n     AND p_source_field = 'payload.title' THEN\n    v_match := regexp_match(\n      v_value,\n      '^(Contract|Award|Grant)[[:space:]]*:[[:space:]]*(.+)[[:space:]]+[—–-][[:space:]]+\\$.*$',\n      'i'\n    );\n\n    IF v_match IS NULL THEN\n      v_match := regexp_match(\n        v_value,\n        '^(Contract|Award|Grant)[[:space:]]*:[[:space:]]*(.+)[[:space:]]+[—–-][[:space:]]+.*$',\n        'i'\n      );\n    END IF;\n\n    IF v_match IS NULL THEN\n      v_match := regexp_match(\n        v_value,\n        '^(Contract|Award|Grant)[[:space:]]*:[[:space:]]*(.+)$',\n        'i'\n      );\n    END IF;\n\n    IF v_match IS NOT NULL THEN\n      RETURN NULLIF(btrim(v_match[2]), '');\n    END IF;\n  END IF;\n\n  RETURN v_value;\nEND;\n$function$\n",
+      "volatility": "i",
+      "security_definer": false,
+      "identity_arguments": "p_rule_id text, p_source_field text, p_source_field_value text"
+    },
+    {
+      "kind": "f",
+      "name": "atlas_event_payload_field_text_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public, extensions"
+      ],
+      "grants": [
+        {
+          "grantee": "PUBLIC",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "text",
+      "schema": "public",
+      "strict": true,
+      "comment": null,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION public.atlas_event_payload_field_text_v1(p_payload jsonb, p_source_field text)\n RETURNS text\n LANGUAGE plpgsql\n IMMUTABLE STRICT\n SET search_path TO 'pg_catalog', 'public', 'extensions'\nAS $function$\nDECLARE\n  v_path text;\n  v_parts text[];\nBEGIN\n  IF p_source_field = '__none__' THEN\n    RETURN NULL;\n  END IF;\n  IF p_source_field !~ '^payload(\\.|\\[)' THEN\n    RAISE EXCEPTION 'unsupported event payload source field: %', p_source_field;\n  END IF;\n\n  v_path := regexp_replace(p_source_field, '^payload\\.?', '');\n  v_path := regexp_replace(v_path, '\\[([0-9]+)\\]', '.\\1', 'g');\n  v_parts := string_to_array(v_path, '.');\n  RETURN p_payload #>> v_parts;\nEND;\n$function$\n",
+      "volatility": "i",
+      "security_definer": false,
+      "identity_arguments": "p_payload jsonb, p_source_field text"
+    },
+    {
+      "kind": "f",
+      "name": "atlas_insert_bridge_sync_log",
+      "owner": "postgres",
+      "config": [
+        "search_path=atlas, public"
+      ],
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "void",
+      "schema": "public",
+      "strict": false,
+      "comment": null,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION public.atlas_insert_bridge_sync_log(p_bridge_id text, p_sync_type text, p_source_table text, p_source_record_id text, p_target_table text, p_target_record_id text, p_status text, p_request_payload jsonb, p_response_payload jsonb, p_error_message text, p_duration_ms integer)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'atlas', 'public'\nAS $function$\nbegin\n  insert into atlas.bridge_sync_log (\n    bridge_id,\n    sync_type,\n    source_table,\n    source_record_id,\n    target_table,\n    target_record_id,\n    status,\n    request_payload,\n    response_payload,\n    error_message,\n    duration_ms\n  ) values (\n    p_bridge_id,\n    p_sync_type,\n    p_source_table,\n    p_source_record_id,\n    p_target_table,\n    p_target_record_id,\n    p_status,\n    coalesce(p_request_payload, '{}'::jsonb),\n    p_response_payload,\n    p_error_message,\n    p_duration_ms\n  );\nend;\n$function$\n",
+      "volatility": "v",
+      "security_definer": true,
+      "identity_arguments": "p_bridge_id text, p_sync_type text, p_source_table text, p_source_record_id text, p_target_table text, p_target_record_id text, p_status text, p_request_payload jsonb, p_response_payload jsonb, p_error_message text, p_duration_ms integer"
+    },
+    {
+      "kind": "f",
+      "name": "atlas_normalize_entity_identifier_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public, extensions"
+      ],
+      "grants": [
+        {
+          "grantee": "PUBLIC",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "text",
+      "schema": "public",
+      "strict": false,
+      "comment": null,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION public.atlas_normalize_entity_identifier_v1(p_identifier_type text, p_value text)\n RETURNS text\n LANGUAGE plpgsql\n IMMUTABLE\n SET search_path TO 'pg_catalog', 'public', 'extensions'\nAS $function$\nDECLARE\n  v_type text := lower(COALESCE(p_identifier_type, 'generic'));\n  v_raw text;\n  v_digits text;\n  v_compact text;\nBEGIN\n  IF p_value IS NULL THEN\n    RETURN NULL;\n  END IF;\n\n  v_raw := btrim(normalize(p_value, NFKC));\n  IF v_raw = '' THEN\n    RETURN NULL;\n  END IF;\n\n  IF v_type = 'canonical_entity_id' THEN\n    RETURN v_raw;\n  END IF;\n\n  IF v_type IN ('ein', 'duns', 'cik') THEN\n    v_digits := regexp_replace(v_raw, '[^0-9]', '', 'g');\n    IF v_type IN ('ein', 'duns') THEN\n      RETURN CASE WHEN length(v_digits) = 9 THEN v_digits ELSE NULL END;\n    END IF;\n    RETURN CASE\n      WHEN length(v_digits) BETWEEN 1 AND 10 THEN lpad(v_digits, 10, '0')\n      ELSE NULL\n    END;\n  END IF;\n\n  v_compact := regexp_replace(upper(v_raw), '[^A-Z0-9]', '', 'g');\n  IF v_type = 'uei' THEN\n    RETURN CASE WHEN length(v_compact) = 12 THEN v_compact ELSE NULL END;\n  END IF;\n\n  RETURN NULLIF(v_compact, '');\nEND;\n$function$\n",
+      "volatility": "i",
+      "security_definer": false,
+      "identity_arguments": "p_identifier_type text, p_value text"
+    },
+    {
+      "kind": "f",
+      "name": "atlas_normalize_entity_name_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public, extensions"
+      ],
+      "grants": [
+        {
+          "grantee": "PUBLIC",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "text",
+      "schema": "public",
+      "strict": true,
+      "comment": null,
+      "language": "sql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION public.atlas_normalize_entity_name_v1(p_value text)\n RETURNS text\n LANGUAGE sql\n IMMUTABLE STRICT\n SET search_path TO 'pg_catalog', 'public', 'extensions'\nAS $function$\n  SELECT NULLIF(\n    regexp_replace(\n      upper(btrim(p_value)),\n      '[^A-Z0-9]',\n      '',\n      'g'\n    ),\n    ''\n  );\n$function$\n",
+      "volatility": "i",
+      "security_definer": false,
+      "identity_arguments": "p_value text"
+    }
+  ]
+}
