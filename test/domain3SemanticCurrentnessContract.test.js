@@ -36,8 +36,16 @@ test('candidate persistence preserves first detection time on exact replay', () 
 });
 
 test('cross-stream patterns use stable rule-specific semantic identity', () => {
-  assert.match(reviewFixes, /p_rule_id = 'atlas\.domain3\.cross_category_entity' then ''/);
-  assert.match(reviewFixes, /where rule_id = 'atlas\.domain3\.cross_category_entity'/);
+  assert.match(
+    reviewFixes,
+    /p_rule_id in \([\s\S]*'atlas\.domain3\.cross_category_entity',[\s\S]*'atlas\.domain3\.cross_jurisdiction_recurrence'[\s\S]*\) then ''/,
+  );
+  assert.match(
+    reviewFixes,
+    /where rule_id in \([\s\S]*'atlas\.domain3\.cross_category_entity',[\s\S]*'atlas\.domain3\.cross_jurisdiction_recurrence'[\s\S]*\)/,
+  );
+  assert.match(reviewFixes, /set semantic_key = atlas\.live_data_signal_candidate_semantic_key_v1/);
+  assert.match(reviewFixes, /partition by semantic_key/);
   assert.match(reviewFixes, /create unique index live_data_signal_candidate_one_current_semantic_idx/);
 });
 
