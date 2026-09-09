@@ -1,7 +1,8 @@
 -- Follow-up hardening for Domain 3 semantic currentness review findings.
 --
--- 1. cross_category_entity groups span streams by design, so primary_stream_id is
---    not part of that rule's stable semantic identity.
+-- 1. cross_category_entity and cross_jurisdiction_recurrence group across
+--    streams by design, so primary_stream_id is not part of either stable
+--    semantic identity.
 -- 2. reactivating an older exact content version uses the replay transition time
 --    and preserves the existing historical supersession chain instead of
 --    reversing it into an A<->B cycle.
@@ -26,7 +27,10 @@ as $$
           coalesce(p_rule_id, ''),
           coalesce(p_signal_type, ''),
           case
-            when p_rule_id = 'atlas.domain3.cross_category_entity' then ''
+            when p_rule_id in (
+              'atlas.domain3.cross_category_entity',
+              'atlas.domain3.cross_jurisdiction_recurrence'
+            ) then ''
             else coalesce(p_primary_stream_id, '')
           end,
           coalesce(p_jurisdiction_id, ''),
@@ -40,7 +44,7 @@ as $$
   )
 $$;
 
--- Re-key the already-preserved cross-category history before restoring the
+-- Re-key the already-preserved cross-stream histories before restoring the
 -- singleton-current invariant. Historical candidate rows remain intact.
 drop index if exists atlas.live_data_signal_candidate_one_current_semantic_idx;
 
@@ -52,7 +56,10 @@ update atlas.live_data_signal_candidate
      jurisdiction_id,
      title
    )
- where rule_id = 'atlas.domain3.cross_category_entity';
+ where rule_id in (
+   'atlas.domain3.cross_category_entity',
+   'atlas.domain3.cross_jurisdiction_recurrence'
+ );
 
 with ranked as (
   select
@@ -80,7 +87,10 @@ with ranked as (
         candidate_id asc
     ) as next_version_at
   from atlas.live_data_signal_candidate
-  where rule_id = 'atlas.domain3.cross_category_entity'
+  where rule_id in (
+   'atlas.domain3.cross_category_entity',
+   'atlas.domain3.cross_jurisdiction_recurrence'
+ )
 )
 update atlas.live_data_signal_candidate candidate
    set is_current = (ranked.current_rank = 1),
