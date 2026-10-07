@@ -113,6 +113,21 @@ function createPublicReadCache(ttlMs = PUBLIC_READ_CACHE_TTL_MS) {
   };
 }
 
+// Supabase PostgREST errors are plain objects ({ message, details, hint, code }),
+// NOT instanceof Error. String(error) on them yields "[object Object]" and the
+// real message is lost. Prefer a serialized form so 500 bodies stay diagnostic.
+function asErrorDetail(error) {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === 'object') {
+    try {
+      return JSON.stringify(error);
+    } catch {
+      // fall through to String()
+    }
+  }
+  return String(error);
+}
+
 export function atlasUiRouter({ apiError }) {
   const router = express.Router();
   const cachedRead = createPublicReadCache();
@@ -213,7 +228,9 @@ export function atlasUiRouter({ apiError }) {
       });
       res.json(payload);
     } catch (error) {
-      apiError(res, 500, 'Atlas frontend overview failed', error instanceof Error ? error.message : String(error));
+      const detail = asErrorDetail(error);
+      console.error('[atlas][ui-api/overview] failed:', detail);
+      apiError(res, 500, 'Atlas frontend overview failed', detail);
     }
   });
 
