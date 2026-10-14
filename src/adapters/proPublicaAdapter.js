@@ -58,6 +58,10 @@ export function normalizeProPublicaFiling(filing, { organization = {}, jurisdict
   const record = { ...filing, organization };
   const region = stateFromRecord(record, jurisdiction);
   const sourceUrl = nonprofitSourceUrl(record);
+  // The API uses tax_prd (YYYYMM) and formtype=0 for Form 990.
+  // Retain tax_period/form_type as compatibility aliases for existing callers.
+  const tax_period = filing.tax_prd ?? filing.tax_period ?? null;
+  const form_type = filing.formtype ?? filing.form_type ?? null;
 
   return {
     signal_type: 'nonprofit_990_filing',
@@ -65,7 +69,7 @@ export function normalizeProPublicaFiling(filing, { organization = {}, jurisdict
     spacetime: {
       region,
       jurisdiction: region,
-      tax_period: filing.tax_period || null,
+      tax_period,
     },
     provenance: {
       channel: 'pro_publica',
@@ -74,11 +78,11 @@ export function normalizeProPublicaFiling(filing, { organization = {}, jurisdict
       source_url: sourceUrl,
     },
     payload: {
-      external_id: filing.sub_id || `${organization.ein || 'unknown'}-${filing.tax_period || 'unknown'}`,
+      external_id: filing.sub_id || `${organization.ein || 'unknown'}-${tax_period ?? 'unknown'}`,
       ein: organization.ein || filing.ein || null,
       organization_name: organization.name || null,
-      tax_period: filing.tax_period || null,
-      form_type: filing.formtype || filing.form_type || null,
+      tax_period,
+      form_type,
       total_revenue: filing.totrevenue ?? null,
       total_assets: filing.totassetsend ?? null,
       pdf_url: filing.pdf_url || null,
