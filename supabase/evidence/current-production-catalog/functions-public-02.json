@@ -1,0 +1,682 @@
+{
+  "schemaVersion": 1,
+  "evidenceKind": "Atlas current production function catalog",
+  "capturedAt": "2026-08-30T20:40:00Z",
+  "projectRef": "bjdjjgnkhxblnpdrjqtw",
+  "schema": "public",
+  "offset": 18,
+  "functions": [
+    {
+      "kind": "f",
+      "name": "atlas_set_source_fallback_updated_at",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public"
+      ],
+      "grants": [
+        {
+          "grantee": "PUBLIC",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "trigger",
+      "schema": "public",
+      "strict": false,
+      "comment": null,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION public.atlas_set_source_fallback_updated_at()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO 'pg_catalog', 'public'\nAS $function$\nbegin\n  new.updated_at = now();\n  return new;\nend;\n$function$\n",
+      "volatility": "v",
+      "security_definer": false,
+      "identity_arguments": ""
+    },
+    {
+      "kind": "f",
+      "name": "atlas_signal_event_input_hash_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public, extensions"
+      ],
+      "grants": [
+        {
+          "grantee": "PUBLIC",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "text",
+      "schema": "public",
+      "strict": true,
+      "comment": null,
+      "language": "sql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION public.atlas_signal_event_input_hash_v1(p_stream_id text, p_offset bigint, p_timestamp timestamp with time zone, p_signal_type text, p_spacetime jsonb, p_provenance jsonb, p_payload jsonb, p_source_id text, p_jurisdiction_id text, p_module_hint text, p_ingested_at timestamp with time zone)\n RETURNS text\n LANGUAGE sql\n STABLE STRICT\n SET search_path TO 'pg_catalog', 'public', 'extensions'\nAS $function$\n  SELECT encode(\n    digest(\n      concat_ws(\n        chr(31),\n        p_stream_id,\n        p_offset::text,\n        to_char(p_timestamp AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"'),\n        p_signal_type,\n        p_spacetime::text,\n        p_provenance::text,\n        p_payload::text,\n        p_source_id,\n        p_jurisdiction_id,\n        p_module_hint,\n        to_char(p_ingested_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"')\n      ),\n      'sha256'\n    ),\n    'hex'\n  );\n$function$\n",
+      "volatility": "s",
+      "security_definer": false,
+      "identity_arguments": "p_stream_id text, p_offset bigint, p_timestamp timestamp with time zone, p_signal_type text, p_spacetime jsonb, p_provenance jsonb, p_payload jsonb, p_source_id text, p_jurisdiction_id text, p_module_hint text, p_ingested_at timestamp with time zone"
+    },
+    {
+      "kind": "f",
+      "name": "bridge_atlas_stream_runtime_snapshot_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public, atlas, extensions, pg_temp"
+      ],
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "jsonb",
+      "schema": "public",
+      "strict": false,
+      "comment": null,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION public.bridge_atlas_stream_runtime_snapshot_v1(p_snapshot jsonb)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public', 'atlas', 'extensions', 'pg_temp'\nAS $function$\ndeclare\n  v_config record;\n  v_response extensions.http_response;\n  v_body jsonb;\nbegin\n  if jsonb_typeof(p_snapshot) <> 'object'\n     or jsonb_typeof(p_snapshot->'streams') <> 'array'\n     or coalesce(p_snapshot->>'snapshot_hash','') !~ '^[0-9a-f]{64}$' then\n    raise exception 'atlas_stream_runtime_snapshot_invalid';\n  end if;\n\n  select\n    config.target_url,\n    config.enabled,\n    config.config_json->>'domain3_receipt_token' as bridge_token\n    into v_config\n    from atlas.bridge_config config\n   where config.bridge_id = 'atlas-to-lighthouse'\n   limit 1;\n\n  if not found or not coalesce(v_config.enabled,false) then\n    raise exception 'Atlas-to-Lighthouse bridge configuration is unavailable or disabled';\n  end if;\n  if coalesce(v_config.target_url,'') = '' then\n    raise exception 'Atlas-to-Lighthouse target URL is missing';\n  end if;\n  if coalesce(length(v_config.bridge_token),0) < 32 then\n    raise exception 'Atlas-to-Lighthouse scoped receipt token is missing';\n  end if;\n\n  select * into v_response\n    from extensions.http((\n      'POST',\n      rtrim(v_config.target_url,'/') || '/api/atlas-domain3/streams',\n      array[\n        extensions.http_header('x-atlas-domain3-token', v_config.bridge_token),\n        extensions.http_header('Accept','application/json')\n      ],\n      'application/json',\n      p_snapshot::text\n    )::extensions.http_request);\n\n  if v_response.status < 200 or v_response.status >= 300 then\n    raise exception 'Lighthouse stream projection HTTP %: %',\n      v_response.status,\n      left(coalesce(v_response.content,''),1000);\n  end if;\n  if coalesce(v_response.content,'') = '' then\n    raise exception 'Lighthouse stream projection returned empty response';\n  end if;\n\n  v_body := v_response.content::jsonb;\n  if jsonb_typeof(v_body) <> 'object'\n     or coalesce((v_body->>'ok')::boolean,false) is not true\n     or coalesce(v_body->>'snapshot_hash','') <> p_snapshot->>'snapshot_hash' then\n    raise exception 'Lighthouse stream projection receipt invalid: %', left(v_response.content,1000);\n  end if;\n\n  return jsonb_build_object(\n    'status','completed',\n    'streams_registered',coalesce((v_body->>'streams_registered')::integer,0),\n    'snapshot_hash',v_body->>'snapshot_hash',\n    'observed_at',v_body->>'observed_at',\n    'registered_at',v_body->>'registered_at',\n    'transport','atlas_lighthouse_stream_runtime_receipt_v1',\n    'http_status',v_response.status\n  );\nend;\n$function$\n",
+      "volatility": "v",
+      "security_definer": true,
+      "identity_arguments": "p_snapshot jsonb"
+    },
+    {
+      "kind": "f",
+      "name": "bridge_live_data_signal_candidates_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public, atlas, extensions, pg_temp"
+      ],
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "jsonb",
+      "schema": "public",
+      "strict": false,
+      "comment": "Projects Atlas Domain 3 candidates into Lighthouse with immutable Atlas candidate ID, hash, semantic key, evidence references, and governed transport receipts. It does not promote candidates or create findings.",
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION public.bridge_live_data_signal_candidates_v1(p_run_id uuid, p_limit integer DEFAULT 100)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public', 'atlas', 'extensions', 'pg_temp'\nAS $function$\ndeclare\n  v_config record;\n  v_candidate record;\n  v_response extensions.http_response;\n  v_body jsonb;\n  v_lighthouse_record_id uuid;\n  v_record jsonb;\n  v_bridged integer := 0;\n  v_idempotent integer := 0;\n  v_failed integer := 0;\n  v_seen integer := 0;\n  v_error text;\n  v_receipts jsonb := '[]'::jsonb;\n  v_projected_entity_state text;\n  v_projected_verification_state text;\nbegin\n  if p_run_id is null then\n    raise exception 'p_run_id is required';\n  end if;\n\n  select\n    config.target_url,\n    config.enabled,\n    config.config_json->>'domain3_receipt_token' as domain3_receipt_token\n  into v_config\n  from atlas.bridge_config config\n  where config.bridge_id = 'atlas-to-lighthouse'\n  limit 1;\n\n  if not found or not coalesce(v_config.enabled, false) then\n    raise exception 'Atlas-to-Lighthouse bridge configuration is unavailable or disabled';\n  end if;\n  if coalesce(v_config.target_url, '') = '' then\n    raise exception 'Atlas-to-Lighthouse target URL is missing';\n  end if;\n  if coalesce(length(v_config.domain3_receipt_token), 0) < 32 then\n    raise exception 'Atlas-to-Lighthouse scoped Domain 3 receipt token is missing';\n  end if;\n\n  for v_candidate in\n    select candidate.*\n    from atlas.live_data_signal_candidate candidate\n    where candidate.last_run_id = p_run_id\n    order by candidate.candidate_id\n    limit least(greatest(coalesce(p_limit, 100), 1), 1000)\n  loop\n    v_seen := v_seen + 1;\n    v_lighthouse_record_id := null;\n    v_body := null;\n\n    v_projected_entity_state := case\n      when v_candidate.entity_resolution_status in ('resolved','ambiguous','unresolved','ignored')\n        then v_candidate.entity_resolution_status\n      else 'unresolved'\n    end;\n\n    v_projected_verification_state := case\n      when v_candidate.verification_state in (\n        'supported_one_source','supported_multiple_sources','contradicted',\n        'disputed','incomplete','unresolved','verified'\n      ) then v_candidate.verification_state\n      else 'unresolved'\n    end;\n\n    v_record := jsonb_build_object(\n      'atlas_candidate_id', v_candidate.candidate_id,\n      'atlas_candidate_hash', v_candidate.candidate_hash,\n      'atlas_semantic_key', v_candidate.semantic_key,\n      'signal_type', v_candidate.signal_type,\n      'title', v_candidate.title,\n      'description', v_candidate.description,\n      'primary_stream_id', v_candidate.primary_stream_id,\n      'source_event_refs', v_candidate.source_event_refs,\n      'entity_ids', to_jsonb(v_candidate.entity_ids),\n      'entity_resolution_status', v_projected_entity_state,\n      'jurisdiction_id', v_candidate.jurisdiction_id,\n      'severity', v_candidate.severity,\n      'confidence_score', v_candidate.confidence_score,\n      'verification_state', v_projected_verification_state,\n      'supporting_statistics', v_candidate.supporting_statistics || jsonb_build_object(\n        'atlas_candidate_verification_state', v_candidate.verification_state,\n        'atlas_candidate_entity_resolution_status', v_candidate.entity_resolution_status\n      ),\n      'evidence_refs', v_candidate.evidence_refs,\n      'detection_rule_id', v_candidate.rule_id,\n      'detection_rule_version', v_candidate.rule_version,\n      'engine_id', v_candidate.engine_id,\n      'engine_version', v_candidate.engine_version,\n      'source_freshness_at', v_candidate.source_freshness_at,\n      'detected_at', v_candidate.detected_at,\n      'governance_status', 'observation_candidate'\n    );\n\n    begin\n      select *\n      into v_response\n      from extensions.http((\n        'POST',\n        rtrim(v_config.target_url, '/') || '/api/atlas-domain3/receipt',\n        array[\n          extensions.http_header('x-atlas-domain3-token', v_config.domain3_receipt_token),\n          extensions.http_header('Accept', 'application/json')\n        ],\n        'application/json',\n        v_record::text\n      )::extensions.http_request);\n\n      if v_response.status < 200 or v_response.status >= 300 then\n        raise exception 'Lighthouse registration HTTP %: %',\n          v_response.status,\n          left(coalesce(v_response.content, ''), 1000);\n      end if;\n      if coalesce(v_response.content, '') = '' then\n        raise exception 'Lighthouse registration returned an empty response body';\n      end if;\n\n      v_body := v_response.content::jsonb;\n      if jsonb_typeof(v_body) <> 'object'\n         or coalesce((v_body->>'ok')::boolean, false) is not true then\n        raise exception 'Lighthouse registration returned a malformed receipt: %',\n          left(v_response.content, 1000);\n      end if;\n\n      v_lighthouse_record_id := nullif(v_body->>'live_data_signal_id', '')::uuid;\n      if v_lighthouse_record_id is null then\n        raise exception 'Lighthouse registration receipt contains no live_data_signal_id: %',\n          left(v_response.content, 1000);\n      end if;\n\n      if v_candidate.lighthouse_status = 'bridged'\n         and v_candidate.lighthouse_record_id = v_lighthouse_record_id then\n        v_idempotent := v_idempotent + 1;\n      else\n        v_bridged := v_bridged + 1;\n      end if;\n\n      update atlas.live_data_signal_candidate\n      set lighthouse_status = 'bridged',\n          lighthouse_record_id = v_lighthouse_record_id,\n          lighthouse_last_error = null,\n          lighthouse_bridged_at = clock_timestamp()\n      where candidate_id = v_candidate.candidate_id;\n\n      v_receipts := v_receipts || jsonb_build_array(jsonb_build_object(\n        'candidate_id', v_candidate.candidate_id,\n        'candidate_hash', v_candidate.candidate_hash,\n        'semantic_key', v_candidate.semantic_key,\n        'lighthouse_record_id', v_lighthouse_record_id,\n        'signal_hash', v_body->>'signal_hash',\n        'governance_status', v_body->>'governance_status',\n        'projected_verification_state', v_projected_verification_state,\n        'projected_entity_resolution_status', v_projected_entity_state,\n        'status', case\n          when v_candidate.lighthouse_status = 'bridged'\n           and v_candidate.lighthouse_record_id = v_lighthouse_record_id\n          then 'idempotent'\n          else 'bridged'\n        end,\n        'http_status', v_response.status\n      ));\n    exception when others then\n      get stacked diagnostics v_error = message_text;\n      v_failed := v_failed + 1;\n\n      update atlas.live_data_signal_candidate\n      set lighthouse_status = 'failed',\n          lighthouse_last_error = left(v_error, 2000)\n      where candidate_id = v_candidate.candidate_id;\n\n      v_receipts := v_receipts || jsonb_build_array(jsonb_build_object(\n        'candidate_id', v_candidate.candidate_id,\n        'candidate_hash', v_candidate.candidate_hash,\n        'semantic_key', v_candidate.semantic_key,\n        'status', 'failed',\n        'error', left(v_error, 1000)\n      ));\n    end;\n  end loop;\n\n  return jsonb_build_object(\n    'run_id', p_run_id,\n    'candidates_seen', v_seen,\n    'bridged', v_bridged,\n    'idempotent', v_idempotent,\n    'failed', v_failed,\n    'transport', 'atlas_lighthouse_direct_postgres_receipt_v2',\n    'state_projection', 'atlas_candidate_identity_to_lighthouse_governed_state_v2',\n    'target_project', 'lighthouse',\n    'completed_at', clock_timestamp(),\n    'receipts', v_receipts\n  );\nend;\n$function$\n",
+      "volatility": "v",
+      "security_definer": true,
+      "identity_arguments": "p_run_id uuid, p_limit integer"
+    },
+    {
+      "kind": "f",
+      "name": "bridge_live_data_signal_retirements_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public, atlas, extensions, pg_temp"
+      ],
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "jsonb",
+      "schema": "public",
+      "strict": false,
+      "comment": "Projects governed Atlas negative-currentness retirement receipts to Lighthouse without deleting historical signal evidence.",
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION public.bridge_live_data_signal_retirements_v1(p_run_id uuid, p_limit integer DEFAULT 100)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public', 'atlas', 'extensions', 'pg_temp'\nAS $function$\ndeclare\n  v_config record;\n  v_retirement record;\n  v_response extensions.http_response;\n  v_body jsonb;\n  v_seen integer := 0;\n  v_bridged integer := 0;\n  v_idempotent integer := 0;\n  v_failed integer := 0;\n  v_error text;\n  v_receipts jsonb := '[]'::jsonb;\nbegin\n  if p_run_id is null then raise exception 'p_run_id is required'; end if;\n\n  select config.target_url,config.enabled,config.config_json->>'domain3_receipt_token' as domain3_receipt_token\n    into v_config\n  from atlas.bridge_config config\n  where config.bridge_id='atlas-to-lighthouse'\n  limit 1;\n  if not found or not coalesce(v_config.enabled,false) then\n    raise exception 'Atlas-to-Lighthouse bridge configuration is unavailable or disabled';\n  end if;\n  if coalesce(v_config.target_url,'')='' then raise exception 'Atlas-to-Lighthouse target URL is missing'; end if;\n  if coalesce(length(v_config.domain3_receipt_token),0)<32 then\n    raise exception 'Atlas-to-Lighthouse scoped Domain 3 receipt token is missing';\n  end if;\n\n  for v_retirement in\n    select r.*\n    from atlas.live_data_signal_candidate_retirement_v1 r\n    where r.run_id=p_run_id\n      and r.lighthouse_status in ('pending','failed')\n    order by r.retirement_id\n    limit least(greatest(coalesce(p_limit,100),1),1000)\n  loop\n    v_seen := v_seen+1;\n    begin\n      select * into v_response\n      from extensions.http((\n        'POST',\n        rtrim(v_config.target_url,'/')||'/api/atlas-domain3/retirement',\n        array[\n          extensions.http_header('x-atlas-domain3-token',v_config.domain3_receipt_token),\n          extensions.http_header('Accept','application/json')\n        ],\n        'application/json',\n        jsonb_build_object(\n          'semantic_key',v_retirement.semantic_key,\n          'atlas_candidate_id',v_retirement.candidate_id,\n          'atlas_candidate_hash',v_retirement.candidate_hash,\n          'atlas_run_id',v_retirement.run_id,\n          'lighthouse_record_id',v_retirement.lighthouse_record_id,\n          'retirement_reason',v_retirement.retirement_reason,\n          'retirement_hash',v_retirement.retirement_hash,\n          'retired_at',v_retirement.retired_at\n        )::text\n      )::extensions.http_request);\n\n      if v_response.status<200 or v_response.status>=300 then\n        raise exception 'Lighthouse retirement HTTP %: %',v_response.status,left(coalesce(v_response.content,''),1000);\n      end if;\n      if coalesce(v_response.content,'')='' then\n        raise exception 'Lighthouse retirement returned an empty response body';\n      end if;\n      v_body := v_response.content::jsonb;\n      if jsonb_typeof(v_body)<>'object' or coalesce((v_body->>'ok')::boolean,false) is not true then\n        raise exception 'Lighthouse retirement returned a malformed receipt: %',left(v_response.content,1000);\n      end if;\n\n      if v_retirement.lighthouse_status='bridged' then\n        v_idempotent := v_idempotent+1;\n      else\n        v_bridged := v_bridged+1;\n      end if;\n      update atlas.live_data_signal_candidate_retirement_v1\n         set lighthouse_status='bridged',\n             lighthouse_last_error=null,\n             lighthouse_bridged_at=clock_timestamp()\n       where retirement_id=v_retirement.retirement_id;\n      v_receipts := v_receipts || jsonb_build_array(jsonb_build_object(\n        'retirement_id',v_retirement.retirement_id,\n        'candidate_id',v_retirement.candidate_id,\n        'semantic_key',v_retirement.semantic_key,\n        'status',coalesce(v_body->>'status','retired'),\n        'http_status',v_response.status,\n        'lighthouse_retirement_receipt_id',v_body->>'retirement_receipt_id'\n      ));\n    exception when others then\n      get stacked diagnostics v_error=message_text;\n      v_failed := v_failed+1;\n      update atlas.live_data_signal_candidate_retirement_v1\n         set lighthouse_status='failed',\n             lighthouse_last_error=left(v_error,2000)\n       where retirement_id=v_retirement.retirement_id;\n      v_receipts := v_receipts || jsonb_build_array(jsonb_build_object(\n        'retirement_id',v_retirement.retirement_id,\n        'candidate_id',v_retirement.candidate_id,\n        'semantic_key',v_retirement.semantic_key,\n        'status','failed',\n        'error',left(v_error,1000)\n      ));\n    end;\n  end loop;\n\n  return jsonb_build_object(\n    'run_id',p_run_id,\n    'retirements_seen',v_seen,\n    'bridged',v_bridged,\n    'idempotent',v_idempotent,\n    'failed',v_failed,\n    'transport','atlas_lighthouse_signal_retirement_v1',\n    'completed_at',clock_timestamp(),\n    'receipts',v_receipts\n  );\nend\n$function$\n",
+      "volatility": "v",
+      "security_definer": true,
+      "identity_arguments": "p_run_id uuid, p_limit integer"
+    },
+    {
+      "kind": "f",
+      "name": "complete_atlas_event_entity_resolution_run_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public, atlas, extensions"
+      ],
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "jsonb",
+      "schema": "public",
+      "strict": false,
+      "comment": null,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION public.complete_atlas_event_entity_resolution_run_v1(p_run_id uuid, p_status text, p_counts jsonb DEFAULT '{}'::jsonb, p_last_stream_id text DEFAULT NULL::text, p_last_offset bigint DEFAULT NULL::bigint, p_error_message text DEFAULT NULL::text)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public', 'atlas', 'extensions'\nAS $function$\nDECLARE\n  v_run atlas.signal_event_entity_resolution_run%ROWTYPE;\nBEGIN\n  IF p_status NOT IN ('completed', 'partial', 'failed') THEN\n    RAISE EXCEPTION 'completion status must be completed, partial, or failed';\n  END IF;\n\n  SELECT * INTO v_run\n  FROM atlas.signal_event_entity_resolution_run\n  WHERE run_id = p_run_id\n  FOR UPDATE;\n\n  IF NOT FOUND THEN\n    RAISE EXCEPTION 'resolution run not found: %', p_run_id;\n  END IF;\n\n  IF v_run.status <> 'running' THEN\n    IF v_run.status = p_status THEN\n      RETURN jsonb_build_object(\n        'run_id', v_run.run_id,\n        'status', v_run.status,\n        'idempotent', true,\n        'processed_event_count', v_run.processed_event_count,\n        'resolution_row_count', v_run.resolution_row_count,\n        'last_stream_id', v_run.last_stream_id,\n        'last_offset', v_run.last_offset,\n        'completed_at', v_run.completed_at,\n        'error_message', v_run.error_message\n      );\n    END IF;\n    RAISE EXCEPTION 'run % is already %, cannot complete as %', p_run_id, v_run.status, p_status;\n  END IF;\n\n  IF p_counts ? 'processed_event_count'\n     AND (p_counts->>'processed_event_count')::bigint <> v_run.processed_event_count THEN\n    RAISE EXCEPTION 'processed event count mismatch for run %', p_run_id;\n  END IF;\n  IF p_counts ? 'resolution_row_count'\n     AND (p_counts->>'resolution_row_count')::bigint <> v_run.resolution_row_count THEN\n    RAISE EXCEPTION 'resolution row count mismatch for run %', p_run_id;\n  END IF;\n  IF p_counts ? 'resolved_count'\n     AND (p_counts->>'resolved_count')::bigint <> v_run.resolved_count THEN\n    RAISE EXCEPTION 'resolved count mismatch for run %', p_run_id;\n  END IF;\n  IF p_counts ? 'ambiguous_count'\n     AND (p_counts->>'ambiguous_count')::bigint <> v_run.ambiguous_count THEN\n    RAISE EXCEPTION 'ambiguous count mismatch for run %', p_run_id;\n  END IF;\n  IF p_counts ? 'unresolved_count'\n     AND (p_counts->>'unresolved_count')::bigint <> v_run.unresolved_count THEN\n    RAISE EXCEPTION 'unresolved count mismatch for run %', p_run_id;\n  END IF;\n  IF p_counts ? 'ignored_count'\n     AND (p_counts->>'ignored_count')::bigint <> v_run.ignored_count THEN\n    RAISE EXCEPTION 'ignored count mismatch for run %', p_run_id;\n  END IF;\n  IF p_counts ? 'inserted_count'\n     AND (p_counts->>'inserted_count')::bigint <> v_run.inserted_count THEN\n    RAISE EXCEPTION 'inserted count mismatch for run %', p_run_id;\n  END IF;\n  IF p_counts ? 'idempotent_count'\n     AND (p_counts->>'idempotent_count')::bigint <> v_run.idempotent_count THEN\n    RAISE EXCEPTION 'idempotent count mismatch for run %', p_run_id;\n  END IF;\n\n  UPDATE atlas.signal_event_entity_resolution_run\n  SET status = p_status,\n      last_stream_id = p_last_stream_id,\n      last_offset = p_last_offset,\n      error_message = p_error_message,\n      completed_at = now()\n  WHERE run_id = p_run_id\n  RETURNING * INTO v_run;\n\n  RETURN jsonb_build_object(\n    'run_id', v_run.run_id,\n    'status', v_run.status,\n    'idempotent', false,\n    'processed_event_count', v_run.processed_event_count,\n    'resolution_row_count', v_run.resolution_row_count,\n    'resolved_count', v_run.resolved_count,\n    'ambiguous_count', v_run.ambiguous_count,\n    'unresolved_count', v_run.unresolved_count,\n    'ignored_count', v_run.ignored_count,\n    'inserted_count', v_run.inserted_count,\n    'idempotent_count', v_run.idempotent_count,\n    'last_stream_id', v_run.last_stream_id,\n    'last_offset', v_run.last_offset,\n    'completed_at', v_run.completed_at,\n    'error_message', v_run.error_message\n  );\nEND;\n$function$\n",
+      "volatility": "v",
+      "security_definer": true,
+      "identity_arguments": "p_run_id uuid, p_status text, p_counts jsonb, p_last_stream_id text, p_last_offset bigint, p_error_message text"
+    },
+    {
+      "kind": "f",
+      "name": "detect_propublica_unresolved_metadata_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public, atlas, extensions"
+      ],
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "jsonb",
+      "schema": "public",
+      "strict": false,
+      "comment": "Runs the governed ProPublica unresolved-metadata seed detector using entity-aware semantic currentness and sequential idempotent candidate upserts so one detector run cannot trip PostgreSQL multi-row ON CONFLICT cardinality errors.",
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION public.detect_propublica_unresolved_metadata_v1(p_min_unique_records integer DEFAULT 10, p_min_unresolved_rate numeric DEFAULT 0.5, p_limit integer DEFAULT 100)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public', 'atlas', 'extensions'\nAS $function$\ndeclare\n  v_run_id uuid := gen_random_uuid();\n  v_rule_hash text;\n  v_scanned bigint := 0;\n  v_entities bigint := 0;\n  v_candidates bigint := 0;\n  v_result jsonb := '[]'::jsonb;\n  v_error text;\n  v_row record;\n  v_candidate_hash text;\n  v_candidate_id uuid;\n  v_candidate_status text;\n  v_candidate_lighthouse_id uuid;\nbegin\n  select rule_contract_hash into v_rule_hash\n  from atlas.live_data_signal_rule\n  where rule_id = 'atlas.propublica_unresolved_filing_metadata_rate'\n    and rule_version = '1.1.0'\n    and is_active;\n\n  if v_rule_hash is null then\n    raise exception 'active ProPublica unresolved-metadata rule 1.1.0 is not registered';\n  end if;\n\n  insert into atlas.live_data_signal_run (\n    run_id, rule_id, rule_version, rule_contract_hash, status\n  ) values (\n    v_run_id,\n    'atlas.propublica_unresolved_filing_metadata_rate',\n    '1.1.0',\n    v_rule_hash,\n    'running'\n  );\n\n  begin\n    select count(*) into v_scanned\n    from atlas.signal_event_identity\n    where stream_id = 'pro_publica'\n      and signal_type = 'nonprofit_990_filing';\n\n    select count(*) into v_entities\n    from atlas.v_propublica_unresolved_metadata_candidate_v1;\n\n    for v_row in\n      with eligible_raw as (\n        select *\n        from atlas.v_propublica_unresolved_metadata_candidate_v1\n        where unique_record_count >= greatest(p_min_unique_records, 1)\n          and unresolved_unique_rate >= greatest(p_min_unresolved_rate, 0)\n      ), ranked as (\n        select eligible_raw.*,\n               row_number() over (\n                 partition by entity_id, source_input_hash\n                 order by unresolved_unique_rate desc,\n                          unique_record_count desc,\n                          primary_name,\n                          normalized_entity_name\n               ) as identity_rank\n        from eligible_raw\n      )\n      select *\n      from ranked\n      where identity_rank = 1\n      order by unresolved_unique_rate desc, unique_record_count desc, entity_id\n      limit least(greatest(p_limit, 1), 1000)\n    loop\n      v_candidate_hash := encode(\n        extensions.digest(\n          convert_to(\n            jsonb_build_object(\n              'domain', 'live_data',\n              'candidate_identity_version', '1.1.0',\n              'signal_type', 'elevated_unresolved_record_rate',\n              'entity_id', v_row.entity_id,\n              'source_input_hash', v_row.source_input_hash,\n              'rule_contract_hash', v_rule_hash\n            )::text,\n            'UTF8'\n          ),\n          'sha256'\n        ),\n        'hex'\n      );\n\n      insert into atlas.live_data_signal_candidate (\n        candidate_hash, rule_id, rule_version, rule_contract_hash,\n        engine_id, engine_version, signal_type, title, description,\n        primary_stream_id, source_event_refs, entity_ids,\n        entity_resolution_status, jurisdiction_id, severity, confidence_score,\n        verification_state, supporting_statistics, evidence_refs,\n        source_freshness_at, detected_at, source_input_hash,\n        first_run_id, last_run_id\n      ) values (\n        v_candidate_hash,\n        'atlas.propublica_unresolved_filing_metadata_rate',\n        '1.1.0',\n        v_rule_hash,\n        'atlas.live_data_signal_exact',\n        '1.1.0',\n        'elevated_unresolved_record_rate',\n        'Elevated unresolved nonprofit filing metadata rate',\n        format(\n          'Atlas observed %s of %s unique ProPublica filing records for %s with unresolved tax-period, form-type, or external-identity metadata. This is a data-quality observation, not a misconduct or legal finding.',\n          v_row.unresolved_unique_record_count,\n          v_row.unique_record_count,\n          v_row.primary_name\n        ),\n        'pro_publica',\n        v_row.source_event_refs,\n        array[v_row.entity_id]::text[],\n        'resolved',\n        'us_federal',\n        v_row.severity,\n        1.0,\n        'verified',\n        v_row.supporting_statistics || jsonb_build_object(\n          'minimum_unique_records', greatest(p_min_unique_records, 1),\n          'minimum_unresolved_rate', greatest(p_min_unresolved_rate, 0),\n          'candidate_identity_deduplicated', true,\n          'persistence_mode', 'sequential_idempotent_upsert'\n        ),\n        v_row.source_event_refs,\n        v_row.source_freshness_at,\n        clock_timestamp(),\n        v_row.source_input_hash,\n        v_run_id,\n        v_run_id\n      )\n      on conflict (candidate_hash) do update set\n        last_run_id = excluded.last_run_id,\n        last_replayed_at = clock_timestamp(),\n        source_event_refs = excluded.source_event_refs,\n        supporting_statistics = excluded.supporting_statistics,\n        evidence_refs = excluded.evidence_refs,\n        source_freshness_at = excluded.source_freshness_at\n      returning candidate_id, lighthouse_status, lighthouse_record_id\n      into v_candidate_id, v_candidate_status, v_candidate_lighthouse_id;\n\n      v_candidates := v_candidates + 1;\n      v_result := v_result || jsonb_build_array(\n        jsonb_build_object(\n          'candidate_id', v_candidate_id,\n          'candidate_hash', v_candidate_hash,\n          'lighthouse_record', jsonb_build_object(\n            'signal_type', 'elevated_unresolved_record_rate',\n            'title', 'Elevated unresolved nonprofit filing metadata rate',\n            'description', format(\n              'Atlas observed %s of %s unique ProPublica filing records for %s with unresolved tax-period, form-type, or external-identity metadata. This is a data-quality observation, not a misconduct or legal finding.',\n              v_row.unresolved_unique_record_count,\n              v_row.unique_record_count,\n              v_row.primary_name\n            ),\n            'primary_stream_id', 'pro_publica',\n            'source_event_refs', v_row.source_event_refs,\n            'entity_ids', jsonb_build_array(v_row.entity_id),\n            'entity_resolution_status', 'resolved',\n            'jurisdiction_id', 'us_federal',\n            'severity', v_row.severity,\n            'confidence_score', 1.0,\n            'verification_state', 'verified',\n            'supporting_statistics', v_row.supporting_statistics,\n            'evidence_refs', v_row.source_event_refs,\n            'detection_rule_id', 'atlas.propublica_unresolved_filing_metadata_rate',\n            'detection_rule_version', '1.1.0',\n            'engine_id', 'atlas.live_data_signal_exact',\n            'engine_version', '1.1.0',\n            'source_freshness_at', v_row.source_freshness_at,\n            'detected_at', clock_timestamp(),\n            'governance_status', 'observation_candidate'\n          ),\n          'lighthouse_status', v_candidate_status,\n          'lighthouse_record_id', v_candidate_lighthouse_id\n        )\n      );\n    end loop;\n\n    update atlas.live_data_signal_run\n    set status = 'completed',\n        canonical_events_scanned = v_scanned,\n        entities_evaluated = v_entities,\n        candidates_produced = v_candidates,\n        completed_at = clock_timestamp()\n    where run_id = v_run_id;\n  exception when others then\n    get stacked diagnostics v_error = message_text;\n    update atlas.live_data_signal_run\n    set status = 'failed',\n        canonical_events_scanned = v_scanned,\n        entities_evaluated = v_entities,\n        candidates_produced = v_candidates,\n        error_message = left(v_error, 2000),\n        completed_at = clock_timestamp()\n    where run_id = v_run_id;\n    return jsonb_build_object(\n      'run_id', v_run_id,\n      'status', 'failed',\n      'error_message', v_error,\n      'candidates', '[]'::jsonb\n    );\n  end;\n\n  return jsonb_build_object(\n    'run_id', v_run_id,\n    'status', 'completed',\n    'rule_id', 'atlas.propublica_unresolved_filing_metadata_rate',\n    'rule_version', '1.1.0',\n    'rule_contract_hash', v_rule_hash,\n    'canonical_events_scanned', v_scanned,\n    'entities_evaluated', v_entities,\n    'candidates_produced', v_candidates,\n    'candidates', v_result\n  );\nend\n$function$\n",
+      "volatility": "v",
+      "security_definer": true,
+      "identity_arguments": "p_min_unique_records integer, p_min_unresolved_rate numeric, p_limit integer"
+    },
+    {
+      "kind": "f",
+      "name": "enqueue_live_data_signal_candidates_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public, atlas, net, extensions, pg_temp"
+      ],
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "jsonb",
+      "schema": "public",
+      "strict": false,
+      "comment": "Queues evidence-bound Domain 3 registration requests using encrypted Atlas bridge configuration.",
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION public.enqueue_live_data_signal_candidates_v1(p_run_id uuid, p_limit integer DEFAULT 100)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public', 'atlas', 'net', 'extensions', 'pg_temp'\nAS $function$\ndeclare\n  v_config record;\n  v_candidate record;\n  v_request_id bigint;\n  v_record jsonb;\n  v_seen integer := 0;\n  v_queued integer := 0;\n  v_existing integer := 0;\n  v_failed integer := 0;\n  v_error text;\n  v_receipts jsonb := '[]'::jsonb;\nbegin\n  if p_run_id is null then\n    raise exception 'p_run_id is required';\n  end if;\n\n  if not exists (\n    select 1\n    from atlas.live_data_signal_run run\n    where run.run_id = p_run_id\n      and run.status = 'completed'\n  ) then\n    raise exception 'completed Domain 3 run not found: %', p_run_id;\n  end if;\n\n  select *\n    into v_config\n    from public.atlas_bridge_config_for('atlas-to-lighthouse');\n\n  if not found or not coalesce(v_config.enabled, false) then\n    raise exception 'Atlas-to-Lighthouse bridge configuration is unavailable or disabled';\n  end if;\n\n  if coalesce(v_config.target_url, '') = ''\n     or coalesce(v_config.target_service_key, '') = '' then\n    raise exception 'Atlas-to-Lighthouse bridge target credentials are incomplete';\n  end if;\n\n  for v_candidate in\n    select candidate.*\n      from atlas.live_data_signal_candidate candidate\n     where candidate.last_run_id = p_run_id\n     order by candidate.candidate_id\n     limit least(greatest(coalesce(p_limit, 100), 1), 1000)\n  loop\n    v_seen := v_seen + 1;\n\n    if exists (\n      select 1\n      from atlas.live_data_signal_bridge_attempt attempt\n      where attempt.run_id = p_run_id\n        and attempt.candidate_id = v_candidate.candidate_id\n    ) then\n      v_existing := v_existing + 1;\n      continue;\n    end if;\n\n    v_record := jsonb_build_object(\n      'signal_type', v_candidate.signal_type,\n      'title', v_candidate.title,\n      'description', v_candidate.description,\n      'primary_stream_id', v_candidate.primary_stream_id,\n      'source_event_refs', v_candidate.source_event_refs,\n      'entity_ids', to_jsonb(v_candidate.entity_ids),\n      'entity_resolution_status', v_candidate.entity_resolution_status,\n      'jurisdiction_id', v_candidate.jurisdiction_id,\n      'severity', v_candidate.severity,\n      'confidence_score', v_candidate.confidence_score,\n      'verification_state', v_candidate.verification_state,\n      'supporting_statistics', v_candidate.supporting_statistics,\n      'evidence_refs', v_candidate.evidence_refs,\n      'detection_rule_id', v_candidate.rule_id,\n      'detection_rule_version', v_candidate.rule_version,\n      'engine_id', v_candidate.engine_id,\n      'engine_version', v_candidate.engine_version,\n      'source_freshness_at', v_candidate.source_freshness_at,\n      'detected_at', v_candidate.detected_at,\n      'governance_status', 'observation_candidate'\n    );\n\n    begin\n      select net.http_post(\n        url := rtrim(v_config.target_url, '/') ||\n          '/rest/v1/rpc/register_live_data_signal_receipt_v1',\n        body := jsonb_build_object('p_record', v_record),\n        params := '{}'::jsonb,\n        headers := jsonb_build_object(\n          'Authorization', 'Bearer ' || v_config.target_service_key,\n          'apikey', v_config.target_service_key,\n          'Content-Type', 'application/json',\n          'Accept', 'application/json'\n        ),\n        timeout_milliseconds := 10000\n      ) into v_request_id;\n\n      insert into atlas.live_data_signal_bridge_attempt (\n        run_id, candidate_id, candidate_hash, request_id, status,\n        was_already_bridged, prior_lighthouse_record_id\n      ) values (\n        p_run_id, v_candidate.candidate_id, v_candidate.candidate_hash,\n        v_request_id, 'queued', v_candidate.lighthouse_status = 'bridged',\n        v_candidate.lighthouse_record_id\n      );\n\n      update atlas.live_data_signal_candidate\n         set lighthouse_status = 'pending',\n             lighthouse_last_error = null\n       where candidate_id = v_candidate.candidate_id;\n\n      v_queued := v_queued + 1;\n      v_receipts := v_receipts || jsonb_build_array(jsonb_build_object(\n        'candidate_id', v_candidate.candidate_id,\n        'candidate_hash', v_candidate.candidate_hash,\n        'request_id', v_request_id,\n        'status', 'queued'\n      ));\n    exception when others then\n      get stacked diagnostics v_error = message_text;\n      v_failed := v_failed + 1;\n\n      insert into atlas.live_data_signal_bridge_attempt (\n        run_id, candidate_id, candidate_hash, request_id, status,\n        was_already_bridged, prior_lighthouse_record_id,\n        error_message, settled_at\n      ) values (\n        p_run_id, v_candidate.candidate_id, v_candidate.candidate_hash,\n        null, 'failed', v_candidate.lighthouse_status = 'bridged',\n        v_candidate.lighthouse_record_id, left(v_error, 2000), clock_timestamp()\n      )\n      on conflict (run_id, candidate_id) do nothing;\n\n      update atlas.live_data_signal_candidate\n         set lighthouse_status = 'failed',\n             lighthouse_last_error = left(v_error, 2000)\n       where candidate_id = v_candidate.candidate_id;\n\n      v_receipts := v_receipts || jsonb_build_array(jsonb_build_object(\n        'candidate_id', v_candidate.candidate_id,\n        'candidate_hash', v_candidate.candidate_hash,\n        'status', 'enqueue_failed',\n        'error', left(v_error, 1000)\n      ));\n    end;\n  end loop;\n\n  return jsonb_build_object(\n    'run_id', p_run_id,\n    'candidates_seen', v_seen,\n    'queued', v_queued,\n    'existing_attempts', v_existing,\n    'enqueue_failed', v_failed,\n    'transport', 'atlas_pg_net_receipt_v1',\n    'completed_at', clock_timestamp(),\n    'receipts', v_receipts\n  );\nend\n$function$\n",
+      "volatility": "v",
+      "security_definer": true,
+      "identity_arguments": "p_run_id uuid, p_limit integer"
+    },
+    {
+      "kind": "f",
+      "name": "evaluate_canonical_payload_usefulness",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public"
+      ],
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "text",
+      "schema": "public",
+      "strict": false,
+      "comment": null,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION public.evaluate_canonical_payload_usefulness(p_record_kind text, p_contacts jsonb, p_legal_basis jsonb, p_escalation_paths jsonb, p_source_url text, p_source_anchor text, p_verbatim_text text)\n RETURNS text\n LANGUAGE plpgsql\n IMMUTABLE\n SET search_path TO 'pg_catalog', 'public'\nAS $function$\ndeclare\n  has_contact_or_escalation boolean;\n  has_source_basis boolean;\n  has_legal_or_action_value boolean;\nbegin\n  has_contact_or_escalation :=\n    public.jsonb_array_count(coalesce(p_contacts->'phones','[]'::jsonb)) > 0\n    or public.jsonb_array_count(coalesce(p_contacts->'emails','[]'::jsonb)) > 0\n    or public.jsonb_array_count(coalesce(p_contacts->'urls','[]'::jsonb)) > 0\n    or public.jsonb_array_count(coalesce(p_contacts->'addresses','[]'::jsonb)) > 0\n    or public.jsonb_array_count(coalesce(p_escalation_paths->'steps','[]'::jsonb)) > 0\n    or public.jsonb_array_count(coalesce(p_escalation_paths->'contacts','[]'::jsonb)) > 0;\n\n  has_source_basis :=\n    length(coalesce(p_verbatim_text,'')) > 0\n    and (\n      length(coalesce(p_source_url,'')) > 0\n      or length(coalesce(p_source_anchor,'')) > 0\n      or public.jsonb_array_count(coalesce(p_contacts->'urls','[]'::jsonb)) > 0\n    );\n\n  has_legal_or_action_value :=\n    public.jsonb_array_count(coalesce(p_legal_basis->'statutes','[]'::jsonb)) > 0\n    or public.jsonb_array_count(coalesce(p_legal_basis->'deadlines','[]'::jsonb)) > 0\n    or coalesce(p_record_kind,'') in ('program','workflow','oversight','access_point','legislator','committee','agency','benefit','resource','escalation','legal_authority');\n\n  if has_contact_or_escalation and has_source_basis and has_legal_or_action_value then\n    return 'useful';\n  elsif has_source_basis and has_legal_or_action_value then\n    return 'needs_repair';\n  else\n    return 'not_useful';\n  end if;\nend;\n$function$\n",
+      "volatility": "i",
+      "security_definer": false,
+      "identity_arguments": "p_record_kind text, p_contacts jsonb, p_legal_basis jsonb, p_escalation_paths jsonb, p_source_url text, p_source_anchor text, p_verbatim_text text"
+    },
+    {
+      "kind": "f",
+      "name": "fetch_atlas_entity_cross_stream_correlations_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public, extensions"
+      ],
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "TABLE(entity_id text, canonical_entity_name text, canonical_entity_type text, resolved_event_count bigint, stream_count bigint, stream_ids text[], signal_type_count bigint, signal_types text[], first_event_at timestamp with time zone, latest_event_at timestamp with time zone)",
+      "schema": "public",
+      "strict": false,
+      "comment": null,
+      "language": "sql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION public.fetch_atlas_entity_cross_stream_correlations_v1(p_min_streams integer DEFAULT 2, p_limit integer DEFAULT 100, p_entity_id text DEFAULT NULL::text)\n RETURNS TABLE(entity_id text, canonical_entity_name text, canonical_entity_type text, resolved_event_count bigint, stream_count bigint, stream_ids text[], signal_type_count bigint, signal_types text[], first_event_at timestamp with time zone, latest_event_at timestamp with time zone)\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public', 'extensions'\nAS $function$\n  SELECT\n    summary.entity_id::text,\n    summary.canonical_entity_name::text,\n    summary.canonical_entity_type::text,\n    summary.resolved_event_count,\n    summary.stream_count,\n    summary.stream_ids,\n    summary.signal_type_count,\n    summary.signal_types,\n    summary.first_event_at,\n    summary.latest_event_at\n  FROM public.v_atlas_entity_cross_stream_summary_v1 summary\n  WHERE summary.stream_count >= GREATEST(2, LEAST(COALESCE(p_min_streams, 2), 1000))\n    AND (p_entity_id IS NULL OR summary.entity_id = p_entity_id)\n  ORDER BY\n    summary.stream_count DESC,\n    summary.resolved_event_count DESC,\n    summary.latest_event_at DESC,\n    summary.entity_id\n  LIMIT GREATEST(1, LEAST(COALESCE(p_limit, 100), 5000));\n$function$\n",
+      "volatility": "s",
+      "security_definer": true,
+      "identity_arguments": "p_min_streams integer, p_limit integer, p_entity_id text"
+    },
+    {
+      "kind": "f",
+      "name": "fetch_atlas_event_entity_resolution_review_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public, extensions"
+      ],
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "TABLE(review_key text, resolution_status text, rule_id text, rule_version text, entity_role text, expected_entity_type text, normalized_entity_value text, source_identifier_type text, normalized_identifier_value text, sample_source_entity_value text, sample_source_identifier_value text, event_count bigint, stream_count bigint, stream_ids text[], source_fields text[], candidate_sets jsonb, first_event_at timestamp with time zone, latest_event_at timestamp with time zone, rule_manifest_hash text, entity_index_hash text, resolver_id text, resolver_version text)",
+      "schema": "public",
+      "strict": false,
+      "comment": null,
+      "language": "sql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION public.fetch_atlas_event_entity_resolution_review_v1(p_resolution_status text DEFAULT NULL::text, p_min_event_count integer DEFAULT 1, p_limit integer DEFAULT 100)\n RETURNS TABLE(review_key text, resolution_status text, rule_id text, rule_version text, entity_role text, expected_entity_type text, normalized_entity_value text, source_identifier_type text, normalized_identifier_value text, sample_source_entity_value text, sample_source_identifier_value text, event_count bigint, stream_count bigint, stream_ids text[], source_fields text[], candidate_sets jsonb, first_event_at timestamp with time zone, latest_event_at timestamp with time zone, rule_manifest_hash text, entity_index_hash text, resolver_id text, resolver_version text)\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public', 'extensions'\nAS $function$\n  SELECT\n    review.review_key,\n    review.resolution_status,\n    review.rule_id,\n    review.rule_version,\n    review.entity_role,\n    review.expected_entity_type,\n    review.normalized_entity_value,\n    review.source_identifier_type,\n    review.normalized_identifier_value,\n    review.sample_source_entity_value,\n    review.sample_source_identifier_value,\n    review.event_count,\n    review.stream_count,\n    review.stream_ids,\n    review.source_fields,\n    review.candidate_sets,\n    review.first_event_at,\n    review.latest_event_at,\n    review.rule_manifest_hash,\n    review.entity_index_hash,\n    review.resolver_id,\n    review.resolver_version\n  FROM public.v_atlas_event_entity_resolution_review_v1 review\n  WHERE (\n      p_resolution_status IS NULL\n      OR (\n        p_resolution_status IN ('ambiguous', 'unresolved')\n        AND review.resolution_status = p_resolution_status\n      )\n    )\n    AND review.event_count >= GREATEST(1, COALESCE(p_min_event_count, 1))\n  ORDER BY\n    review.event_count DESC,\n    review.stream_count DESC,\n    review.latest_event_at DESC,\n    review.review_key\n  LIMIT GREATEST(1, LEAST(COALESCE(p_limit, 100), 5000));\n$function$\n",
+      "volatility": "s",
+      "security_definer": true,
+      "identity_arguments": "p_resolution_status text, p_min_event_count integer, p_limit integer"
+    },
+    {
+      "kind": "f",
+      "name": "fetch_atlas_resolved_entity_events_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public, extensions"
+      ],
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "TABLE(stream_id text, event_offset bigint, event_timestamp timestamp with time zone, signal_type text, source_id text, jurisdiction_id text, module_hint text, entity_role text, entity_id text, canonical_entity_name text, canonical_entity_type text, rule_id text, rule_version text, match_method text, resolution_hash text, resolver_id text, resolver_version text, entity_index_hash text, spacetime jsonb, provenance jsonb, payload jsonb)",
+      "schema": "public",
+      "strict": false,
+      "comment": null,
+      "language": "sql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION public.fetch_atlas_resolved_entity_events_v1(p_entity_id text, p_limit integer DEFAULT 100, p_before_timestamp timestamp with time zone DEFAULT NULL::timestamp with time zone)\n RETURNS TABLE(stream_id text, event_offset bigint, event_timestamp timestamp with time zone, signal_type text, source_id text, jurisdiction_id text, module_hint text, entity_role text, entity_id text, canonical_entity_name text, canonical_entity_type text, rule_id text, rule_version text, match_method text, resolution_hash text, resolver_id text, resolver_version text, entity_index_hash text, spacetime jsonb, provenance jsonb, payload jsonb)\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public', 'extensions'\nAS $function$\n  SELECT\n    resolved.stream_id,\n    resolved.event_offset,\n    resolved.event_timestamp,\n    resolved.signal_type,\n    resolved.source_id,\n    resolved.jurisdiction_id,\n    resolved.module_hint,\n    resolved.entity_role,\n    resolved.entity_id::text,\n    resolved.canonical_entity_name::text,\n    resolved.canonical_entity_type::text,\n    resolved.rule_id,\n    resolved.rule_version,\n    resolved.match_method,\n    resolved.resolution_hash,\n    resolved.resolver_id,\n    resolved.resolver_version,\n    resolved.entity_index_hash,\n    resolved.spacetime,\n    resolved.provenance,\n    resolved.payload\n  FROM public.v_atlas_resolved_signal_event_entities_v1 resolved\n  WHERE COALESCE(btrim(p_entity_id), '') <> ''\n    AND resolved.entity_id = p_entity_id\n    AND (p_before_timestamp IS NULL OR resolved.event_timestamp < p_before_timestamp)\n  ORDER BY resolved.event_timestamp DESC, resolved.stream_id, resolved.event_offset DESC\n  LIMIT GREATEST(1, LEAST(COALESCE(p_limit, 100), 5000));\n$function$\n",
+      "volatility": "s",
+      "security_definer": true,
+      "identity_arguments": "p_entity_id text, p_limit integer, p_before_timestamp timestamp with time zone"
+    },
+    {
+      "kind": "f",
+      "name": "fetch_atlas_signal_events_for_entity_resolution_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public, extensions"
+      ],
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "TABLE(stream_id text, \"offset\" bigint, \"timestamp\" timestamp with time zone, signal_type text, spacetime jsonb, provenance jsonb, payload jsonb, source_id text, jurisdiction_id text, module_hint text, ingested_at timestamp with time zone, event_input_hash text)",
+      "schema": "public",
+      "strict": false,
+      "comment": null,
+      "language": "sql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION public.fetch_atlas_signal_events_for_entity_resolution_v1(p_batch_size integer DEFAULT 500, p_stream_id text DEFAULT NULL::text, p_after_stream_id text DEFAULT NULL::text, p_after_offset bigint DEFAULT '-1'::integer)\n RETURNS TABLE(stream_id text, \"offset\" bigint, \"timestamp\" timestamp with time zone, signal_type text, spacetime jsonb, provenance jsonb, payload jsonb, source_id text, jurisdiction_id text, module_hint text, ingested_at timestamp with time zone, event_input_hash text)\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public', 'extensions'\nAS $function$\n  SELECT\n    se.stream_id,\n    se.\"offset\",\n    se.\"timestamp\",\n    se.signal_type,\n    se.spacetime,\n    se.provenance,\n    se.payload,\n    se.source_id,\n    se.jurisdiction_id,\n    se.module_hint,\n    se.ingested_at,\n    public.atlas_signal_event_input_hash_v1(\n      se.stream_id,\n      se.\"offset\",\n      se.\"timestamp\",\n      se.signal_type,\n      se.spacetime,\n      se.provenance,\n      se.payload,\n      se.source_id,\n      se.jurisdiction_id,\n      se.module_hint,\n      se.ingested_at\n    ) AS event_input_hash\n  FROM public.signal_events se\n  WHERE (p_stream_id IS NULL OR se.stream_id = p_stream_id)\n    AND (\n      p_after_stream_id IS NULL\n      OR (se.stream_id, se.\"offset\") > (p_after_stream_id, COALESCE(p_after_offset, -1))\n    )\n  ORDER BY se.stream_id, se.\"offset\"\n  LIMIT GREATEST(1, LEAST(COALESCE(p_batch_size, 500), 5000));\n$function$\n",
+      "volatility": "s",
+      "security_definer": true,
+      "identity_arguments": "p_batch_size integer, p_stream_id text, p_after_stream_id text, p_after_offset bigint"
+    },
+    {
+      "kind": "f",
+      "name": "get_connector_status",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public, atlas"
+      ],
+      "grants": [
+        {
+          "grantee": "PUBLIC",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "TABLE(name text, active boolean, priority integer, last_run timestamp with time zone, next_run timestamp with time zone, health text, records_last_7d bigint)",
+      "schema": "public",
+      "strict": false,
+      "comment": null,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION public.get_connector_status(connector_name text DEFAULT NULL::text)\n RETURNS TABLE(name text, active boolean, priority integer, last_run timestamp with time zone, next_run timestamp with time zone, health text, records_last_7d bigint)\n LANGUAGE plpgsql\n SET search_path TO 'pg_catalog', 'public', 'atlas'\nAS $function$\nBEGIN\n    RETURN QUERY\n    SELECT\n        c.name::TEXT,\n        c.active,\n        c.priority,\n        c.last_run_at,\n        c.next_run_at,\n        CASE\n            WHEN NOT c.active THEN 'disabled'\n            WHEN c.last_run_at IS NULL THEN 'never_run'\n            WHEN c.last_run_at < NOW() - INTERVAL '7 days' THEN 'stale'\n            ELSE 'healthy'\n        END::TEXT,\n        COALESCE(\n            (SELECT SUM(j.records_inserted) \n             FROM ingest_jobs j \n             WHERE j.connector_id = c.id \n               AND j.started_at > NOW() - INTERVAL '7 days'),\n            0::BIGINT\n        )\n    FROM connector_registry c\n    WHERE connector_name IS NULL OR c.name = connector_name\n    ORDER BY c.priority, c.name;\nEND;\n$function$\n",
+      "volatility": "v",
+      "security_definer": false,
+      "identity_arguments": "connector_name text"
+    },
+    {
+      "kind": "f",
+      "name": "get_lighthouse_signal_events",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public, private, atlas"
+      ],
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "TABLE(stream_id text, \"offset\" bigint, \"timestamp\" timestamp with time zone, signal_type text, spacetime jsonb, provenance jsonb, payload jsonb, source_id text, jurisdiction_id text, module_hint text, ingested_at timestamp with time zone)",
+      "schema": "public",
+      "strict": false,
+      "comment": "Returns a bounded ordered page of explicitly allowlisted Atlas signal events to Lighthouse.",
+      "language": "sql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION public.get_lighthouse_signal_events(p_stream_id text, p_offset bigint DEFAULT 0, p_limit integer DEFAULT 1000)\n RETURNS TABLE(stream_id text, \"offset\" bigint, \"timestamp\" timestamp with time zone, signal_type text, spacetime jsonb, provenance jsonb, payload jsonb, source_id text, jurisdiction_id text, module_hint text, ingested_at timestamp with time zone)\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public', 'private', 'atlas'\nAS $function$\nselect event.stream_id,event.\"offset\",event.\"timestamp\",event.signal_type,event.spacetime,event.provenance,event.payload,event.source_id,event.jurisdiction_id,event.module_hint,identity.last_seen_at as ingested_at\nfrom atlas.signal_event_identity identity join public.signal_events event on event.stream_id=identity.stream_id and event.\"offset\"=identity.canonical_offset join private.lighthouse_stream_export_allowlist allowlist on allowlist.stream_id=event.stream_id and allowlist.export_enabled\nwhere event.stream_id=p_stream_id and event.\"offset\">=greatest(coalesce(p_offset,0),0) order by event.\"offset\" limit least(greatest(coalesce(p_limit,1000),1),1000)\n$function$\n",
+      "volatility": "s",
+      "security_definer": true,
+      "identity_arguments": "p_stream_id text, p_offset bigint, p_limit integer"
+    },
+    {
+      "kind": "f",
+      "name": "get_lighthouse_stream_definition",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public, private"
+      ],
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "TABLE(stream_id text, source_id text, jurisdiction_id text, module_hint text, throughput_profile text, safety_profile text, governance_contract_id text, status text, created_at timestamp with time zone, updated_at timestamp with time zone)",
+      "schema": "public",
+      "strict": false,
+      "comment": "Returns one explicitly allowlisted Atlas stream definition to Lighthouse.",
+      "language": "sql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION public.get_lighthouse_stream_definition(p_stream_id text)\n RETURNS TABLE(stream_id text, source_id text, jurisdiction_id text, module_hint text, throughput_profile text, safety_profile text, governance_contract_id text, status text, created_at timestamp with time zone, updated_at timestamp with time zone)\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public', 'private'\nAS $function$\n  select\n    stream.stream_id,\n    stream.source_id,\n    stream.jurisdiction_id,\n    stream.module_hint,\n    stream.throughput_profile,\n    stream.safety_profile,\n    stream.governance_contract_id,\n    stream.status,\n    stream.created_at,\n    stream.updated_at\n  from public.streams stream\n  join private.lighthouse_stream_export_allowlist allowlist\n    on allowlist.stream_id = stream.stream_id\n   and allowlist.export_enabled\n  where stream.stream_id = p_stream_id\n  limit 1\n$function$\n",
+      "volatility": "s",
+      "security_definer": true,
+      "identity_arguments": "p_stream_id text"
+    },
+    {
+      "kind": "f",
+      "name": "ingest_canonical_extracted_record",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public"
+      ],
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "uuid",
+      "schema": "public",
+      "strict": false,
+      "comment": null,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION public.ingest_canonical_extracted_record(p_record jsonb)\n RETURNS uuid\n LANGUAGE plpgsql\n SET search_path TO 'pg_catalog', 'public'\nAS $function$\ndeclare\n  v_id uuid;\n  v_facts jsonb := '{}'::jsonb;\n  v_contacts jsonb := '{}'::jsonb;\n  v_legal_basis jsonb := '{}'::jsonb;\n  v_relationships jsonb := '{}'::jsonb;\n  v_escalation_paths jsonb := '{}'::jsonb;\n  v_hash text;\n  v_signals text[] := '{}';\n  v_source_url text := '';\n  v_verbatim text := '';\n  v_kind text := 'unknown';\n  v_usefulness text := 'unchecked';\nbegin\n  v_facts := coalesce(p_record->'facts', '{}'::jsonb);\n  v_kind := coalesce(p_record->>'record_kind', p_record->>'entity_type', 'unknown');\n  v_source_url := coalesce(p_record->>'source_url', '');\n  v_verbatim := coalesce(p_record->>'verbatim_text', p_record->>'raw_text', '');\n\n  v_contacts := jsonb_build_object(\n    'phones', coalesce(v_facts->'phones', p_record->'phones', '[]'::jsonb),\n    'emails', coalesce(v_facts->'emails', p_record->'emails', '[]'::jsonb),\n    'urls', coalesce(v_facts->'urls', p_record->'urls', '[]'::jsonb),\n    'addresses', coalesce(v_facts->'addresses', p_record->'addresses', '[]'::jsonb)\n  );\n\n  v_legal_basis := jsonb_build_object(\n    'statutes', coalesce(v_facts->'statutes', p_record->'statutes', '[]'::jsonb),\n    'deadlines', coalesce(v_facts->'deadlines', p_record->'deadlines', '[]'::jsonb),\n    'dates', coalesce(v_facts->'dates', p_record->'dates', '[]'::jsonb),\n    'source_url', v_source_url,\n    'source_anchor', coalesce(p_record->>'source_anchor', ''),\n    'verbatim_text', v_verbatim\n  );\n\n  v_relationships := coalesce(p_record->'relationships', jsonb_build_object(\n    'committees', coalesce(p_record->'committees', '[]'::jsonb),\n    'memberships', coalesce(p_record->'memberships', '[]'::jsonb),\n    'roles', coalesce(p_record->'roles', '[]'::jsonb)\n  ));\n\n  v_escalation_paths := coalesce(p_record->'escalation_paths', jsonb_build_object(\n    'steps', coalesce(p_record->'steps', '[]'::jsonb),\n    'contacts', coalesce(p_record->'escalation_contacts', '[]'::jsonb)\n  ));\n\n  v_hash := coalesce(p_record->>'provenance_hash', encode(digest(coalesce(p_record::text,''), 'sha256'), 'hex'));\n\n  if jsonb_typeof(p_record->'signal_families') = 'array' then\n    select coalesce(array_agg(value), '{}') into v_signals from jsonb_array_elements_text(p_record->'signal_families') as t(value);\n  end if;\n\n  v_usefulness := public.evaluate_canonical_payload_usefulness(\n    v_kind,\n    v_contacts,\n    v_legal_basis,\n    v_escalation_paths,\n    v_source_url,\n    coalesce(p_record->>'source_anchor', ''),\n    v_verbatim\n  );\n\n  insert into public.canonical_extracted_records (\n    external_record_id, entity_type, record_kind, record_name, jurisdiction, category, registry_layer,\n    signal_families, source_file, source_path, source_anchor, source_url, source_hash, provenance_hash,\n    raw_text, verbatim_text, canonical_payload, facts, contacts, relationships, legal_basis, escalation_paths,\n    usefulness_status, verification_status\n  ) values (\n    p_record->>'record_id',\n    coalesce(p_record->>'entity_type', v_kind),\n    v_kind,\n    coalesce(p_record->>'record_name', p_record->>'name', 'unnamed_record'),\n    coalesce(p_record->>'jurisdiction', p_record->>'state', p_record->>'jurisdiction_code'),\n    p_record->>'category',\n    p_record->>'registry_layer',\n    v_signals,\n    p_record->>'source_file',\n    p_record->>'source_path',\n    p_record->>'source_anchor',\n    v_source_url,\n    p_record->>'source_hash',\n    v_hash,\n    coalesce(p_record->>'raw_text', ''),\n    v_verbatim,\n    p_record,\n    v_facts,\n    v_contacts,\n    v_relationships,\n    v_legal_basis,\n    v_escalation_paths,\n    v_usefulness,\n    'needs_review'\n  )\n  on conflict (provenance_hash) do update set\n    entity_type = excluded.entity_type,\n    record_kind = excluded.record_kind,\n    record_name = excluded.record_name,\n    jurisdiction = excluded.jurisdiction,\n    category = excluded.category,\n    registry_layer = excluded.registry_layer,\n    signal_families = excluded.signal_families,\n    source_file = excluded.source_file,\n    source_path = excluded.source_path,\n    source_anchor = excluded.source_anchor,\n    source_url = excluded.source_url,\n    source_hash = excluded.source_hash,\n    raw_text = excluded.raw_text,\n    verbatim_text = excluded.verbatim_text,\n    canonical_payload = excluded.canonical_payload,\n    facts = excluded.facts,\n    contacts = excluded.contacts,\n    relationships = excluded.relationships,\n    legal_basis = excluded.legal_basis,\n    escalation_paths = excluded.escalation_paths,\n    usefulness_status = excluded.usefulness_status,\n    updated_at = now()\n  returning id into v_id;\n\n  return v_id;\nend;\n$function$\n",
+      "volatility": "v",
+      "security_definer": false,
+      "identity_arguments": "p_record jsonb"
+    },
+    {
+      "kind": "f",
+      "name": "ingest_canonical_extracted_record_batch",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public"
+      ],
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "TABLE(inserted_id uuid, record_name text, record_kind text, usefulness_status text)",
+      "schema": "public",
+      "strict": false,
+      "comment": null,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION public.ingest_canonical_extracted_record_batch(p_records jsonb)\n RETURNS TABLE(inserted_id uuid, record_name text, record_kind text, usefulness_status text)\n LANGUAGE plpgsql\n SET search_path TO 'pg_catalog', 'public'\nAS $function$\ndeclare\n  item jsonb;\n  v_id uuid;\nbegin\n  if jsonb_typeof(p_records) <> 'array' then\n    raise exception 'p_records must be a jsonb array';\n  end if;\n  for item in select value from jsonb_array_elements(p_records) loop\n    v_id := public.ingest_canonical_extracted_record(item);\n    return query select cer.id, cer.record_name, cer.record_kind, cer.usefulness_status from public.canonical_extracted_records cer where cer.id = v_id;\n  end loop;\nend;\n$function$\n",
+      "volatility": "v",
+      "security_definer": false,
+      "identity_arguments": "p_records jsonb"
+    }
+  ]
+}

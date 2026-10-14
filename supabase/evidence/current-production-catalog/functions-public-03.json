@@ -1,0 +1,640 @@
+{
+  "schemaVersion": 1,
+  "evidenceKind": "Atlas current production function catalog",
+  "capturedAt": "2026-08-30T20:40:00Z",
+  "projectRef": "bjdjjgnkhxblnpdrjqtw",
+  "schema": "public",
+  "offset": 36,
+  "functions": [
+    {
+      "kind": "f",
+      "name": "ingest_extraction_candidate_batch",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public"
+      ],
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "TABLE(inserted_id uuid, record_name text, candidate_kind text, confidence numeric)",
+      "schema": "public",
+      "strict": false,
+      "comment": null,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION public.ingest_extraction_candidate_batch(p_records jsonb)\n RETURNS TABLE(inserted_id uuid, record_name text, candidate_kind text, confidence numeric)\n LANGUAGE plpgsql\n SET search_path TO 'pg_catalog', 'public'\nAS $function$\ndeclare\n  item jsonb;\n  inserted_row public.extraction_candidates%rowtype;\nbegin\n  if jsonb_typeof(p_records) <> 'array' then\n    raise exception 'p_records must be a jsonb array';\n  end if;\n\n  for item in\n    select value\n    from jsonb_array_elements(p_records)\n  loop\n    insert into public.extraction_candidates (\n      source_file,\n      source_path,\n      source_type,\n      source_anchor,\n      source_hash,\n      extraction_run_id,\n      extractor_id,\n      extractor_version,\n      raw_text,\n      extracted_payload,\n      candidate_kind,\n      signal_families,\n      layer,\n      confidence\n    )\n    values (\n      item->>'source_file',\n      item->>'source_path',\n      coalesce(item->>'source_type', 'sample_json'),\n      item->>'source_anchor',\n      item->>'source_hash',\n      item->>'extraction_run_id',\n      item->>'extractor_id',\n      item->>'extractor_version',\n      item->>'raw_text',\n      coalesce(item->'extracted_payload', '{}'::jsonb),\n      item->>'candidate_kind',\n      coalesce(\n        array(\n          select jsonb_array_elements_text(coalesce(item->'signal_families', '[]'::jsonb))\n        ),\n        '{}'\n      ),\n      item->>'layer',\n      nullif(item->>'confidence', '')::numeric\n    )\n    returning *\n    into inserted_row;\n\n    inserted_id := inserted_row.id;\n    record_name := inserted_row.extracted_payload->>'record_name';\n    candidate_kind := inserted_row.candidate_kind;\n    confidence := inserted_row.confidence;\n\n    return next;\n  end loop;\nend;\n$function$\n",
+      "volatility": "v",
+      "security_definer": false,
+      "identity_arguments": "p_records jsonb"
+    },
+    {
+      "kind": "f",
+      "name": "jsonb_array_count",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public"
+      ],
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "integer",
+      "schema": "public",
+      "strict": false,
+      "comment": null,
+      "language": "sql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION public.jsonb_array_count(p_value jsonb)\n RETURNS integer\n LANGUAGE sql\n IMMUTABLE\n SET search_path TO 'pg_catalog', 'public'\nAS $function$\n  select case when jsonb_typeof(p_value) = 'array' then jsonb_array_length(p_value) else 0 end;\n$function$\n",
+      "volatility": "i",
+      "security_definer": false,
+      "identity_arguments": "p_value jsonb"
+    },
+    {
+      "kind": "f",
+      "name": "mark_live_data_signal_candidate_bridge_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, atlas"
+      ],
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "void",
+      "schema": "public",
+      "strict": false,
+      "comment": null,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION public.mark_live_data_signal_candidate_bridge_v1(p_candidate_id uuid, p_status text, p_lighthouse_record_id uuid DEFAULT NULL::uuid, p_error_message text DEFAULT NULL::text)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'atlas'\nAS $function$\nbegin\n  if p_status not in('bridged','failed') then raise exception 'unsupported bridge status: %',p_status; end if;\n  update atlas.live_data_signal_candidate set lighthouse_status=p_status,lighthouse_record_id=case when p_status='bridged' then p_lighthouse_record_id else lighthouse_record_id end,lighthouse_last_error=case when p_status='failed' then left(p_error_message,2000) else null end,lighthouse_bridged_at=case when p_status='bridged' then clock_timestamp() else lighthouse_bridged_at end where candidate_id=p_candidate_id;\n  if not found then raise exception 'live-data signal candidate not found: %',p_candidate_id; end if;\nend\n$function$\n",
+      "volatility": "v",
+      "security_definer": true,
+      "identity_arguments": "p_candidate_id uuid, p_status text, p_lighthouse_record_id uuid, p_error_message text"
+    },
+    {
+      "kind": "f",
+      "name": "persist_atlas_event_entity_resolution_batch_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public, atlas, extensions"
+      ],
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "jsonb",
+      "schema": "public",
+      "strict": false,
+      "comment": null,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION public.persist_atlas_event_entity_resolution_batch_v1(p_run_id uuid, p_resolver_id text, p_resolver_version text, p_rule_manifest_hash text, p_entity_index_hash text, p_rows jsonb)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public', 'atlas', 'extensions'\nAS $function$\nDECLARE\n  v_run atlas.signal_event_entity_resolution_run%ROWTYPE;\n  v_rule atlas.signal_event_entity_resolution_rule%ROWTYPE;\n  v_row jsonb;\n  v_event public.signal_events%ROWTYPE;\n  v_stream_id text;\n  v_event_offset bigint;\n  v_rule_id text;\n  v_rule_version text;\n  v_candidate_key text;\n  v_expected_candidate_key text;\n  v_entity_role text;\n  v_source_field text;\n  v_source_field_value text;\n  v_source_identifier_field text;\n  v_source_identifier_type text;\n  v_source_identifier_value text;\n  v_actual_source_field_value text;\n  v_actual_identifier_field_value text;\n  v_expected_source_entity_value text;\n  v_expected_normalized_entity_value text;\n  v_expected_normalized_identifier_value text;\n  v_source_field_allowed boolean;\n  v_status text;\n  v_entity_id text;\n  v_candidate_ids text[];\n  v_verified_status text;\n  v_verified_match_method text;\n  v_verified_entity_id text;\n  v_verified_candidate_ids text[];\n  v_event_hash text;\n  v_expected_hash text;\n  v_supplied_hash text;\n  v_existing_hash text;\n  v_inserted integer := 0;\n  v_idempotent integer := 0;\n  v_row_count integer := 0;\n  v_batch_event_count integer := 0;\n  v_resolved integer := 0;\n  v_ambiguous integer := 0;\n  v_unresolved integer := 0;\n  v_ignored integer := 0;\nBEGIN\n  SELECT * INTO v_run\n  FROM atlas.signal_event_entity_resolution_run\n  WHERE run_id = p_run_id\n  FOR UPDATE;\n\n  IF NOT FOUND THEN\n    RAISE EXCEPTION 'resolution run not found: %', p_run_id;\n  END IF;\n  IF v_run.status <> 'running' THEN\n    RAISE EXCEPTION 'resolution run % is %, not running', p_run_id, v_run.status;\n  END IF;\n  IF v_run.resolver_id <> p_resolver_id\n     OR v_run.resolver_version <> p_resolver_version\n     OR v_run.rule_manifest_hash <> p_rule_manifest_hash\n     OR v_run.entity_index_hash <> p_entity_index_hash THEN\n    RAISE EXCEPTION 'resolver or input-state contract mismatch for run %', p_run_id;\n  END IF;\n  IF p_rows IS NULL OR jsonb_typeof(p_rows) <> 'array' THEN\n    RAISE EXCEPTION 'p_rows must be a JSON array';\n  END IF;\n  IF jsonb_array_length(p_rows) > 10000 THEN\n    RAISE EXCEPTION 'p_rows exceeds 10000-row safety bound';\n  END IF;\n\n  SELECT count(*) INTO v_batch_event_count\n  FROM (\n    SELECT DISTINCT value->>'stream_id' AS stream_id, value->>'event_offset' AS event_offset\n    FROM jsonb_array_elements(p_rows)\n  ) events;\n\n  FOR v_row IN SELECT value FROM jsonb_array_elements(p_rows)\n  LOOP\n    v_row_count := v_row_count + 1;\n    v_stream_id := v_row->>'stream_id';\n    v_event_offset := (v_row->>'event_offset')::bigint;\n    v_rule_id := v_row->>'rule_id';\n    v_rule_version := v_row->>'rule_version';\n    v_candidate_key := v_row->>'candidate_key';\n    v_entity_role := v_row->>'entity_role';\n    v_source_field := v_row->>'source_field';\n    v_source_field_value := v_row->>'source_field_value';\n    v_source_identifier_field := NULLIF(v_row->>'source_identifier_field', '');\n    v_source_identifier_type := NULLIF(v_row->>'source_identifier_type', '');\n    v_source_identifier_value := v_row->>'source_identifier_value';\n    v_status := v_row->>'resolution_status';\n    v_entity_id := NULLIF(v_row->>'entity_id', '');\n    v_supplied_hash := v_row->>'resolution_hash';\n\n    IF COALESCE(v_stream_id, '') = ''\n       OR COALESCE(v_rule_id, '') = ''\n       OR COALESCE(v_rule_version, '') = ''\n       OR COALESCE(v_entity_role, '') = ''\n       OR COALESCE(v_source_field, '') = '' THEN\n      RAISE EXCEPTION 'resolution row is missing event, rule, or source-field identity: %', v_row;\n    END IF;\n    IF v_candidate_key !~ '^[0-9a-f]{64}$' OR v_supplied_hash !~ '^[0-9a-f]{64}$' THEN\n      RAISE EXCEPTION 'candidate key and resolution hash must be lowercase SHA-256 values';\n    END IF;\n    IF v_row->>'rule_manifest_hash' IS DISTINCT FROM p_rule_manifest_hash\n       OR v_row->>'entity_index_hash' IS DISTINCT FROM p_entity_index_hash THEN\n      RAISE EXCEPTION 'resolution row input-state hashes do not match run %', p_run_id;\n    END IF;\n    IF v_row->>'resolver_id' IS DISTINCT FROM p_resolver_id\n       OR v_row->>'resolver_version' IS DISTINCT FROM p_resolver_version THEN\n      RAISE EXCEPTION 'resolution row resolver identity does not match run %', p_run_id;\n    END IF;\n    IF v_status NOT IN ('resolved', 'ambiguous', 'unresolved', 'ignored') THEN\n      RAISE EXCEPTION 'invalid resolution status: %', v_status;\n    END IF;\n    IF COALESCE(v_row->>'match_method', '') = '' THEN\n      RAISE EXCEPTION 'match_method is required';\n    END IF;\n    IF v_status = 'resolved' AND v_entity_id IS NULL THEN\n      RAISE EXCEPTION 'resolved row must contain entity_id for %:%', v_stream_id, v_event_offset;\n    END IF;\n    IF v_status <> 'resolved' AND v_entity_id IS NOT NULL THEN\n      RAISE EXCEPTION 'non-resolved row cannot contain entity_id for %:%', v_stream_id, v_event_offset;\n    END IF;\n\n    SELECT * INTO v_event\n    FROM public.signal_events\n    WHERE stream_id = v_stream_id AND \"offset\" = v_event_offset;\n\n    IF NOT FOUND THEN\n      RAISE EXCEPTION 'signal event not found: %:%', v_stream_id, v_event_offset;\n    END IF;\n\n    SELECT * INTO v_rule\n    FROM atlas.signal_event_entity_resolution_rule\n    WHERE rule_id = v_rule_id\n      AND rule_version = v_rule_version\n      AND is_active = true;\n\n    IF NOT FOUND THEN\n      RAISE EXCEPTION 'active event-entity rule not found: % version %', v_rule_id, v_rule_version;\n    END IF;\n    IF v_rule.rule_manifest_hash <> p_rule_manifest_hash THEN\n      RAISE EXCEPTION 'rule % version % is not part of run manifest %',\n        v_rule_id, v_rule_version, p_rule_manifest_hash;\n    END IF;\n    IF v_rule.stream_id <> '*' AND v_rule.stream_id <> v_event.stream_id THEN\n      RAISE EXCEPTION 'rule % does not apply to stream %', v_rule_id, v_event.stream_id;\n    END IF;\n    IF NOT ('*' = ANY(v_rule.signal_types) OR v_event.signal_type = ANY(v_rule.signal_types)) THEN\n      RAISE EXCEPTION 'rule % does not apply to signal type %', v_rule_id, v_event.signal_type;\n    END IF;\n    IF v_entity_role IS DISTINCT FROM v_rule.entity_role THEN\n      RAISE EXCEPTION 'entity role % does not match locked rule role % for %',\n        v_entity_role, v_rule.entity_role, v_rule_id;\n    END IF;\n    IF NULLIF(v_row->>'expected_entity_type', '') IS DISTINCT FROM v_rule.expected_entity_type THEN\n      RAISE EXCEPTION 'expected entity type does not match locked rule %', v_rule_id;\n    END IF;\n\n    v_source_field_allowed := (\n      v_source_field = ANY(v_rule.name_fields)\n      OR (\n        'payload.sponsors[*]' = ANY(v_rule.name_fields)\n        AND v_source_field ~ '^payload\\.sponsors\\[[0-9]+\\](\\.(name|full_name|sponsor_name))?$'\n      )\n      OR (\n        v_source_field = '__none__'\n        AND v_rule.transform IN ('exact_canonical_entity_id', 'explicit_ignored_outcome')\n      )\n    );\n    IF v_source_field_allowed IS DISTINCT FROM true THEN\n      RAISE EXCEPTION 'source field % is not allowed by rule %', v_source_field, v_rule_id;\n    END IF;\n    IF v_source_field <> '__none__' AND v_source_field_value IS NULL THEN\n      RAISE EXCEPTION 'declared source field % has no preserved source value for %:%',\n        v_source_field, v_stream_id, v_event_offset;\n    END IF;\n    IF v_source_field = '__none__' AND v_source_field_value IS NOT NULL THEN\n      RAISE EXCEPTION '__none__ source field cannot carry a source value for %:%',\n        v_stream_id, v_event_offset;\n    END IF;\n\n    IF v_source_identifier_field IS NOT NULL\n       AND NOT (v_source_identifier_field = ANY(v_rule.identifier_fields)) THEN\n      RAISE EXCEPTION 'identifier field % is not allowed by rule %',\n        v_source_identifier_field, v_rule_id;\n    END IF;\n    IF v_source_identifier_type IS NOT NULL\n       AND NOT (v_source_identifier_type = ANY(v_rule.exact_identifier_types)) THEN\n      RAISE EXCEPTION 'identifier type % is not allowed by rule %',\n        v_source_identifier_type, v_rule_id;\n    END IF;\n    IF v_source_identifier_field IS NULL AND v_source_identifier_value IS NOT NULL THEN\n      RAISE EXCEPTION 'identifier value cannot exist without an identifier source field for %:%',\n        v_stream_id, v_event_offset;\n    END IF;\n    IF v_source_identifier_field IS NOT NULL AND v_source_identifier_type IS NULL THEN\n      RAISE EXCEPTION 'identifier source field requires an identifier type for %:%',\n        v_stream_id, v_event_offset;\n    END IF;\n    IF v_source_identifier_field IS NOT NULL AND v_source_identifier_value IS NULL THEN\n      RAISE EXCEPTION 'identifier source field requires its exact preserved source value for %:%',\n        v_stream_id, v_event_offset;\n    END IF;\n    IF lower(v_row->>'match_method') LIKE '%fuzzy%' THEN\n      RAISE EXCEPTION 'fuzzy match methods are forbidden';\n    END IF;\n    IF v_rule.transform = 'explicit_ignored_outcome' AND v_status <> 'ignored' THEN\n      RAISE EXCEPTION 'no-entity rule must produce ignored outcome';\n    END IF;\n    IF v_rule.transform <> 'explicit_ignored_outcome' AND v_status = 'ignored' THEN\n      RAISE EXCEPTION 'only the no-entity rule may produce ignored outcome';\n    END IF;\n\n    v_event_hash := public.atlas_signal_event_input_hash_v1(\n      v_event.stream_id,\n      v_event.\"offset\",\n      v_event.\"timestamp\",\n      v_event.signal_type,\n      v_event.spacetime,\n      v_event.provenance,\n      v_event.payload,\n      v_event.source_id,\n      v_event.jurisdiction_id,\n      v_event.module_hint,\n      v_event.ingested_at\n    );\n\n    IF v_event_hash <> v_row->>'event_input_hash' THEN\n      RAISE EXCEPTION 'event input hash mismatch for %:%', v_stream_id, v_event_offset;\n    END IF;\n\n    v_actual_source_field_value := public.atlas_event_payload_field_text_v1(\n      v_event.payload,\n      v_source_field\n    );\n    IF v_actual_source_field_value IS DISTINCT FROM v_source_field_value THEN\n      RAISE EXCEPTION 'source field provenance mismatch for %:% field %',\n        v_stream_id, v_event_offset, v_source_field;\n    END IF;\n\n    v_expected_source_entity_value := public.atlas_event_entity_source_value_v1(\n      v_rule_id,\n      v_source_field,\n      v_actual_source_field_value\n    );\n    IF v_expected_source_entity_value IS DISTINCT FROM NULLIF(v_row->>'source_entity_value', '') THEN\n      RAISE EXCEPTION 'source entity extraction mismatch for %:% rule % field %',\n        v_stream_id, v_event_offset, v_rule_id, v_source_field;\n    END IF;\n\n    v_expected_normalized_entity_value := public.atlas_normalize_entity_name_v1(\n      v_expected_source_entity_value\n    );\n    IF v_expected_normalized_entity_value IS DISTINCT FROM NULLIF(v_row->>'normalized_entity_value', '') THEN\n      RAISE EXCEPTION 'normalized entity value mismatch for %:% rule %',\n        v_stream_id, v_event_offset, v_rule_id;\n    END IF;\n\n    IF v_source_identifier_field IS NOT NULL THEN\n      v_actual_identifier_field_value := public.atlas_event_payload_field_text_v1(\n        v_event.payload,\n        v_source_identifier_field\n      );\n      IF v_actual_identifier_field_value IS DISTINCT FROM v_source_identifier_value THEN\n        RAISE EXCEPTION 'identifier field provenance mismatch for %:% field %',\n          v_stream_id, v_event_offset, v_source_identifier_field;\n      END IF;\n    ELSE\n      v_actual_identifier_field_value := NULL;\n    END IF;\n\n    v_expected_normalized_identifier_value := public.atlas_normalize_entity_identifier_v1(\n      v_source_identifier_type,\n      v_actual_identifier_field_value\n    );\n    IF v_expected_normalized_identifier_value IS DISTINCT FROM NULLIF(v_row->>'normalized_identifier_value', '') THEN\n      RAISE EXCEPTION 'normalized identifier value mismatch for %:% rule %',\n        v_stream_id, v_event_offset, v_rule_id;\n    END IF;\n\n    v_expected_candidate_key := public.atlas_event_entity_candidate_key_v1(\n      v_rule_id,\n      v_rule_version,\n      v_entity_role,\n      v_source_field,\n      NULLIF(v_row->>'normalized_entity_value', ''),\n      NULLIF(v_row->>'source_identifier_field', ''),\n      NULLIF(v_row->>'source_identifier_type', ''),\n      NULLIF(v_row->>'normalized_identifier_value', ''),\n      NULLIF(v_row->>'expected_entity_type', '')\n    );\n\n    IF v_expected_candidate_key <> v_candidate_key THEN\n      RAISE EXCEPTION 'candidate key mismatch for %:% %/%',\n        v_stream_id, v_event_offset, v_entity_role, v_source_field;\n    END IF;\n\n    SELECT COALESCE(array_agg(DISTINCT candidate_id ORDER BY candidate_id), ARRAY[]::text[])\n    INTO v_candidate_ids\n    FROM jsonb_array_elements_text(COALESCE(v_row->'candidate_entity_ids', '[]'::jsonb)) AS candidate(candidate_id);\n\n    IF v_status = 'ambiguous' AND cardinality(v_candidate_ids) < 2 THEN\n      RAISE EXCEPTION 'ambiguous row requires at least two candidates for %:%', v_stream_id, v_event_offset;\n    END IF;\n    IF v_status = 'resolved' AND NOT (v_entity_id = ANY(v_candidate_ids)) THEN\n      RAISE EXCEPTION 'resolved entity must be included in candidate set for %:%', v_stream_id, v_event_offset;\n    END IF;\n\n    IF v_entity_id IS NOT NULL AND NOT EXISTS (\n      SELECT 1\n      FROM atlas.entity_registry\n      WHERE entity_id = v_entity_id\n        AND is_active IS DISTINCT FROM false\n    ) THEN\n      RAISE EXCEPTION 'resolved entity does not exist or is inactive: %', v_entity_id;\n    END IF;\n\n    IF EXISTS (\n      SELECT 1\n      FROM unnest(v_candidate_ids) AS candidate(candidate_id)\n      WHERE NOT EXISTS (\n        SELECT 1\n        FROM atlas.entity_registry er\n        WHERE er.entity_id = candidate_id\n          AND er.is_active IS DISTINCT FROM false\n      )\n    ) THEN\n      RAISE EXCEPTION 'candidate entity set contains an unknown or inactive entity for %:%',\n        v_stream_id, v_event_offset;\n    END IF;\n\n    IF v_rule.transform = 'explicit_ignored_outcome' THEN\n      v_verified_status := 'ignored';\n      v_verified_match_method := 'no_declared_entity_rule';\n      v_verified_entity_id := NULL;\n      v_verified_candidate_ids := ARRAY[]::text[];\n    ELSE\n      SELECT\n        expected_resolution_status,\n        expected_match_method,\n        expected_entity_id,\n        expected_candidate_entity_ids\n      INTO\n        v_verified_status,\n        v_verified_match_method,\n        v_verified_entity_id,\n        v_verified_candidate_ids\n      FROM atlas.resolve_signal_event_entity_candidate_exact_v1(\n        NULLIF(v_row->>'normalized_entity_value', ''),\n        NULLIF(v_row->>'source_identifier_type', ''),\n        NULLIF(v_row->>'normalized_identifier_value', ''),\n        NULLIF(v_row->>'expected_entity_type', '')\n      );\n    END IF;\n\n    IF v_verified_status IS DISTINCT FROM v_status\n       OR v_verified_match_method IS DISTINCT FROM v_row->>'match_method'\n       OR v_verified_entity_id IS DISTINCT FROM v_entity_id\n       OR v_verified_candidate_ids IS DISTINCT FROM v_candidate_ids THEN\n      RAISE EXCEPTION 'SQL exact-match recomputation mismatch for %:% rule %: supplied status/method/entity/candidates %/%/%/% expected %/%/%/%',\n        v_stream_id,\n        v_event_offset,\n        v_rule_id,\n        v_status,\n        v_row->>'match_method',\n        v_entity_id,\n        v_candidate_ids,\n        v_verified_status,\n        v_verified_match_method,\n        v_verified_entity_id,\n        v_verified_candidate_ids;\n    END IF;\n\n    v_expected_hash := public.atlas_event_entity_resolution_hash_v1(\n      v_event_hash,\n      p_entity_index_hash,\n      p_rule_manifest_hash,\n      v_rule_id,\n      v_rule_version,\n      v_candidate_key,\n      v_entity_role,\n      v_source_field,\n      NULLIF(v_row->>'normalized_entity_value', ''),\n      NULLIF(v_row->>'source_identifier_field', ''),\n      NULLIF(v_row->>'source_identifier_type', ''),\n      NULLIF(v_row->>'normalized_identifier_value', ''),\n      NULLIF(v_row->>'expected_entity_type', ''),\n      v_status,\n      v_entity_id,\n      v_row->>'match_method',\n      v_candidate_ids,\n      p_resolver_id,\n      p_resolver_version\n    );\n\n    IF v_expected_hash <> v_supplied_hash THEN\n      RAISE EXCEPTION 'resolution hash mismatch for %:% %/%',\n        v_stream_id, v_event_offset, v_entity_role, v_source_field;\n    END IF;\n\n    PERFORM pg_advisory_xact_lock(\n      hashtextextended(\n        concat_ws(\n          chr(31),\n          v_stream_id,\n          v_event_offset::text,\n          v_candidate_key,\n          p_resolver_id,\n          p_resolver_version,\n          p_entity_index_hash\n        ),\n        0\n      )\n    );\n\n    SELECT resolution_hash INTO v_existing_hash\n    FROM atlas.signal_event_entity_resolution\n    WHERE stream_id = v_stream_id\n      AND event_offset = v_event_offset\n      AND candidate_key = v_candidate_key\n      AND resolver_id = p_resolver_id\n      AND resolver_version = p_resolver_version\n      AND entity_index_hash = p_entity_index_hash;\n\n    IF FOUND THEN\n      IF v_existing_hash <> v_expected_hash THEN\n        RAISE EXCEPTION 'deterministic replay violation for %:% candidate % resolver % % input %',\n          v_stream_id,\n          v_event_offset,\n          v_candidate_key,\n          p_resolver_id,\n          p_resolver_version,\n          p_entity_index_hash;\n      END IF;\n\n      UPDATE atlas.signal_event_entity_resolution\n      SET last_run_id = p_run_id,\n          last_replayed_at = now()\n      WHERE stream_id = v_stream_id\n        AND event_offset = v_event_offset\n        AND candidate_key = v_candidate_key\n        AND resolver_id = p_resolver_id\n        AND resolver_version = p_resolver_version\n        AND entity_index_hash = p_entity_index_hash;\n\n      v_idempotent := v_idempotent + 1;\n    ELSE\n      UPDATE atlas.signal_event_entity_resolution\n      SET is_current = false\n      WHERE stream_id = v_stream_id\n        AND event_offset = v_event_offset\n        AND candidate_key = v_candidate_key\n        AND resolver_id = p_resolver_id\n        AND is_current = true;\n\n      INSERT INTO atlas.signal_event_entity_resolution (\n        stream_id,\n        event_offset,\n        event_timestamp,\n        signal_type,\n        source_id,\n        jurisdiction_id,\n        module_hint,\n        rule_id,\n        rule_version,\n        candidate_key,\n        entity_role,\n        source_field,\n        source_field_value,\n        source_entity_value,\n        normalized_entity_value,\n        source_identifier_field,\n        source_identifier_type,\n        source_identifier_value,\n        normalized_identifier_value,\n        expected_entity_type,\n        entity_id,\n        resolution_status,\n        match_method,\n        candidate_entity_ids,\n        match_evidence,\n        event_input_hash,\n        entity_index_hash,\n        rule_manifest_hash,\n        resolution_hash,\n        resolver_id,\n        resolver_version,\n        first_run_id,\n        last_run_id,\n        is_current\n      ) VALUES (\n        v_stream_id,\n        v_event_offset,\n        v_event.\"timestamp\",\n        v_event.signal_type,\n        v_event.source_id,\n        v_event.jurisdiction_id,\n        v_event.module_hint,\n        v_rule_id,\n        v_rule_version,\n        v_candidate_key,\n        v_entity_role,\n        v_source_field,\n        v_source_field_value,\n        NULLIF(v_row->>'source_entity_value', ''),\n        NULLIF(v_row->>'normalized_entity_value', ''),\n        NULLIF(v_row->>'source_identifier_field', ''),\n        NULLIF(v_row->>'source_identifier_type', ''),\n        NULLIF(v_row->>'source_identifier_value', ''),\n        NULLIF(v_row->>'normalized_identifier_value', ''),\n        NULLIF(v_row->>'expected_entity_type', ''),\n        v_entity_id,\n        v_status,\n        v_row->>'match_method',\n        v_candidate_ids::varchar(128)[],\n        COALESCE(v_row->'match_evidence', '{}'::jsonb),\n        v_event_hash,\n        p_entity_index_hash,\n        p_rule_manifest_hash,\n        v_expected_hash,\n        p_resolver_id,\n        p_resolver_version,\n        p_run_id,\n        p_run_id,\n        true\n      );\n\n      v_inserted := v_inserted + 1;\n    END IF;\n\n    CASE v_status\n      WHEN 'resolved' THEN v_resolved := v_resolved + 1;\n      WHEN 'ambiguous' THEN v_ambiguous := v_ambiguous + 1;\n      WHEN 'unresolved' THEN v_unresolved := v_unresolved + 1;\n      WHEN 'ignored' THEN v_ignored := v_ignored + 1;\n    END CASE;\n  END LOOP;\n\n  UPDATE atlas.signal_event_entity_resolution_run\n  SET processed_event_count = processed_event_count + v_batch_event_count,\n      resolution_row_count = resolution_row_count + v_row_count,\n      resolved_count = resolved_count + v_resolved,\n      ambiguous_count = ambiguous_count + v_ambiguous,\n      unresolved_count = unresolved_count + v_unresolved,\n      ignored_count = ignored_count + v_ignored,\n      inserted_count = inserted_count + v_inserted,\n      idempotent_count = idempotent_count + v_idempotent\n  WHERE run_id = p_run_id;\n\n  RETURN jsonb_build_object(\n    'run_id', p_run_id,\n    'batch_event_count', v_batch_event_count,\n    'resolution_row_count', v_row_count,\n    'resolved_count', v_resolved,\n    'ambiguous_count', v_ambiguous,\n    'unresolved_count', v_unresolved,\n    'ignored_count', v_ignored,\n    'inserted_count', v_inserted,\n    'idempotent_count', v_idempotent\n  );\nEND;\n$function$\n",
+      "volatility": "v",
+      "security_definer": true,
+      "identity_arguments": "p_run_id uuid, p_resolver_id text, p_resolver_version text, p_rule_manifest_hash text, p_entity_index_hash text, p_rows jsonb"
+    },
+    {
+      "kind": "f",
+      "name": "persist_domain3_population_run_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=public, atlas, pg_temp"
+      ],
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "jsonb",
+      "schema": "public",
+      "strict": false,
+      "comment": null,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION public.persist_domain3_population_run_v1(p_rule jsonb, p_run_id uuid, p_observations_scanned bigint, p_candidates jsonb)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public', 'atlas', 'pg_temp'\nAS $function$ declare v_candidate jsonb; v_produced integer := 0; v_replayed integer := 0; v_inserted integer := 0; v_entities integer := 0; v_rule_id text; v_rule_version text; v_rule_hash text; begin if p_run_id is null then raise exception 'domain3_run_id_required'; end if; if jsonb_typeof(p_rule) <> 'object' then raise exception 'domain3_rule_must_be_object'; end if; if jsonb_typeof(p_candidates) <> 'array' then raise exception 'domain3_candidates_must_be_array'; end if; v_rule_id:=p_rule->>'rule_id'; v_rule_version:=p_rule->>'rule_version'; v_rule_hash:=p_rule->>'rule_contract_hash'; if coalesce(v_rule_id,'')='' or coalesce(v_rule_version,'')='' or coalesce(v_rule_hash,'') !~ '^[0-9a-f]{64}$' then raise exception 'invalid_domain3_run_rule_identity'; end if; insert into atlas.live_data_signal_rule (rule_id,rule_version,signal_type,engine_id,engine_version,rule_contract,rule_contract_hash,is_active) values (v_rule_id,v_rule_version,p_rule->>'signal_type',p_rule->>'engine_id',p_rule->>'engine_version',p_rule->'rule_contract',v_rule_hash,coalesce((p_rule->>'is_active')::boolean,true)) on conflict (rule_id,rule_version) do update set signal_type=excluded.signal_type,engine_id=excluded.engine_id,engine_version=excluded.engine_version,rule_contract=excluded.rule_contract,rule_contract_hash=excluded.rule_contract_hash,is_active=excluded.is_active; v_produced:=jsonb_array_length(p_candidates); select count(*)::integer into v_replayed from jsonb_array_elements(p_candidates) c join atlas.live_data_signal_candidate existing on existing.candidate_hash=c->>'candidate_hash'; v_inserted:=v_produced-v_replayed; select count(*)::integer into v_entities from jsonb_array_elements(p_candidates) c where coalesce(c->'supporting_statistics'->>'entity_name','')<>''; insert into atlas.live_data_signal_run (run_id,rule_id,rule_version,rule_contract_hash,status,canonical_events_scanned,entities_evaluated,candidates_produced,started_at,completed_at) values (p_run_id,v_rule_id,v_rule_version,v_rule_hash,'completed',greatest(coalesce(p_observations_scanned,0),0),v_entities,v_produced,now(),now()) on conflict (run_id) do nothing; for v_candidate in select value from jsonb_array_elements(p_candidates) loop if coalesce(v_candidate->>'candidate_hash','') !~ '^[0-9a-f]{64}$' or coalesce(v_candidate->>'source_input_hash','') !~ '^[0-9a-f]{64}$' or jsonb_typeof(v_candidate->'source_event_refs') <> 'array' or jsonb_array_length(v_candidate->'source_event_refs')=0 or jsonb_typeof(v_candidate->'supporting_statistics') <> 'object' or v_candidate->'supporting_statistics'='{}'::jsonb then raise exception 'invalid_domain3_candidate_contract'; end if; insert into atlas.live_data_signal_candidate (candidate_hash,rule_id,rule_version,rule_contract_hash,engine_id,engine_version,signal_type,title,description,primary_stream_id,source_event_refs,entity_ids,entity_resolution_status,jurisdiction_id,severity,confidence_score,verification_state,supporting_statistics,evidence_refs,source_freshness_at,detected_at,source_input_hash,first_run_id,last_run_id) values (v_candidate->>'candidate_hash',v_rule_id,v_rule_version,v_rule_hash,p_rule->>'engine_id',p_rule->>'engine_version',v_candidate->>'signal_type',v_candidate->>'title',v_candidate->>'description',v_candidate->>'primary_stream_id',v_candidate->'source_event_refs',array(select jsonb_array_elements_text(coalesce(v_candidate->'entity_ids','[]'::jsonb))),v_candidate->>'entity_resolution_status',v_candidate->>'jurisdiction_id',v_candidate->>'severity',(v_candidate->>'confidence_score')::numeric,v_candidate->>'verification_state',v_candidate->'supporting_statistics',coalesce(v_candidate->'evidence_refs','[]'::jsonb),(v_candidate->>'source_freshness_at')::timestamptz,(v_candidate->>'detected_at')::timestamptz,v_candidate->>'source_input_hash',p_run_id,p_run_id) on conflict (candidate_hash) do update set last_run_id=excluded.last_run_id,last_replayed_at=now(),source_event_refs=excluded.source_event_refs,supporting_statistics=excluded.supporting_statistics,evidence_refs=excluded.evidence_refs,source_freshness_at=excluded.source_freshness_at,detected_at=excluded.detected_at; end loop; return jsonb_build_object('status','completed','run_id',p_run_id,'rule_id',v_rule_id,'observations_scanned',greatest(coalesce(p_observations_scanned,0),0),'candidates_produced',v_produced,'candidates_inserted',v_inserted,'candidates_replayed',v_replayed); end; $function$\n",
+      "volatility": "v",
+      "security_definer": true,
+      "identity_arguments": "p_rule jsonb, p_run_id uuid, p_observations_scanned bigint, p_candidates jsonb"
+    },
+    {
+      "kind": "f",
+      "name": "persist_signal_event_batch_v2",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public, atlas, extensions"
+      ],
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "jsonb",
+      "schema": "public",
+      "strict": false,
+      "comment": "Replay-safe event persistence. Per-event subtransactions preserve committed progress and a durable partial/failed run receipt.",
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION public.persist_signal_event_batch_v2(p_events jsonb)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public', 'atlas', 'extensions'\nAS $function$\ndeclare\n  v_run_id uuid := gen_random_uuid();\n  v_event jsonb;\n  v_stream_id text;\n  v_identity_hash text;\n  v_source_record_key text;\n  v_existing_offset bigint;\n  v_next_offset bigint;\n  v_inserted integer := 0;\n  v_replayed integer := 0;\n  v_seen integer := 0;\n  v_failed integer := 0;\n  v_cursor_before bigint;\n  v_cursor_after bigint;\n  v_stream_count integer;\n  v_receipts jsonb := '[]'::jsonb;\n  v_error text := null;\n  v_status text;\nbegin\n  if jsonb_typeof(p_events) <> 'array' then raise exception 'p_events must be a JSON array'; end if;\n  select count(distinct value->>'stream_id') into v_stream_count from jsonb_array_elements(p_events);\n  if v_stream_count > 1 then raise exception 'one ingest batch may contain only one stream_id'; end if;\n  select nullif(value->>'stream_id', '') into v_stream_id from jsonb_array_elements(p_events) limit 1;\n  select max(\"offset\") into v_cursor_before from public.signal_events where stream_id = v_stream_id;\n  insert into atlas.signal_event_ingest_run(run_id,stream_id,status,records_seen,cursor_before) values(v_run_id,v_stream_id,'running',jsonb_array_length(p_events),v_cursor_before);\n  perform pg_advisory_xact_lock(hashtextextended(coalesce(v_stream_id, ''), 0));\n  for v_event in select value from jsonb_array_elements(p_events) loop\n    v_seen := v_seen + 1;\n    v_existing_offset := null;\n    begin\n      if coalesce(v_event->>'stream_id','')='' or coalesce(v_event->>'timestamp','')='' or coalesce(v_event->>'signal_type','')='' or coalesce(v_event->>'source_id','')='' or coalesce(v_event->>'jurisdiction_id','')='' or coalesce(v_event->>'module_hint','')='' then raise exception 'event % is missing canonical identity fields',v_seen; end if;\n      if jsonb_typeof(v_event->'spacetime')<>'object' or jsonb_typeof(v_event->'provenance')<>'object' or jsonb_typeof(v_event->'payload')<>'object' then raise exception 'event % has invalid spacetime, provenance, or payload',v_seen; end if;\n      v_identity_hash:=atlas.signal_event_identity_hash_v1(v_event->>'stream_id',(v_event->>'timestamp')::timestamptz,v_event->>'signal_type',v_event->'spacetime',v_event->'provenance',v_event->'payload',v_event->>'source_id',v_event->>'jurisdiction_id',v_event->>'module_hint');\n      v_source_record_key:=atlas.signal_event_source_record_key_v1(v_event->'payload',v_event->'provenance');\n      select canonical_offset into v_existing_offset from atlas.signal_event_identity where stream_id=v_event->>'stream_id' and event_identity_hash=v_identity_hash;\n      if v_existing_offset is not null then\n        update atlas.signal_event_identity set replay_count=replay_count+1,last_seen_at=clock_timestamp(),updated_at=clock_timestamp() where stream_id=v_event->>'stream_id' and event_identity_hash=v_identity_hash;\n        v_replayed:=v_replayed+1;\n        if jsonb_array_length(v_receipts)<50 then v_receipts:=v_receipts||jsonb_build_array(jsonb_build_object('event_identity_hash',v_identity_hash,'canonical_offset',v_existing_offset,'inserted',false,'replay_suppressed',true)); end if;\n      else\n        select coalesce(max(\"offset\")+1,0) into v_next_offset from public.signal_events where stream_id=v_event->>'stream_id';\n        insert into public.signal_events(stream_id,\"offset\",timestamp,signal_type,spacetime,provenance,payload,source_id,jurisdiction_id,module_hint,ingested_at,event_identity_hash)\n        values(v_event->>'stream_id',v_next_offset,(v_event->>'timestamp')::timestamptz,v_event->>'signal_type',v_event->'spacetime',v_event->'provenance',v_event->'payload',v_event->>'source_id',v_event->>'jurisdiction_id',v_event->>'module_hint',clock_timestamp(),v_identity_hash);\n        insert into atlas.signal_event_identity(stream_id,event_identity_hash,canonical_offset,latest_historical_offset,historical_event_count,replay_count,source_record_key,first_seen_at,last_seen_at,source_timestamp,signal_type,source_id,jurisdiction_id,module_hint)\n        values(v_event->>'stream_id',v_identity_hash,v_next_offset,v_next_offset,1,0,v_source_record_key,clock_timestamp(),clock_timestamp(),(v_event->>'timestamp')::timestamptz,v_event->>'signal_type',v_event->>'source_id',v_event->>'jurisdiction_id',v_event->>'module_hint');\n        v_inserted:=v_inserted+1;\n        if jsonb_array_length(v_receipts)<50 then v_receipts:=v_receipts||jsonb_build_array(jsonb_build_object('event_identity_hash',v_identity_hash,'canonical_offset',v_next_offset,'inserted',true,'replay_suppressed',false)); end if;\n      end if;\n    exception when others then\n      get stacked diagnostics v_error=message_text;\n      v_failed:=v_failed+1;\n      if jsonb_array_length(v_receipts)<50 then v_receipts:=v_receipts||jsonb_build_array(jsonb_build_object('event_index',v_seen,'inserted',false,'replay_suppressed',false,'error',left(v_error,1000))); end if;\n      exit;\n    end;\n  end loop;\n  select max(\"offset\") into v_cursor_after from public.signal_events where stream_id=v_stream_id;\n  v_status:=case when v_failed=0 then 'completed' when v_inserted>0 or v_replayed>0 then 'partial' else 'failed' end;\n  update atlas.signal_event_ingest_run set status=v_status,records_seen=v_seen,events_inserted=v_inserted,replays_suppressed=v_replayed,cursor_after=v_cursor_after,partial_completion=v_status='partial',error_message=case when v_failed>0 then left(v_error,2000) else null end,completed_at=clock_timestamp() where run_id=v_run_id;\n  return jsonb_build_object('run_id',v_run_id,'stream_id',v_stream_id,'status',v_status,'records_seen',v_seen,'events_inserted',v_inserted,'replays_suppressed',v_replayed,'records_failed',v_failed,'cursor_before',v_cursor_before,'cursor_after',v_cursor_after,'partial_completion',v_status='partial','error_message',case when v_failed>0 then v_error else null end,'receipts',v_receipts);\nend\n$function$\n",
+      "volatility": "v",
+      "security_definer": true,
+      "identity_arguments": "p_events jsonb"
+    },
+    {
+      "kind": "f",
+      "name": "promote_verified_chronicle",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public"
+      ],
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "trigger",
+      "schema": "public",
+      "strict": false,
+      "comment": null,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION public.promote_verified_chronicle()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO 'pg_catalog', 'public'\nAS $function$\ndeclare\n  v_signal_families text[];\n  v_source_count integer;\n  v_chronicle_hash text;\nbegin\n  if new.verification_status = 'verified'\n     and new.verification_score >= 0.75\n     and new.conflict_status in ('none', 'resolved')\n  then\n    select coalesce(ec.signal_families, '{}') into v_signal_families\n    from public.extraction_candidates ec\n    where ec.id = new.candidate_id;\n\n    select count(*) into v_source_count\n    from public.verification_evidence ve\n    where ve.claim_id = new.id and ve.supports_claim = true;\n\n    v_chronicle_hash := encode(digest(coalesce(new.claim_hash, '') || ':' || coalesce(new.verification_status, '') || ':' || coalesce(new.verification_score::text, '') || ':' || coalesce(new.conflict_status, ''), 'sha256'), 'hex');\n\n    insert into public.verified_chronicle (\n      claim_id, chronicle_hash, chronicle_kind, title, body, jurisdiction,\n      entity_name, entity_type, signal_families, source_count, verification_score,\n      valid_from, valid_until, provenance, immutable_payload\n    ) values (\n      new.id, v_chronicle_hash, new.claim_type, coalesce(new.subject, 'Verified claim'),\n      coalesce(new.object_value, ''), new.jurisdiction, new.subject, new.claim_type,\n      coalesce(v_signal_families, '{}'), coalesce(v_source_count, 0), new.verification_score,\n      new.effective_date, new.expiration_date,\n      jsonb_build_object('candidate_id', new.candidate_id, 'claim_hash', new.claim_hash, 'verification_status', new.verification_status, 'conflict_status', new.conflict_status, 'promoted_by', 'promote_verified_chronicle_v1'),\n      new.normalized_payload\n    ) on conflict (chronicle_hash) do nothing;\n  end if;\n  return new;\nend;\n$function$\n",
+      "volatility": "v",
+      "security_definer": false,
+      "identity_arguments": ""
+    },
+    {
+      "kind": "f",
+      "name": "reconcile_domain3_population_currentness_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public, atlas, extensions, pg_temp"
+      ],
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "jsonb",
+      "schema": "public",
+      "strict": false,
+      "comment": "Retires candidates absent from the latest complete non-truncated governed replay for one rule. Incomplete/truncated or superseded runs cannot retire current candidates.",
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION public.reconcile_domain3_population_currentness_v1(p_rule_id text, p_rule_version text, p_run_id uuid, p_current_candidate_hashes jsonb, p_replay_complete boolean)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public', 'atlas', 'extensions', 'pg_temp'\nAS $function$\ndeclare\n  v_run atlas.live_data_signal_run%rowtype;\n  v_newer_run_id uuid;\n  v_candidate record;\n  v_hash text;\n  v_retired_at timestamptz := clock_timestamp();\n  v_retirement_hash text;\n  v_count integer := 0;\n  v_receipts jsonb := '[]'::jsonb;\nbegin\n  if coalesce(p_rule_id,'')='' or coalesce(p_rule_version,'')='' or p_run_id is null then\n    raise exception 'domain3_currentness_reconciliation_identity_required';\n  end if;\n  if jsonb_typeof(p_current_candidate_hashes) <> 'array' then\n    raise exception 'domain3_current_candidate_hashes_must_be_array';\n  end if;\n\n  select * into v_run\n  from atlas.live_data_signal_run\n  where run_id=p_run_id\n    and rule_id=p_rule_id\n    and rule_version=p_rule_version\n    and status='completed';\n  if not found then\n    raise exception 'domain3_currentness_reconciliation_requires_completed_run';\n  end if;\n\n  if coalesce(p_replay_complete,false) is not true then\n    return jsonb_build_object(\n      'status','skipped',\n      'reason','replay_not_complete_or_truncated',\n      'run_id',p_run_id,\n      'rule_id',p_rule_id,\n      'retired',0,\n      'retirements','[]'::jsonb\n    );\n  end if;\n\n  select run_id into v_newer_run_id\n  from atlas.live_data_signal_run\n  where rule_id=p_rule_id\n    and rule_version=p_rule_version\n    and status='completed'\n    and (started_at,run_id) > (v_run.started_at,v_run.run_id)\n  order by started_at desc,run_id desc\n  limit 1;\n  if v_newer_run_id is not null then\n    return jsonb_build_object(\n      'status','skipped',\n      'reason','run_superseded_by_newer_completed_replay',\n      'run_id',p_run_id,\n      'newer_run_id',v_newer_run_id,\n      'rule_id',p_rule_id,\n      'retired',0,\n      'retirements','[]'::jsonb\n    );\n  end if;\n\n  for v_hash in select value from jsonb_array_elements_text(p_current_candidate_hashes)\n  loop\n    if v_hash !~ '^[0-9a-f]{64}$' then\n      raise exception 'domain3_current_candidate_hash_invalid';\n    end if;\n    perform 1 from atlas.live_data_signal_candidate\n    where candidate_hash=v_hash\n      and rule_id=p_rule_id\n      and rule_version=p_rule_version\n      and last_run_id=p_run_id;\n    if not found then\n      raise exception 'domain3_current_candidate_hash_not_bound_to_run';\n    end if;\n  end loop;\n\n  perform pg_advisory_xact_lock(hashtextextended(p_rule_id || chr(31) || p_rule_version,0));\n\n  for v_candidate in\n    select c.*\n    from atlas.live_data_signal_candidate c\n    where c.rule_id=p_rule_id\n      and c.rule_version=p_rule_version\n      and c.is_current is true\n      and not exists (\n        select 1\n        from jsonb_array_elements_text(p_current_candidate_hashes) h\n        where h.value=c.candidate_hash\n      )\n    order by c.semantic_key,c.candidate_id\n    for update\n  loop\n    update atlas.live_data_signal_candidate\n       set is_current=false,\n           retired_at=v_retired_at\n     where candidate_id=v_candidate.candidate_id\n       and is_current=true;\n\n    v_retirement_hash := encode(\n      extensions.digest(\n        convert_to(\n          concat_ws(chr(31),\n            'atlas_domain3_negative_currentness_v1',\n            p_run_id::text,\n            v_candidate.candidate_id::text,\n            v_candidate.candidate_hash,\n            v_candidate.semantic_key,\n            'not_observed_in_complete_replay'\n          ),\n          'UTF8'\n        ),\n        'sha256'\n      ),\n      'hex'\n    );\n\n    insert into atlas.live_data_signal_candidate_retirement_v1(\n      run_id,candidate_id,rule_id,rule_version,candidate_hash,semantic_key,\n      lighthouse_record_id,retirement_reason,retirement_hash,retired_at,lighthouse_status\n    ) values (\n      p_run_id,v_candidate.candidate_id,p_rule_id,p_rule_version,\n      v_candidate.candidate_hash,v_candidate.semantic_key,v_candidate.lighthouse_record_id,\n      'not_observed_in_complete_replay',v_retirement_hash,v_retired_at,\n      case when v_candidate.lighthouse_record_id is null then 'not_required' else 'pending' end\n    )\n    on conflict (run_id,candidate_id) do nothing;\n\n    v_count := v_count + 1;\n    v_receipts := v_receipts || jsonb_build_array(jsonb_build_object(\n      'candidate_id',v_candidate.candidate_id,\n      'candidate_hash',v_candidate.candidate_hash,\n      'semantic_key',v_candidate.semantic_key,\n      'lighthouse_record_id',v_candidate.lighthouse_record_id,\n      'retirement_hash',v_retirement_hash,\n      'retired_at',v_retired_at,\n      'lighthouse_status',case when v_candidate.lighthouse_record_id is null then 'not_required' else 'pending' end\n    ));\n  end loop;\n\n  return jsonb_build_object(\n    'status','completed',\n    'run_id',p_run_id,\n    'rule_id',p_rule_id,\n    'rule_version',p_rule_version,\n    'replay_complete',true,\n    'retired',v_count,\n    'retirements',v_receipts\n  );\nend\n$function$\n",
+      "volatility": "v",
+      "security_definer": true,
+      "identity_arguments": "p_rule_id text, p_rule_version text, p_run_id uuid, p_current_candidate_hashes jsonb, p_replay_complete boolean"
+    },
+    {
+      "kind": "f",
+      "name": "register_domain3_population_rules_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=public, atlas, pg_temp"
+      ],
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "jsonb",
+      "schema": "public",
+      "strict": false,
+      "comment": null,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION public.register_domain3_population_rules_v1(p_rules jsonb)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public', 'atlas', 'pg_temp'\nAS $function$ declare v_rule jsonb; v_count integer := 0; begin if jsonb_typeof(p_rules) <> 'array' then raise exception 'domain3_rules_must_be_array'; end if; for v_rule in select value from jsonb_array_elements(p_rules) loop if coalesce(v_rule->>'rule_id','') = '' or coalesce(v_rule->>'rule_version','') = '' or coalesce(v_rule->>'signal_type','') = '' or coalesce(v_rule->>'engine_id','') = '' or coalesce(v_rule->>'engine_version','') = '' or coalesce(v_rule->>'rule_contract_hash','') !~ '^[0-9a-f]{64}$' or jsonb_typeof(v_rule->'rule_contract') <> 'object' then raise exception 'invalid_domain3_rule_contract'; end if; insert into atlas.live_data_signal_rule (rule_id,rule_version,signal_type,engine_id,engine_version,rule_contract,rule_contract_hash,is_active) values (v_rule->>'rule_id',v_rule->>'rule_version',v_rule->>'signal_type',v_rule->>'engine_id',v_rule->>'engine_version',v_rule->'rule_contract',v_rule->>'rule_contract_hash',coalesce((v_rule->>'is_active')::boolean,true)) on conflict (rule_id,rule_version) do update set signal_type=excluded.signal_type,engine_id=excluded.engine_id,engine_version=excluded.engine_version,rule_contract=excluded.rule_contract,rule_contract_hash=excluded.rule_contract_hash,is_active=excluded.is_active; v_count:=v_count+1; end loop; return jsonb_build_object('status','completed','rules_registered',v_count); end; $function$\n",
+      "volatility": "v",
+      "security_definer": true,
+      "identity_arguments": "p_rules jsonb"
+    },
+    {
+      "kind": "f",
+      "name": "search_atlas_pins",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public, atlas"
+      ],
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "TABLE(id text, name text, address text, city text, pin_type text, latitude numeric, longitude numeric)",
+      "schema": "public",
+      "strict": false,
+      "comment": null,
+      "language": "sql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION public.search_atlas_pins(search_query text)\n RETURNS TABLE(id text, name text, address text, city text, pin_type text, latitude numeric, longitude numeric)\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public', 'atlas'\nAS $function$\n  SELECT pantry_id, pantry_name, address_raw, city, 'food_bank'::text, latitude, longitude\n  FROM atlas.food_banks\n  WHERE (pantry_name ILIKE '%' || search_query || '%' OR city ILIKE '%' || search_query || '%')\n    AND latitude IS NOT NULL AND longitude IS NOT NULL\n  \n  UNION ALL\n  \n  SELECT office_id, COALESCE(office_name, program_type), address_raw, city, 'benefits'::text, latitude, longitude\n  FROM atlas.benefits_offices\n  WHERE (COALESCE(office_name, program_type) ILIKE '%' || search_query || '%' OR city ILIKE '%' || search_query || '%')\n    AND latitude IS NOT NULL AND longitude IS NOT NULL\n  \n  UNION ALL\n  \n  SELECT ein, organization_name, address_raw, city, 'nonprofit'::text, NULL::numeric, NULL::numeric\n  FROM atlas.nonprofit_registry\n  WHERE (organization_name ILIKE '%' || search_query || '%' OR city ILIKE '%' || search_query || '%')\n  \n  LIMIT 50;\n$function$\n",
+      "volatility": "s",
+      "security_definer": true,
+      "identity_arguments": "search_query text"
+    },
+    {
+      "kind": "f",
+      "name": "set_updated_at",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public"
+      ],
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "trigger",
+      "schema": "public",
+      "strict": false,
+      "comment": null,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION public.set_updated_at()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO 'pg_catalog', 'public'\nAS $function$\nbegin\n  new.updated_at = now();\n  return new;\nend;\n$function$\n",
+      "volatility": "v",
+      "security_definer": false,
+      "identity_arguments": ""
+    },
+    {
+      "kind": "f",
+      "name": "settle_live_data_signal_candidates_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public, atlas, net, extensions, pg_temp"
+      ],
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "jsonb",
+      "schema": "public",
+      "strict": false,
+      "comment": "Settles queued Domain 3 requests from pg_net response receipts and records bridged, idempotent, pending, or failed state.",
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION public.settle_live_data_signal_candidates_v1(p_run_id uuid DEFAULT NULL::uuid)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public', 'atlas', 'net', 'extensions', 'pg_temp'\nAS $function$\ndeclare\n  v_attempt record;\n  v_response record;\n  v_body jsonb;\n  v_nested jsonb;\n  v_lighthouse_record_id uuid;\n  v_seen integer := 0;\n  v_pending integer := 0;\n  v_bridged integer := 0;\n  v_idempotent integer := 0;\n  v_failed integer := 0;\n  v_error text;\n  v_receipts jsonb := '[]'::jsonb;\nbegin\n  for v_attempt in\n    select attempt.*\n      from atlas.live_data_signal_bridge_attempt attempt\n     where attempt.status = 'queued'\n       and (p_run_id is null or attempt.run_id = p_run_id)\n     order by attempt.queued_at, attempt.attempt_id\n  loop\n    v_seen := v_seen + 1;\n    v_lighthouse_record_id := null;\n    v_body := null;\n    v_nested := null;\n\n    select response.*\n      into v_response\n      from net._http_response response\n     where response.id = v_attempt.request_id;\n\n    if not found then\n      v_pending := v_pending + 1;\n      continue;\n    end if;\n\n    begin\n      if coalesce(v_response.timed_out, false) then\n        raise exception 'Lighthouse registration request timed out';\n      end if;\n\n      if coalesce(v_response.error_msg, '') <> '' then\n        raise exception 'Lighthouse registration transport error: %',\n          left(v_response.error_msg, 1000);\n      end if;\n\n      if v_response.status_code < 200 or v_response.status_code >= 300 then\n        raise exception 'Lighthouse registration HTTP %: %',\n          v_response.status_code,\n          left(coalesce(v_response.content, ''), 1000);\n      end if;\n\n      if coalesce(v_response.content, '') = '' then\n        raise exception 'Lighthouse registration returned an empty response body';\n      end if;\n\n      v_body := v_response.content::jsonb;\n\n      if jsonb_typeof(v_body) = 'object' then\n        v_lighthouse_record_id := nullif(\n          coalesce(\n            v_body->>'live_data_signal_id',\n            v_body->>'register_live_data_signal_receipt_v1'\n          ),\n          ''\n        )::uuid;\n      elsif jsonb_typeof(v_body) = 'array' then\n        v_lighthouse_record_id := nullif(\n          coalesce(\n            v_body#>>'{0,live_data_signal_id}',\n            v_body#>>'{0,register_live_data_signal_receipt_v1}'\n          ),\n          ''\n        )::uuid;\n      elsif jsonb_typeof(v_body) = 'string' then\n        begin\n          v_nested := (v_body #>> '{}')::jsonb;\n          if jsonb_typeof(v_nested) = 'object' then\n            v_lighthouse_record_id := nullif(\n              coalesce(\n                v_nested->>'live_data_signal_id',\n                v_nested->>'register_live_data_signal_receipt_v1'\n              ),\n              ''\n            )::uuid;\n          end if;\n        exception when others then\n          v_lighthouse_record_id := nullif(v_body #>> '{}', '')::uuid;\n        end;\n      end if;\n\n      if v_lighthouse_record_id is null then\n        raise exception 'Lighthouse registration receipt contains no live_data_signal_id: %',\n          left(v_response.content, 1000);\n      end if;\n\n      if v_attempt.was_already_bridged\n         and v_attempt.prior_lighthouse_record_id = v_lighthouse_record_id then\n        v_idempotent := v_idempotent + 1;\n      else\n        v_bridged := v_bridged + 1;\n      end if;\n\n      update atlas.live_data_signal_candidate\n         set lighthouse_status = 'bridged',\n             lighthouse_record_id = v_lighthouse_record_id,\n             lighthouse_last_error = null,\n             lighthouse_bridged_at = clock_timestamp()\n       where candidate_id = v_attempt.candidate_id;\n\n      update atlas.live_data_signal_bridge_attempt\n         set status = 'completed',\n             response_status = v_response.status_code,\n             response_body = left(v_response.content, 10000),\n             error_message = null,\n             settled_at = clock_timestamp()\n       where attempt_id = v_attempt.attempt_id;\n\n      v_receipts := v_receipts || jsonb_build_array(jsonb_build_object(\n        'candidate_id', v_attempt.candidate_id,\n        'candidate_hash', v_attempt.candidate_hash,\n        'request_id', v_attempt.request_id,\n        'lighthouse_record_id', v_lighthouse_record_id,\n        'status', case\n          when v_attempt.was_already_bridged\n           and v_attempt.prior_lighthouse_record_id = v_lighthouse_record_id\n          then 'idempotent'\n          else 'bridged'\n        end,\n        'http_status', v_response.status_code\n      ));\n    exception when others then\n      get stacked diagnostics v_error = message_text;\n      v_failed := v_failed + 1;\n\n      update atlas.live_data_signal_candidate\n         set lighthouse_status = 'failed',\n             lighthouse_last_error = left(v_error, 2000)\n       where candidate_id = v_attempt.candidate_id;\n\n      update atlas.live_data_signal_bridge_attempt\n         set status = 'failed',\n             response_status = v_response.status_code,\n             response_body = left(v_response.content, 10000),\n             error_message = left(v_error, 2000),\n             settled_at = clock_timestamp()\n       where attempt_id = v_attempt.attempt_id;\n\n      v_receipts := v_receipts || jsonb_build_array(jsonb_build_object(\n        'candidate_id', v_attempt.candidate_id,\n        'candidate_hash', v_attempt.candidate_hash,\n        'request_id', v_attempt.request_id,\n        'status', 'failed',\n        'error', left(v_error, 1000)\n      ));\n    end;\n  end loop;\n\n  return jsonb_build_object(\n    'run_id', p_run_id,\n    'attempts_seen', v_seen,\n    'pending', v_pending,\n    'bridged', v_bridged,\n    'idempotent', v_idempotent,\n    'failed', v_failed,\n    'transport', 'atlas_pg_net_receipt_v1',\n    'completed_at', clock_timestamp(),\n    'receipts', v_receipts\n  );\nend\n$function$\n",
+      "volatility": "v",
+      "security_definer": true,
+      "identity_arguments": "p_run_id uuid"
+    },
+    {
+      "kind": "f",
+      "name": "start_atlas_event_entity_resolution_run_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public, atlas, extensions"
+      ],
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "jsonb",
+      "schema": "public",
+      "strict": false,
+      "comment": null,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION public.start_atlas_event_entity_resolution_run_v1(p_run_id uuid, p_resolver_id text, p_resolver_version text, p_rule_manifest_hash text, p_entity_index_hash text, p_stream_id text, p_batch_size integer, p_input_manifest jsonb DEFAULT '{}'::jsonb)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public', 'atlas', 'extensions'\nAS $function$\nDECLARE\n  v_manifest jsonb := COALESCE(p_input_manifest, '{}'::jsonb);\n  v_manifest_hash text;\n  v_rule_count integer;\n  v_supplied_rule_count integer;\n  v_existing atlas.signal_event_entity_resolution_run%ROWTYPE;\nBEGIN\n  IF p_run_id IS NULL THEN\n    RAISE EXCEPTION 'p_run_id is required';\n  END IF;\n  IF COALESCE(btrim(p_resolver_id), '') = '' OR COALESCE(btrim(p_resolver_version), '') = '' THEN\n    RAISE EXCEPTION 'resolver id and version are required';\n  END IF;\n  IF p_rule_manifest_hash !~ '^[0-9a-f]{64}$' OR p_entity_index_hash !~ '^[0-9a-f]{64}$' THEN\n    RAISE EXCEPTION 'rule manifest hash and entity index hash must be lowercase SHA-256 values';\n  END IF;\n  IF p_batch_size < 1 OR p_batch_size > 5000 THEN\n    RAISE EXCEPTION 'batch size must be between 1 and 5000';\n  END IF;\n  IF v_manifest->>'rule_manifest_hash' IS DISTINCT FROM p_rule_manifest_hash\n     OR v_manifest->>'entity_index_hash' IS DISTINCT FROM p_entity_index_hash THEN\n    RAISE EXCEPTION 'input manifest hashes do not match declared run hashes';\n  END IF;\n  IF v_manifest->>'resolver_id' IS DISTINCT FROM p_resolver_id\n     OR v_manifest->>'resolver_version' IS DISTINCT FROM p_resolver_version THEN\n    RAISE EXCEPTION 'input manifest resolver identity does not match declared run identity';\n  END IF;\n  IF COALESCE((v_manifest->>'no_fuzzy_matching')::boolean, false) IS DISTINCT FROM true\n     OR COALESCE((v_manifest->>'no_silent_entity_creation')::boolean, false) IS DISTINCT FROM true THEN\n    RAISE EXCEPTION 'input manifest must lock no-fuzzy and no-silent-entity-creation guarantees';\n  END IF;\n\n  SELECT count(*) INTO v_rule_count\n  FROM atlas.signal_event_entity_resolution_rule\n  WHERE is_active = true\n    AND rule_manifest_hash = p_rule_manifest_hash;\n\n  IF v_rule_count = 0 THEN\n    RAISE EXCEPTION 'rule manifest % is not active in Atlas', p_rule_manifest_hash;\n  END IF;\n  IF COALESCE(v_manifest->>'rule_count', '') !~ '^[0-9]+$' THEN\n    RAISE EXCEPTION 'input manifest rule_count is required';\n  END IF;\n  v_supplied_rule_count := (v_manifest->>'rule_count')::integer;\n  IF v_supplied_rule_count <> v_rule_count THEN\n    RAISE EXCEPTION 'input manifest rule_count % does not match active rule count %',\n      v_supplied_rule_count, v_rule_count;\n  END IF;\n  IF jsonb_typeof(v_manifest->'rule_ids') IS DISTINCT FROM 'array' THEN\n    RAISE EXCEPTION 'input manifest rule_ids must be a JSON array';\n  END IF;\n  IF (\n    SELECT count(*)\n    FROM jsonb_array_elements_text(v_manifest->'rule_ids') supplied(rule_id)\n  ) <> v_rule_count\n  OR EXISTS (\n    SELECT 1\n    FROM jsonb_array_elements_text(v_manifest->'rule_ids') supplied(rule_id)\n    LEFT JOIN atlas.signal_event_entity_resolution_rule r\n      ON r.rule_id = supplied.rule_id\n     AND r.is_active = true\n     AND r.rule_manifest_hash = p_rule_manifest_hash\n    WHERE r.rule_id IS NULL\n  )\n  OR EXISTS (\n    SELECT 1\n    FROM atlas.signal_event_entity_resolution_rule r\n    WHERE r.is_active = true\n      AND r.rule_manifest_hash = p_rule_manifest_hash\n      AND NOT EXISTS (\n        SELECT 1\n        FROM jsonb_array_elements_text(v_manifest->'rule_ids') supplied(rule_id)\n        WHERE supplied.rule_id = r.rule_id\n      )\n  ) THEN\n    RAISE EXCEPTION 'input manifest rule_ids do not equal the active locked rule set';\n  END IF;\n\n  IF EXISTS (\n    SELECT 1\n    FROM atlas.signal_event_entity_resolution_run prior\n    WHERE prior.resolver_id = p_resolver_id\n      AND prior.resolver_version = p_resolver_version\n      AND prior.rule_manifest_hash <> p_rule_manifest_hash\n  ) THEN\n    RAISE EXCEPTION 'resolver % version % has changed rule manifest; increment resolver version',\n      p_resolver_id, p_resolver_version;\n  END IF;\n\n  v_manifest_hash := encode(digest(v_manifest::text, 'sha256'), 'hex');\n\n  SELECT * INTO v_existing\n  FROM atlas.signal_event_entity_resolution_run\n  WHERE run_id = p_run_id;\n\n  IF FOUND THEN\n    IF v_existing.resolver_id <> p_resolver_id\n       OR v_existing.resolver_version <> p_resolver_version\n       OR v_existing.rule_manifest_hash <> p_rule_manifest_hash\n       OR v_existing.entity_index_hash <> p_entity_index_hash\n       OR v_existing.manifest_hash <> v_manifest_hash THEN\n      RAISE EXCEPTION 'run id % already exists with a different deterministic manifest', p_run_id;\n    END IF;\n    RETURN jsonb_build_object(\n      'run_id', p_run_id,\n      'status', v_existing.status,\n      'idempotent', true,\n      'manifest_hash', v_existing.manifest_hash\n    );\n  END IF;\n\n  INSERT INTO atlas.signal_event_entity_resolution_run (\n    run_id,\n    resolver_id,\n    resolver_version,\n    rule_manifest_hash,\n    entity_index_hash,\n    status,\n    stream_id,\n    batch_size,\n    input_manifest,\n    manifest_hash\n  ) VALUES (\n    p_run_id,\n    p_resolver_id,\n    p_resolver_version,\n    p_rule_manifest_hash,\n    p_entity_index_hash,\n    'running',\n    p_stream_id,\n    p_batch_size,\n    v_manifest,\n    v_manifest_hash\n  );\n\n  RETURN jsonb_build_object(\n    'run_id', p_run_id,\n    'status', 'running',\n    'idempotent', false,\n    'manifest_hash', v_manifest_hash\n  );\nEND;\n$function$\n",
+      "volatility": "v",
+      "security_definer": true,
+      "identity_arguments": "p_run_id uuid, p_resolver_id text, p_resolver_version text, p_rule_manifest_hash text, p_entity_index_hash text, p_stream_id text, p_batch_size integer, p_input_manifest jsonb"
+    },
+    {
+      "kind": "f",
+      "name": "trigger_connector_run",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public, atlas"
+      ],
+      "grants": [
+        {
+          "grantee": "PUBLIC",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "jsonb",
+      "schema": "public",
+      "strict": false,
+      "comment": null,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION public.trigger_connector_run(connector_name text)\n RETURNS jsonb\n LANGUAGE plpgsql\n SET search_path TO 'pg_catalog', 'public', 'atlas'\nAS $function$\nDECLARE\n    result JSONB;\nBEGIN\n    SELECT jsonb_build_object(\n        'connector', connector_name,\n        'status', 'queued',\n        'message', 'Use HTTP POST to /functions/v1/atlas-engine with {\"connector\": \"' || connector_name || '\"}'\n    ) INTO result;\n    RETURN result;\nEND;\n$function$\n",
+      "volatility": "v",
+      "security_definer": false,
+      "identity_arguments": "connector_name text"
+    },
+    {
+      "kind": "f",
+      "name": "trigger_lighthouse_bridge_for_prime_pattern_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=atlas, public, pg_temp"
+      ],
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "jsonb",
+      "schema": "public",
+      "strict": false,
+      "comment": null,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION public.trigger_lighthouse_bridge_for_prime_pattern_v1(p_signal jsonb, p_audit_context jsonb DEFAULT '{}'::jsonb, p_process_queue boolean DEFAULT true)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'atlas', 'public', 'pg_temp'\nAS $function$\nDECLARE\n  inserted_signal_id bigint;\n  queued_item jsonb := NULL;\n  audit_log_id bigint;\n  v_bridge_id text := COALESCE(p_audit_context->>'bridge_id', 'atlas-to-lighthouse');\n  v_source_table text := COALESCE(p_signal->>'source_table', 'prime_patterns');\n  v_source_record_id text := p_signal->>'source_record_id';\n  v_target_table text := COALESCE(p_audit_context->>'target_table', 'lighthouse_bridge_queue');\n  v_dedup_key text := p_signal->>'signal_dedup_key';\n  queue_process_result jsonb := NULL;\n  existing_log jsonb := NULL;\n  started_at timestamptz := clock_timestamp();\nBEGIN\n  IF p_signal IS NULL OR jsonb_typeof(p_signal) <> 'object' THEN\n    RAISE EXCEPTION 'p_signal must be a JSON object';\n  END IF;\n\n  IF COALESCE(v_source_record_id, '') = '' THEN\n    RAISE EXCEPTION 'p_signal.source_record_id is required';\n  END IF;\n\n  IF COALESCE(p_signal->>'generation_method', '') <> 'deterministic_rule' THEN\n    RAISE EXCEPTION 'Bridge signal generation_method must be deterministic_rule';\n  END IF;\n\n  SELECT to_jsonb(t)\n  INTO existing_log\n  FROM (\n    SELECT log_id, synced_at\n    FROM atlas.bridge_sync_log bsl\n    WHERE bsl.bridge_id = v_bridge_id\n      AND bsl.source_table = v_source_table\n      AND bsl.source_record_id = v_source_record_id\n      AND bsl.status = 'sent'\n    ORDER BY synced_at DESC NULLS LAST\n    LIMIT 1\n  ) t;\n\n  IF existing_log IS NOT NULL THEN\n    RETURN jsonb_build_object(\n      'bridged', false,\n      'skipped', true,\n      'reason', 'already_bridged',\n      'pattern_id', v_source_record_id,\n      'log_id', existing_log->>'log_id',\n      'synced_at', existing_log->>'synced_at'\n    );\n  END IF;\n\n  INSERT INTO atlas.civic_map_signals (\n    signal_type,\n    geography_key,\n    severity_score,\n    metadata_json,\n    source_table,\n    source_record_id,\n    detected_at,\n    source_connector_id,\n    raw_record_id,\n    statute_id,\n    entity_ids,\n    jurisdiction_raw_value,\n    jurisdiction_id,\n    source_url,\n    confidence_score,\n    severity,\n    signal_status,\n    evidence_payload,\n    generation_method,\n    rule_id,\n    rule_version,\n    provenance_metadata,\n    signal_dedup_key,\n    record_origin,\n    verification_status,\n    exclude_from_production,\n    quarantine_reason\n  ) VALUES (\n    p_signal->>'signal_type',\n    NULLIF(p_signal->>'geography_key', ''),\n    COALESCE(NULLIF(p_signal->>'severity_score', '')::numeric, NULLIF(p_signal->>'confidence_score', '')::numeric, 0.0),\n    COALESCE(p_signal->'metadata_json', '{}'::jsonb),\n    v_source_table,\n    v_source_record_id,\n    COALESCE(NULLIF(p_signal->>'detected_at', '')::timestamptz, now()),\n    NULLIF(p_signal->>'source_connector_id', '')::uuid,\n    NULLIF(p_signal->>'raw_record_id', '')::uuid,\n    NULLIF(p_signal->>'statute_id', '')::uuid,\n    COALESCE(ARRAY(SELECT jsonb_array_elements_text(COALESCE(p_signal->'entity_ids', '[]'::jsonb))), ARRAY[]::text[]),\n    NULLIF(p_signal->>'jurisdiction_raw_value', ''),\n    NULLIF(p_signal->>'jurisdiction_id', '')::uuid,\n    NULLIF(p_signal->>'source_url', ''),\n    COALESCE(NULLIF(p_signal->>'confidence_score', '')::numeric, 1.0),\n    COALESCE(NULLIF(p_signal->>'severity', ''), 'informational'),\n    COALESCE(NULLIF(p_signal->>'signal_status', ''), 'active'),\n    COALESCE(p_signal->'evidence_payload', '{}'::jsonb),\n    p_signal->>'generation_method',\n    p_signal->>'rule_id',\n    COALESCE(NULLIF(p_signal->>'rule_version', ''), 'v1'),\n    COALESCE(p_signal->'provenance_metadata', '{}'::jsonb),\n    v_dedup_key,\n    COALESCE(NULLIF(p_signal->>'record_origin', ''), 'streaming_investigation'),\n    COALESCE(NULLIF(p_signal->>'verification_status', ''), 'verified'),\n    COALESCE(NULLIF(p_signal->>'exclude_from_production', '')::boolean, false),\n    NULLIF(p_signal->>'quarantine_reason', '')\n  )\n  ON CONFLICT (signal_dedup_key)\n    WHERE signal_dedup_key IS NOT NULL\n  DO UPDATE SET\n    metadata_json = EXCLUDED.metadata_json,\n    evidence_payload = EXCLUDED.evidence_payload,\n    provenance_metadata = EXCLUDED.provenance_metadata,\n    confidence_score = EXCLUDED.confidence_score,\n    severity_score = EXCLUDED.severity_score,\n    severity = EXCLUDED.severity,\n    signal_status = EXCLUDED.signal_status,\n    source_url = EXCLUDED.source_url,\n    jurisdiction_raw_value = EXCLUDED.jurisdiction_raw_value,\n    detected_at = EXCLUDED.detected_at\n  RETURNING signal_id INTO inserted_signal_id;\n\n  SELECT to_jsonb(q)\n  INTO queued_item\n  FROM (\n    SELECT queue_id, status, created_at\n    FROM atlas.lighthouse_bridge_queue\n    WHERE atlas_signal_id = inserted_signal_id\n    ORDER BY created_at DESC NULLS LAST\n    LIMIT 1\n  ) q;\n\n  IF p_process_queue AND to_regprocedure('atlas.bridge_process_queue_v3(integer)') IS NOT NULL THEN\n    EXECUTE 'SELECT to_jsonb(t) FROM atlas.bridge_process_queue_v3($1) t' USING 1 INTO queue_process_result;\n  ELSIF p_process_queue AND to_regprocedure('public.bridge_process_queue_v3(integer)') IS NOT NULL THEN\n    EXECUTE 'SELECT to_jsonb(t) FROM public.bridge_process_queue_v3($1) t' USING 1 INTO queue_process_result;\n  END IF;\n\n  INSERT INTO atlas.bridge_sync_log (\n    bridge_id,\n    sync_type,\n    source_table,\n    source_record_id,\n    target_table,\n    target_record_id,\n    status,\n    request_payload,\n    response_payload,\n    error_message,\n    duration_ms\n  ) VALUES (\n    v_bridge_id,\n    'prime_pattern_bridge',\n    v_source_table,\n    v_source_record_id,\n    v_target_table,\n    queued_item->>'queue_id',\n    'sent',\n    jsonb_build_object(\n      'audit_context', p_audit_context,\n      'civic_map_signal_id', inserted_signal_id,\n      'lighthouse_bridge_queue_id', queued_item->>'queue_id',\n      'signal_dedup_key', v_dedup_key\n    ),\n    jsonb_build_object(\n      'queue_lookup', queued_item,\n      'queue_process_result', queue_process_result\n    ),\n    NULL,\n    GREATEST(0, (extract(epoch FROM (clock_timestamp() - started_at)) * 1000)::integer)\n  )\n  RETURNING log_id INTO audit_log_id;\n\n  RETURN jsonb_build_object(\n    'bridged', true,\n    'pattern_id', v_source_record_id,\n    'signal_id', inserted_signal_id,\n    'queue_id', queued_item->>'queue_id',\n    'log_id', audit_log_id,\n    'confidence_score', COALESCE(NULLIF(p_signal->>'confidence_score', '')::numeric, 1.0),\n    'queue_process_result', queue_process_result\n  );\nEND;\n$function$\n",
+      "volatility": "v",
+      "security_definer": true,
+      "identity_arguments": "p_signal jsonb, p_audit_context jsonb, p_process_queue boolean"
+    },
+    {
+      "kind": "f",
+      "name": "upsert_atlas_entity_registry",
+      "owner": "postgres",
+      "config": [
+        "search_path=atlas, public, pg_temp"
+      ],
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "integer",
+      "schema": "public",
+      "strict": false,
+      "comment": null,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION public.upsert_atlas_entity_registry(_entities jsonb)\n RETURNS integer\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'atlas', 'public', 'pg_temp'\nAS $function$\nDECLARE\n  affected_rows integer := 0;\nBEGIN\n  IF _entities IS NULL OR jsonb_typeof(_entities) <> 'array' THEN\n    RAISE EXCEPTION 'upsert_atlas_entity_registry expects a JSON array';\n  END IF;\n\n  INSERT INTO atlas.entity_registry (\n    entity_id,\n    entity_type,\n    primary_name,\n    name_variants,\n    first_seen_jurisdiction,\n    jurisdiction_count,\n    source_systems,\n    source_population_id,\n    source_population_table,\n    is_active,\n    last_verified,\n    updated_at,\n    source_connector_id,\n    raw_record_id,\n    statute_id,\n    source_url,\n    extracted_at,\n    extraction_method,\n    source_field,\n    source_external_id,\n    metadata\n  )\n  SELECT\n    e.entity_id,\n    e.entity_type,\n    e.primary_name,\n    COALESCE(e.name_variants, '[]'::jsonb),\n    e.first_seen_jurisdiction,\n    COALESCE(e.jurisdiction_count, 0),\n    COALESCE(e.source_systems, '[]'::jsonb),\n    e.source_population_id,\n    e.source_population_table,\n    COALESCE(e.is_active, true),\n    e.last_verified,\n    COALESCE(e.updated_at, now()),\n    e.source_connector_id,\n    e.raw_record_id,\n    e.statute_id,\n    e.source_url,\n    e.extracted_at,\n    e.extraction_method,\n    e.source_field,\n    e.source_external_id,\n    e.metadata\n  FROM jsonb_to_recordset(_entities) AS e (\n    entity_id varchar,\n    entity_type varchar,\n    primary_name varchar,\n    name_variants jsonb,\n    first_seen_jurisdiction varchar,\n    jurisdiction_count integer,\n    source_systems jsonb,\n    source_population_id varchar,\n    source_population_table varchar,\n    is_active boolean,\n    last_verified timestamptz,\n    updated_at timestamptz,\n    source_connector_id uuid,\n    raw_record_id uuid,\n    statute_id uuid,\n    source_url text,\n    extracted_at timestamptz,\n    extraction_method text,\n    source_field text,\n    source_external_id text,\n    metadata jsonb\n  )\n  WHERE e.entity_id IS NOT NULL\n    AND e.entity_type IS NOT NULL\n    AND e.primary_name IS NOT NULL\n    AND e.extraction_method = 'deterministic_field_mapping'\n  ON CONFLICT (entity_id) DO UPDATE SET\n    entity_type = EXCLUDED.entity_type,\n    primary_name = EXCLUDED.primary_name,\n    name_variants = EXCLUDED.name_variants,\n    first_seen_jurisdiction = EXCLUDED.first_seen_jurisdiction,\n    jurisdiction_count = EXCLUDED.jurisdiction_count,\n    source_systems = EXCLUDED.source_systems,\n    source_population_id = EXCLUDED.source_population_id,\n    source_population_table = EXCLUDED.source_population_table,\n    is_active = EXCLUDED.is_active,\n    last_verified = EXCLUDED.last_verified,\n    updated_at = EXCLUDED.updated_at,\n    source_connector_id = EXCLUDED.source_connector_id,\n    raw_record_id = EXCLUDED.raw_record_id,\n    statute_id = EXCLUDED.statute_id,\n    source_url = EXCLUDED.source_url,\n    extracted_at = EXCLUDED.extracted_at,\n    extraction_method = EXCLUDED.extraction_method,\n    source_field = EXCLUDED.source_field,\n    source_external_id = EXCLUDED.source_external_id,\n    metadata = EXCLUDED.metadata;\n\n  GET DIAGNOSTICS affected_rows = ROW_COUNT;\n  RETURN affected_rows;\nEND;\n$function$\n",
+      "volatility": "v",
+      "security_definer": true,
+      "identity_arguments": "_entities jsonb"
+    },
+    {
+      "kind": "f",
+      "name": "upsert_openstates_civic_map_signals_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=atlas, public, pg_temp"
+      ],
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "TABLE(out_signal_id bigint, out_signal_type character varying, out_statute_id uuid, out_rule_id text, out_action text)",
+      "schema": "public",
+      "strict": false,
+      "comment": null,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION public.upsert_openstates_civic_map_signals_v1(_signals jsonb)\n RETURNS TABLE(out_signal_id bigint, out_signal_type character varying, out_statute_id uuid, out_rule_id text, out_action text)\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'atlas', 'public', 'pg_temp'\nAS $function$\nDECLARE\n  item jsonb;\n  inserted_id bigint;\n  affected_rows integer;\n  signal_action text;\nBEGIN\n  IF _signals IS NULL OR jsonb_typeof(_signals) <> 'array' THEN\n    RAISE EXCEPTION '_signals must be a JSON array';\n  END IF;\n\n  FOR item IN SELECT value FROM jsonb_array_elements(_signals)\n  LOOP\n    IF COALESCE(item->>'generation_method', '') <> 'deterministic_rule' THEN\n      RAISE EXCEPTION 'Signal generation_method must be deterministic_rule';\n    END IF;\n\n    IF COALESCE(item->>'source_url', '') = '' THEN\n      RAISE EXCEPTION 'Signal source_url is required';\n    END IF;\n\n    IF COALESCE(item->>'raw_record_id', '') = '' THEN\n      RAISE EXCEPTION 'Signal raw_record_id is required';\n    END IF;\n\n    IF COALESCE(item->>'statute_id', '') = '' THEN\n      RAISE EXCEPTION 'Signal statute_id is required';\n    END IF;\n\n    IF COALESCE(item->>'source_connector_id', '') = '' THEN\n      RAISE EXCEPTION 'Signal source_connector_id is required';\n    END IF;\n\n    IF COALESCE(item->>'rule_id', '') = '' THEN\n      RAISE EXCEPTION 'Signal rule_id is required';\n    END IF;\n\n    IF COALESCE(item->>'signal_type', '') NOT IN (\n      'new_statute_or_bill',\n      'jurisdiction_legislative_activity',\n      'classification_activity'\n    ) THEN\n      RAISE EXCEPTION 'Signal type is not allowed for Open States Signal Generation v1: %', item->>'signal_type';\n    END IF;\n\n    INSERT INTO atlas.civic_map_signals (\n      signal_type,\n      geography_key,\n      severity_score,\n      metadata_json,\n      source_table,\n      source_record_id,\n      detected_at,\n      source_connector_id,\n      raw_record_id,\n      statute_id,\n      entity_ids,\n      jurisdiction_raw_value,\n      jurisdiction_id,\n      source_url,\n      confidence_score,\n      severity,\n      signal_status,\n      evidence_payload,\n      generation_method,\n      rule_id,\n      rule_version,\n      provenance_metadata,\n      signal_dedup_key\n    ) VALUES (\n      item->>'signal_type',\n      NULLIF(item->>'geography_key', ''),\n      COALESCE(NULLIF(item->>'severity_score', '')::numeric, NULLIF(item->>'confidence_score', '')::numeric, 0.0),\n      COALESCE(item->'metadata_json', '{}'::jsonb),\n      COALESCE(NULLIF(item->>'source_table', ''), 'statutes'),\n      item->>'statute_id',\n      COALESCE(NULLIF(item->>'detected_at', '')::timestamptz, now()),\n      (item->>'source_connector_id')::uuid,\n      (item->>'raw_record_id')::uuid,\n      (item->>'statute_id')::uuid,\n      COALESCE(ARRAY(SELECT jsonb_array_elements_text(COALESCE(item->'entity_ids', '[]'::jsonb))), ARRAY[]::text[]),\n      item->>'jurisdiction_raw_value',\n      NULLIF(item->>'jurisdiction_id', '')::uuid,\n      item->>'source_url',\n      COALESCE(NULLIF(item->>'confidence_score', '')::numeric, 1.0),\n      COALESCE(NULLIF(item->>'severity', ''), 'informational'),\n      COALESCE(NULLIF(item->>'signal_status', ''), 'active'),\n      COALESCE(item->'evidence_payload', '{}'::jsonb),\n      item->>'generation_method',\n      item->>'rule_id',\n      COALESCE(NULLIF(item->>'rule_version', ''), 'v1'),\n      COALESCE(item->'provenance_metadata', '{}'::jsonb),\n      item->>'signal_dedup_key'\n    )\n    ON CONFLICT (source_connector_id, signal_type, statute_id, rule_id)\n      WHERE generation_method = 'deterministic_rule'\n        AND source_connector_id IS NOT NULL\n        AND statute_id IS NOT NULL\n        AND rule_id IS NOT NULL\n    DO UPDATE SET\n      raw_record_id = EXCLUDED.raw_record_id,\n      entity_ids = EXCLUDED.entity_ids,\n      jurisdiction_raw_value = EXCLUDED.jurisdiction_raw_value,\n      jurisdiction_id = EXCLUDED.jurisdiction_id,\n      source_url = EXCLUDED.source_url,\n      confidence_score = EXCLUDED.confidence_score,\n      severity_score = EXCLUDED.severity_score,\n      severity = EXCLUDED.severity,\n      signal_status = EXCLUDED.signal_status,\n      evidence_payload = EXCLUDED.evidence_payload,\n      metadata_json = EXCLUDED.metadata_json,\n      generation_method = EXCLUDED.generation_method,\n      rule_version = EXCLUDED.rule_version,\n      provenance_metadata = EXCLUDED.provenance_metadata,\n      signal_dedup_key = EXCLUDED.signal_dedup_key,\n      detected_at = EXCLUDED.detected_at\n    RETURNING atlas.civic_map_signals.signal_id INTO inserted_id;\n\n    GET DIAGNOSTICS affected_rows = ROW_COUNT;\n    signal_action := CASE WHEN affected_rows = 1 THEN 'upserted' ELSE 'unknown' END;\n\n    out_signal_id := inserted_id;\n    out_signal_type := item->>'signal_type';\n    out_statute_id := (item->>'statute_id')::uuid;\n    out_rule_id := item->>'rule_id';\n    out_action := signal_action;\n    RETURN NEXT;\n  END LOOP;\nEND;\n$function$\n",
+      "volatility": "v",
+      "security_definer": true,
+      "identity_arguments": "_signals jsonb"
+    },
+    {
+      "kind": "f",
+      "name": "verify_atlas_tables",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public, atlas"
+      ],
+      "grants": [
+        {
+          "grantee": "PUBLIC",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "TABLE(table_name text, row_count bigint)",
+      "schema": "public",
+      "strict": false,
+      "comment": null,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION public.verify_atlas_tables()\n RETURNS TABLE(table_name text, row_count bigint)\n LANGUAGE plpgsql\n SET search_path TO 'pg_catalog', 'public', 'atlas'\nAS $function$\nBEGIN\n    RETURN QUERY\n    SELECT 'jurisdictions'::TEXT, COUNT(*)::BIGINT FROM jurisdictions\n    UNION ALL SELECT 'schema_registry', COUNT(*) FROM schema_registry\n    UNION ALL SELECT 'connector_registry', COUNT(*) FROM connector_registry\n    UNION ALL SELECT 'raw_records', COUNT(*) FROM raw_records\n    UNION ALL SELECT 'ingest_jobs', COUNT(*) FROM ingest_jobs\n    UNION ALL SELECT 'statutes', COUNT(*) FROM statutes\n    UNION ALL SELECT 'case_law', COUNT(*) FROM case_law\n    UNION ALL SELECT 'entity_registry', COUNT(*) FROM entity_registry\n    UNION ALL SELECT 'civic_map_signals', COUNT(*) FROM civic_map_signals;\nEND;\n$function$\n",
+      "volatility": "v",
+      "security_definer": false,
+      "identity_arguments": ""
+    }
+  ]
+}

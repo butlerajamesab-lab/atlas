@@ -1,0 +1,1463 @@
+{
+  "schemaVersion": 1,
+  "evidenceKind": "Atlas current production view catalog",
+  "capturedAt": "2026-08-30T20:40:00Z",
+  "projectRef": "bjdjjgnkhxblnpdrjqtw",
+  "schema": "atlas",
+  "offset": 0,
+  "views": [
+    {
+      "name": "v_bridge_operational_status",
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        }
+      ],
+      "schema": "atlas",
+      "columns": [
+        "total_queue_rows",
+        "pending_count",
+        "processing_count",
+        "retrying_count",
+        "completed_count",
+        "failed_count",
+        "oldest_pending_or_retrying_at",
+        "last_completed_at",
+        "last_processed_at"
+      ],
+      "comment": null,
+      "relkind": "v",
+      "definition": " SELECT count(*)::integer AS total_queue_rows,\n    count(*) FILTER (WHERE status::text = 'pending'::text)::integer AS pending_count,\n    count(*) FILTER (WHERE status::text = 'processing'::text)::integer AS processing_count,\n    count(*) FILTER (WHERE status::text = 'retrying'::text)::integer AS retrying_count,\n    count(*) FILTER (WHERE status::text = 'completed'::text)::integer AS completed_count,\n    count(*) FILTER (WHERE status::text = 'failed'::text)::integer AS failed_count,\n    min(created_at) FILTER (WHERE status::text = ANY (ARRAY['pending'::character varying, 'retrying'::character varying]::text[])) AS oldest_pending_or_retrying_at,\n    max(completed_at) AS last_completed_at,\n    max(processed_at) AS last_processed_at\n   FROM atlas.lighthouse_bridge_queue;",
+      "reloptions": null,
+      "dependencies": [
+        {
+          "name": "lighthouse_bridge_queue",
+          "schema": "atlas",
+          "relkind": "r"
+        }
+      ]
+    },
+    {
+      "name": "v_bridge_status",
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        }
+      ],
+      "schema": "atlas",
+      "columns": [
+        "bridge_id",
+        "bridge_name",
+        "target_project",
+        "target_url",
+        "enabled",
+        "last_sync_at",
+        "last_sync_status",
+        "last_sync_error",
+        "total_syncs",
+        "successful_syncs",
+        "failed_syncs",
+        "pending_syncs",
+        "last_sync_type",
+        "created_at",
+        "updated_at"
+      ],
+      "comment": null,
+      "relkind": "v",
+      "definition": " SELECT bc.bridge_id,\n    bc.bridge_name,\n    bc.target_project,\n    bc.target_url,\n    bc.enabled,\n    bc.last_sync_at,\n    bc.last_sync_status,\n    bc.last_sync_error,\n    COALESCE(stats.total_syncs, 0::bigint) AS total_syncs,\n    COALESCE(stats.successful_syncs, 0::bigint) AS successful_syncs,\n    COALESCE(stats.failed_syncs, 0::bigint) AS failed_syncs,\n    COALESCE(stats.pending_syncs, 0::bigint) AS pending_syncs,\n    stats.last_sync_type,\n    bc.created_at,\n    bc.updated_at\n   FROM atlas.bridge_config bc\n     LEFT JOIN LATERAL ( SELECT count(*) AS total_syncs,\n            count(*) FILTER (WHERE bridge_sync_log.status::text = 'sent'::text) AS successful_syncs,\n            count(*) FILTER (WHERE bridge_sync_log.status::text = 'error'::text) AS failed_syncs,\n            count(*) FILTER (WHERE bridge_sync_log.status::text = 'pending'::text) AS pending_syncs,\n            ( SELECT bridge_sync_log_1.sync_type\n                   FROM atlas.bridge_sync_log bridge_sync_log_1\n                  WHERE bridge_sync_log_1.bridge_id::text = bc.bridge_id::text\n                  ORDER BY bridge_sync_log_1.synced_at DESC\n                 LIMIT 1) AS last_sync_type\n           FROM atlas.bridge_sync_log\n          WHERE bridge_sync_log.bridge_id::text = bc.bridge_id::text) stats ON true\n  ORDER BY bc.bridge_id;",
+      "reloptions": null,
+      "dependencies": [
+        {
+          "name": "bridge_config",
+          "schema": "atlas",
+          "relkind": "r"
+        },
+        {
+          "name": "bridge_sync_log",
+          "schema": "atlas",
+          "relkind": "r"
+        }
+      ]
+    },
+    {
+      "name": "v_bridge_sync_history",
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        }
+      ],
+      "schema": "atlas",
+      "columns": [
+        "log_id",
+        "bridge_id",
+        "bridge_name",
+        "sync_type",
+        "source_table",
+        "source_record_id",
+        "target_table",
+        "target_record_id",
+        "status",
+        "error_message",
+        "duration_ms",
+        "synced_at"
+      ],
+      "comment": null,
+      "relkind": "v",
+      "definition": " SELECT bsl.log_id,\n    bsl.bridge_id,\n    bc.bridge_name,\n    bsl.sync_type,\n    bsl.source_table,\n    bsl.source_record_id,\n    bsl.target_table,\n    bsl.target_record_id,\n    bsl.status,\n    bsl.error_message,\n    bsl.duration_ms,\n    bsl.synced_at\n   FROM atlas.bridge_sync_log bsl\n     JOIN atlas.bridge_config bc ON bc.bridge_id::text = bsl.bridge_id::text\n  ORDER BY bsl.synced_at DESC;",
+      "reloptions": null,
+      "dependencies": [
+        {
+          "name": "bridge_config",
+          "schema": "atlas",
+          "relkind": "r"
+        },
+        {
+          "name": "bridge_sync_log",
+          "schema": "atlas",
+          "relkind": "r"
+        }
+      ]
+    },
+    {
+      "name": "v_clauses_pending_review",
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        }
+      ],
+      "schema": "atlas",
+      "columns": [
+        "clause_id",
+        "contract_id",
+        "pattern_id",
+        "pattern_name",
+        "category",
+        "clause_text",
+        "clause_context",
+        "severity_score",
+        "confidence_score",
+        "extraction_confidence",
+        "page_number",
+        "pdf_url",
+        "extracted_at",
+        "status",
+        "schema_name",
+        "extraction_method"
+      ],
+      "comment": "Human review queue for clause detection findings. Analysts confirm or flag as false positive before findings enter detection engine.",
+      "relkind": "v",
+      "definition": " SELECT cc.clause_id,\n    cc.contract_id,\n    cc.pattern_id,\n    cp.pattern_name,\n    cp.category,\n    cc.clause_text,\n    cc.clause_context,\n    cc.severity_score,\n    cc.confidence_score,\n    cc.extraction_confidence,\n    cc.page_number,\n    cc.pdf_url,\n    cc.extracted_at,\n    cc.status,\n    q.schema_name,\n    q.extraction_method\n   FROM atlas.contract_clauses cc\n     JOIN atlas.clause_patterns cp ON cc.pattern_id::text = cp.pattern_id::text\n     LEFT JOIN atlas.pdf_extraction_queue q ON cc.queue_id = q.queue_id\n  WHERE cc.status::text = 'pending'::text\n  ORDER BY cc.severity_score DESC, cc.extracted_at DESC;",
+      "reloptions": null,
+      "dependencies": [
+        {
+          "name": "clause_patterns",
+          "schema": "atlas",
+          "relkind": "r"
+        },
+        {
+          "name": "contract_clauses",
+          "schema": "atlas",
+          "relkind": "r"
+        },
+        {
+          "name": "pdf_extraction_queue",
+          "schema": "atlas",
+          "relkind": "r"
+        }
+      ]
+    },
+    {
+      "name": "v_cross_domain_entities",
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        }
+      ],
+      "schema": "atlas",
+      "columns": [
+        "entity_id",
+        "primary_name",
+        "entity_type",
+        "jurisdiction_count",
+        "source_systems",
+        "first_seen_jurisdiction",
+        "last_verified",
+        "domain_presence_count"
+      ],
+      "comment": "Shows every entity and how many Atlas domains it appears in.",
+      "relkind": "v",
+      "definition": " SELECT entity_id,\n    primary_name,\n    entity_type,\n    jurisdiction_count,\n    source_systems,\n    first_seen_jurisdiction,\n    last_verified,\n    ( SELECT count(DISTINCT dr.domain_code) AS count\n           FROM atlas.detection_rules dr\n          WHERE (dr.target_table::text IN ( SELECT e2.source_population_table\n                   FROM atlas.entity_registry e2\n                  WHERE e2.entity_id::text = er.entity_id::text))) AS domain_presence_count\n   FROM atlas.entity_registry er\n  WHERE is_active = true\n  ORDER BY (( SELECT count(DISTINCT dr.domain_code) AS count\n           FROM atlas.detection_rules dr\n          WHERE (dr.target_table::text IN ( SELECT e2.source_population_table\n                   FROM atlas.entity_registry e2\n                  WHERE e2.entity_id::text = er.entity_id::text)))) DESC, jurisdiction_count DESC;",
+      "reloptions": null,
+      "dependencies": [
+        {
+          "name": "detection_rules",
+          "schema": "atlas",
+          "relkind": "r"
+        },
+        {
+          "name": "entity_registry",
+          "schema": "atlas",
+          "relkind": "r"
+        }
+      ]
+    },
+    {
+      "name": "v_entity_risk_score",
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        }
+      ],
+      "schema": "atlas",
+      "columns": [
+        "entity_id",
+        "primary_name",
+        "entity_type",
+        "total_signals",
+        "max_severity",
+        "avg_severity",
+        "unique_signal_types",
+        "composite_risk_score"
+      ],
+      "comment": "Composite risk score for every entity based on signal history across all Atlas domains.",
+      "relkind": "v",
+      "definition": " SELECT er.entity_id,\n    er.primary_name,\n    er.entity_type,\n    count(DISTINCT s.signal_id) AS total_signals,\n    max(s.severity_score) AS max_severity,\n    avg(s.severity_score) AS avg_severity,\n    count(DISTINCT s.signal_type) AS unique_signal_types,\n    COALESCE(max(s.severity_score), 0::numeric) * 0.6 + count(DISTINCT s.signal_type)::numeric / 9::numeric * 0.4 AS composite_risk_score\n   FROM atlas.entity_registry er\n     LEFT JOIN atlas.civic_map_signals s ON (s.metadata_json ->> 'entity_id'::text) = er.entity_id::text\n  WHERE er.is_active = true\n  GROUP BY er.entity_id, er.primary_name, er.entity_type\n  ORDER BY (COALESCE(max(s.severity_score), 0::numeric) * 0.6 + count(DISTINCT s.signal_type)::numeric / 9::numeric * 0.4) DESC;",
+      "reloptions": null,
+      "dependencies": [
+        {
+          "name": "civic_map_signals",
+          "schema": "atlas",
+          "relkind": "r"
+        },
+        {
+          "name": "entity_registry",
+          "schema": "atlas",
+          "relkind": "r"
+        }
+      ]
+    },
+    {
+      "name": "v_lighthouse_case_queue",
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        }
+      ],
+      "schema": "atlas",
+      "columns": [
+        "case_id",
+        "case_type",
+        "case_title",
+        "severity_score",
+        "priority_score",
+        "geography_key",
+        "jurisdiction",
+        "primary_entity_id",
+        "case_status",
+        "assigned_to",
+        "atlas_created_at",
+        "lighthouse_ingested_at",
+        "last_activity_at"
+      ],
+      "comment": "Stable interface for Lighthouse case management. Returns all active cases sorted by priority then severity.",
+      "relkind": "v",
+      "definition": " SELECT case_id,\n    case_type,\n    case_title,\n    severity_score,\n    priority_score,\n    geography_key,\n    jurisdiction,\n    primary_entity_id,\n    case_status,\n    assigned_to,\n    atlas_created_at,\n    lighthouse_ingested_at,\n    last_activity_at\n   FROM atlas.lighthouse_cases\n  WHERE case_status::text = ANY (ARRAY['open'::character varying, 'investigating'::character varying, 'escalated'::character varying]::text[])\n  ORDER BY priority_score DESC, severity_score DESC, atlas_created_at DESC;",
+      "reloptions": null,
+      "dependencies": [
+        {
+          "name": "lighthouse_cases",
+          "schema": "atlas",
+          "relkind": "r"
+        }
+      ]
+    },
+    {
+      "name": "v_lighthouse_civic_map",
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        }
+      ],
+      "schema": "atlas",
+      "columns": [
+        "pin_id",
+        "geography_key",
+        "pin_type",
+        "pin_subtype",
+        "latitude",
+        "longitude",
+        "title",
+        "description",
+        "severity",
+        "icon_type",
+        "color_hex",
+        "is_clusterable",
+        "entity_id",
+        "signal_id",
+        "case_id"
+      ],
+      "comment": "Stable interface for Lighthouse civic map. Returns all active pins: signals (red), entities (blue), cases (purple), resources (green). Expired pins auto-filtered.",
+      "relkind": "v",
+      "definition": " SELECT pin_id,\n    geography_key,\n    pin_type,\n    pin_subtype,\n    latitude,\n    longitude,\n    title,\n    description,\n    severity,\n    icon_type,\n    color_hex,\n    is_clusterable,\n    entity_id,\n    signal_id,\n    case_id\n   FROM atlas.lighthouse_map_pins\n  WHERE expires_at > now() OR expires_at IS NULL\n  ORDER BY severity DESC, pin_type;",
+      "reloptions": null,
+      "dependencies": [
+        {
+          "name": "lighthouse_map_pins",
+          "schema": "atlas",
+          "relkind": "r"
+        }
+      ]
+    },
+    {
+      "name": "v_lighthouse_entity_watchlist",
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        }
+      ],
+      "schema": "atlas",
+      "columns": [
+        "entity_id",
+        "primary_name",
+        "entity_type",
+        "risk_score",
+        "risk_tier",
+        "watchlist_status",
+        "jurisdiction_count",
+        "last_verified"
+      ],
+      "comment": "Stable interface for Lighthouse entity monitoring. Returns high-risk and watched entities.",
+      "relkind": "v",
+      "definition": " SELECT entity_id,\n    primary_name,\n    entity_type,\n    risk_score,\n    risk_tier,\n    watchlist_status,\n    jurisdiction_count,\n    last_verified\n   FROM atlas.lighthouse_entities\n  WHERE (risk_tier::text = ANY (ARRAY['high'::character varying, 'critical'::character varying]::text[])) OR (watchlist_status::text = ANY (ARRAY['monitoring'::character varying, 'investigating'::character varying, 'flagged'::character varying]::text[]))\n  ORDER BY risk_score DESC, jurisdiction_count DESC;",
+      "reloptions": null,
+      "dependencies": [
+        {
+          "name": "lighthouse_entities",
+          "schema": "atlas",
+          "relkind": "r"
+        }
+      ]
+    },
+    {
+      "name": "v_live_data_signal_candidate_current_v1",
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        }
+      ],
+      "schema": "atlas",
+      "columns": [
+        "candidate_id",
+        "candidate_hash",
+        "rule_id",
+        "rule_version",
+        "rule_contract_hash",
+        "engine_id",
+        "engine_version",
+        "signal_type",
+        "title",
+        "description",
+        "primary_stream_id",
+        "source_event_refs",
+        "entity_ids",
+        "entity_resolution_status",
+        "jurisdiction_id",
+        "severity",
+        "confidence_score",
+        "verification_state",
+        "supporting_statistics",
+        "evidence_refs",
+        "source_freshness_at",
+        "detected_at",
+        "source_input_hash",
+        "first_run_id",
+        "last_run_id",
+        "first_detected_at",
+        "last_replayed_at",
+        "lighthouse_status",
+        "lighthouse_record_id",
+        "lighthouse_last_error",
+        "lighthouse_bridged_at",
+        "semantic_key",
+        "is_current",
+        "supersedes_candidate_id",
+        "retired_at"
+      ],
+      "comment": null,
+      "relkind": "v",
+      "definition": " SELECT candidate_id,\n    candidate_hash,\n    rule_id,\n    rule_version,\n    rule_contract_hash,\n    engine_id,\n    engine_version,\n    signal_type,\n    title,\n    description,\n    primary_stream_id,\n    source_event_refs,\n    entity_ids,\n    entity_resolution_status,\n    jurisdiction_id,\n    severity,\n    confidence_score,\n    verification_state,\n    supporting_statistics,\n    evidence_refs,\n    source_freshness_at,\n    detected_at,\n    source_input_hash,\n    first_run_id,\n    last_run_id,\n    first_detected_at,\n    last_replayed_at,\n    lighthouse_status,\n    lighthouse_record_id,\n    lighthouse_last_error,\n    lighthouse_bridged_at,\n    semantic_key,\n    is_current,\n    supersedes_candidate_id,\n    retired_at\n   FROM atlas.live_data_signal_candidate\n  WHERE is_current;",
+      "reloptions": null,
+      "dependencies": [
+        {
+          "name": "live_data_signal_candidate",
+          "schema": "atlas",
+          "relkind": "r"
+        }
+      ]
+    },
+    {
+      "name": "v_pdf_extraction_pending",
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        }
+      ],
+      "schema": "atlas",
+      "columns": [
+        "queue_id",
+        "schema_name",
+        "source_record_id",
+        "pdf_url",
+        "extraction_status",
+        "download_attempts",
+        "max_attempts",
+        "next_retry_at",
+        "created_at",
+        "hours_in_queue"
+      ],
+      "comment": "Operational view for monitoring PDF extraction queue. Shows pending, retrying, and failed jobs with queue age.",
+      "relkind": "v",
+      "definition": " SELECT queue_id,\n    schema_name,\n    source_record_id,\n    pdf_url,\n    extraction_status,\n    download_attempts,\n    max_attempts,\n    next_retry_at,\n    created_at,\n    EXTRACT(epoch FROM now() - created_at) / 3600::numeric AS hours_in_queue\n   FROM atlas.pdf_extraction_queue\n  WHERE extraction_status::text = ANY (ARRAY['pending'::character varying, 'retrying'::character varying, 'failed'::character varying]::text[])\n  ORDER BY (\n        CASE extraction_status\n            WHEN 'pending'::text THEN 1\n            WHEN 'retrying'::text THEN 2\n            WHEN 'failed'::text THEN 3\n            ELSE NULL::integer\n        END), created_at;",
+      "reloptions": null,
+      "dependencies": [
+        {
+          "name": "pdf_extraction_queue",
+          "schema": "atlas",
+          "relkind": "r"
+        }
+      ]
+    },
+    {
+      "name": "v_prism_escalation_contacts",
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        }
+      ],
+      "schema": "atlas",
+      "columns": [
+        "contact_id",
+        "entity_id",
+        "agency_name",
+        "entity_type",
+        "contact_type",
+        "contact_value",
+        "normalized_value",
+        "contact_label",
+        "is_primary",
+        "is_verified",
+        "geography_key",
+        "jurisdiction_name",
+        "cross_jurisdiction_presence",
+        "first_seen_at",
+        "last_seen_at",
+        "source_schema_name",
+        "source_population_table"
+      ],
+      "comment": "Live projection of auto-extracted government-agency contacts for the Prism escalation routing system.",
+      "relkind": "v",
+      "definition": " SELECT cr.contact_id,\n    cr.entity_id,\n    er.primary_name AS agency_name,\n    er.entity_type,\n    cr.contact_type,\n    cr.contact_value,\n    cr.normalized_value,\n    cr.contact_label,\n    cr.is_primary,\n    cr.is_verified,\n    cr.geography_key,\n    gr.geography_name AS jurisdiction_name,\n    er.jurisdiction_count AS cross_jurisdiction_presence,\n    cr.first_seen_at,\n    cr.last_seen_at,\n    cr.source_schema_name,\n    cr.source_population_table\n   FROM atlas.contact_registry cr\n     JOIN atlas.entity_registry er ON cr.entity_id::text = er.entity_id::text\n     LEFT JOIN atlas.geography_registry gr ON cr.geography_key::text = gr.geography_key::text\n  WHERE er.is_active = true AND er.entity_type::text = 'government_agency'::text\n  ORDER BY er.jurisdiction_count DESC, er.primary_name, cr.is_primary DESC;",
+      "reloptions": null,
+      "dependencies": [
+        {
+          "name": "contact_registry",
+          "schema": "atlas",
+          "relkind": "r"
+        },
+        {
+          "name": "entity_registry",
+          "schema": "atlas",
+          "relkind": "r"
+        },
+        {
+          "name": "geography_registry",
+          "schema": "atlas",
+          "relkind": "r"
+        }
+      ]
+    },
+    {
+      "name": "v_propublica_unresolved_metadata_candidate_v1",
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        }
+      ],
+      "schema": "atlas",
+      "columns": [
+        "normalized_entity_name",
+        "organization_name",
+        "unique_record_count",
+        "unresolved_unique_record_count",
+        "unresolved_unique_rate",
+        "source_freshness_at",
+        "entity_id",
+        "entity_type",
+        "primary_name",
+        "last_verified",
+        "match_count",
+        "severity",
+        "source_event_refs",
+        "supporting_statistics",
+        "source_input_hash"
+      ],
+      "comment": "Stable unique-record candidate input. Adapter replay timestamps are excluded from candidate identity.",
+      "relkind": "v",
+      "definition": " WITH canonical_events AS (\n         SELECT event.stream_id,\n            event.\"offset\",\n            event.\"timestamp\" AS source_observed_at,\n            event.payload,\n            event.provenance,\n            identity.event_identity_hash,\n            identity.source_record_key,\n            lower(TRIM(BOTH FROM COALESCE(event.payload ->> 'organization_name'::text, ''::text))) AS normalized_entity_name,\n            (event.payload ->> 'tax_period'::text) IS NULL OR (event.payload ->> 'form_type'::text) IS NULL OR COALESCE(event.payload ->> 'external_id'::text, ''::text) ~~ '%-unknown'::text AS unresolved\n           FROM atlas.signal_event_identity identity\n             JOIN signal_events event ON event.stream_id = identity.stream_id AND event.\"offset\" = identity.canonical_offset\n          WHERE identity.stream_id = 'pro_publica'::text AND identity.signal_type = 'nonprofit_990_filing'::text AND COALESCE(event.payload ->> 'organization_name'::text, ''::text) <> ''::text\n        ), unique_records AS (\n         SELECT canonical_events.normalized_entity_name,\n            canonical_events.source_record_key,\n            min(canonical_events.\"offset\") AS representative_offset,\n            max(canonical_events.source_observed_at) AS source_freshness_at,\n            bool_or(canonical_events.unresolved) AS unresolved,\n            max(canonical_events.payload ->> 'organization_name'::text) AS organization_name,\n            max(canonical_events.payload ->> 'pdf_url'::text) AS source_url\n           FROM canonical_events\n          GROUP BY canonical_events.normalized_entity_name, canonical_events.source_record_key\n        ), aggregates AS (\n         SELECT unique_records.normalized_entity_name,\n            max(unique_records.organization_name) AS organization_name,\n            count(*)::integer AS unique_record_count,\n            count(*) FILTER (WHERE unique_records.unresolved)::integer AS unresolved_unique_record_count,\n            round(count(*) FILTER (WHERE unique_records.unresolved)::numeric / NULLIF(count(*), 0)::numeric, 6) AS unresolved_unique_rate,\n            max(unique_records.source_freshness_at) AS source_freshness_at\n           FROM unique_records\n          GROUP BY unique_records.normalized_entity_name\n        ), exact_entities AS (\n         SELECT aggregate.normalized_entity_name,\n            aggregate.organization_name,\n            aggregate.unique_record_count,\n            aggregate.unresolved_unique_record_count,\n            aggregate.unresolved_unique_rate,\n            aggregate.source_freshness_at,\n            entity.entity_id,\n            entity.entity_type,\n            entity.primary_name,\n            entity.last_verified,\n            entity.match_count\n           FROM aggregates aggregate\n             CROSS JOIN LATERAL ( SELECT min(registry.entity_id::text) AS entity_id,\n                    min(registry.entity_type::text) AS entity_type,\n                    min(registry.primary_name::text) AS primary_name,\n                    max(registry.last_verified) AS last_verified,\n                    count(*)::integer AS match_count\n                   FROM atlas.entity_registry registry\n                  WHERE registry.is_active AND lower(TRIM(BOTH FROM registry.primary_name)) = aggregate.normalized_entity_name) entity\n          WHERE entity.match_count = 1\n        ), with_refs AS (\n         SELECT exact.normalized_entity_name,\n            exact.organization_name,\n            exact.unique_record_count,\n            exact.unresolved_unique_record_count,\n            exact.unresolved_unique_rate,\n            exact.source_freshness_at,\n            exact.entity_id,\n            exact.entity_type,\n            exact.primary_name,\n            exact.last_verified,\n            exact.match_count,\n                CASE\n                    WHEN exact.unresolved_unique_rate >= 0.95 AND exact.unique_record_count >= 100 THEN 'critical'::text\n                    WHEN exact.unresolved_unique_rate >= 0.80 AND exact.unique_record_count >= 10 THEN 'high'::text\n                    ELSE 'medium'::text\n                END AS severity,\n            ( SELECT jsonb_agg(jsonb_build_object('stream_id', 'pro_publica', 'offset', reference.representative_offset, 'source_record_key', reference.source_record_key, 'source_url', reference.source_url) ORDER BY reference.source_record_key) AS jsonb_agg\n                   FROM ( SELECT record.source_record_key,\n                            record.representative_offset,\n                            record.source_url\n                           FROM unique_records record\n                          WHERE record.normalized_entity_name = exact.normalized_entity_name\n                          ORDER BY record.source_record_key\n                         LIMIT 25) reference) AS source_event_refs\n           FROM exact_entities exact\n        )\n SELECT normalized_entity_name,\n    organization_name,\n    unique_record_count,\n    unresolved_unique_record_count,\n    unresolved_unique_rate,\n    source_freshness_at,\n    entity_id,\n    entity_type,\n    primary_name,\n    last_verified,\n    match_count,\n    severity,\n    source_event_refs,\n    jsonb_build_object('candidate_identity_version', '1.1.0', 'unique_source_record_count', unique_record_count, 'unresolved_unique_record_count', unresolved_unique_record_count, 'unresolved_unique_rate', unresolved_unique_rate, 'identity_unit', 'unique external_id plus pdf_url', 'source_freshness_basis', 'maximum stable source event timestamp', 'entity_resolution_method', 'entity_registry_primary_name_exact', 'entity_resolution_match_count', match_count, 'entity_registry_last_verified', last_verified, 'historical_raw_event_count', ( SELECT count(*) AS count\n           FROM signal_events event\n          WHERE event.stream_id = 'pro_publica'::text AND event.signal_type = 'nonprofit_990_filing'::text AND lower(TRIM(BOTH FROM COALESCE(event.payload ->> 'organization_name'::text, ''::text))) = with_refs.normalized_entity_name), 'canonical_event_count', ( SELECT count(*) AS count\n           FROM canonical_events event\n          WHERE event.normalized_entity_name = with_refs.normalized_entity_name)) AS supporting_statistics,\n    encode(digest(convert_to(jsonb_build_object('candidate_identity_version', '1.1.0', 'stream_id', 'pro_publica', 'entity_id', entity_id, 'unique_record_count', unique_record_count, 'unresolved_unique_record_count', unresolved_unique_record_count, 'unresolved_unique_rate', unresolved_unique_rate, 'source_event_refs', source_event_refs, 'entity_resolution_method', 'entity_registry_primary_name_exact')::text, 'UTF8'::name), 'sha256'::text), 'hex'::text) AS source_input_hash\n   FROM with_refs;",
+      "reloptions": [
+        "security_invoker=true"
+      ],
+      "dependencies": [
+        {
+          "name": "entity_registry",
+          "schema": "atlas",
+          "relkind": "r"
+        },
+        {
+          "name": "signal_event_identity",
+          "schema": "atlas",
+          "relkind": "r"
+        },
+        {
+          "name": "signal_events",
+          "schema": "public",
+          "relkind": "r"
+        }
+      ]
+    },
+    {
+      "name": "v_rosetta_contacts",
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        }
+      ],
+      "schema": "atlas",
+      "columns": [
+        "contact_id",
+        "entity_id",
+        "entity_name",
+        "entity_type",
+        "contact_type",
+        "contact_value",
+        "normalized_value",
+        "contact_label",
+        "is_primary",
+        "is_verified",
+        "geography_key",
+        "jurisdiction_name",
+        "first_seen_at",
+        "last_seen_at",
+        "source_schema_name",
+        "source_population_table"
+      ],
+      "comment": "Live projection of auto-extracted contacts for the Rosetta help-program system.",
+      "relkind": "v",
+      "definition": " SELECT cr.contact_id,\n    cr.entity_id,\n    er.primary_name AS entity_name,\n    er.entity_type,\n    cr.contact_type,\n    cr.contact_value,\n    cr.normalized_value,\n    cr.contact_label,\n    cr.is_primary,\n    cr.is_verified,\n    cr.geography_key,\n    gr.geography_name AS jurisdiction_name,\n    cr.first_seen_at,\n    cr.last_seen_at,\n    cr.source_schema_name,\n    cr.source_population_table\n   FROM atlas.contact_registry cr\n     JOIN atlas.entity_registry er ON cr.entity_id::text = er.entity_id::text\n     LEFT JOIN atlas.geography_registry gr ON cr.geography_key::text = gr.geography_key::text\n  WHERE er.is_active = true AND (er.entity_type::text = ANY (ARRAY['nonprofit'::character varying, 'organization'::character varying, 'government_agency'::character varying]::text[]))\n  ORDER BY er.primary_name, cr.contact_type, cr.is_primary DESC;",
+      "reloptions": null,
+      "dependencies": [
+        {
+          "name": "contact_registry",
+          "schema": "atlas",
+          "relkind": "r"
+        },
+        {
+          "name": "entity_registry",
+          "schema": "atlas",
+          "relkind": "r"
+        },
+        {
+          "name": "geography_registry",
+          "schema": "atlas",
+          "relkind": "r"
+        }
+      ]
+    },
+    {
+      "name": "v_signal_intelligence_cards",
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        }
+      ],
+      "schema": "atlas",
+      "columns": [
+        "signal_id",
+        "source_signal_table",
+        "raw_signal_type",
+        "canonical_signal_code",
+        "canonical_signal_name",
+        "signal_family",
+        "signal_category",
+        "display_title",
+        "display_summary",
+        "geography_key",
+        "jurisdiction_raw_value",
+        "jurisdiction_id",
+        "entity_ids",
+        "source_table",
+        "source_record_id",
+        "source_connector_id",
+        "raw_record_id",
+        "statute_id",
+        "source_url",
+        "confidence_score",
+        "severity",
+        "severity_score",
+        "signal_status",
+        "verification_status",
+        "record_origin",
+        "exclude_from_production",
+        "quarantine_reason",
+        "evidence_payload",
+        "metadata_json",
+        "provenance_metadata",
+        "detected_at",
+        "created_at"
+      ],
+      "comment": "Read-only signal intelligence projection. Groups Atlas raw civic-map and typed signals into canonical pattern-intelligence card fields without mutating source signal tables.",
+      "relkind": "v",
+      "definition": " WITH civic AS (\n         SELECT s.signal_id::text AS signal_id,\n            'atlas.civic_map_signals'::text AS source_signal_table,\n            s.signal_type::text AS raw_signal_type,\n                CASE\n                    WHEN s.signal_type::text = 'benefit_access_gap'::text THEN 'JURIS_FAIL'::text\n                    WHEN s.signal_type::text = ANY (ARRAY['regulatory_comment_concentration'::character varying, 'industry_sector_concentration'::character varying]::text[]) THEN 'REGC_COMMENT_CONC'::text\n                    WHEN s.signal_type::text = ANY (ARRAY['classification_activity'::character varying, 'jurisdiction_legislative_activity'::character varying, 'new_statute_or_bill'::character varying]::text[]) THEN 'TEMP_ANOM'::text\n                    WHEN s.signal_type::text = ANY (ARRAY['court_activity'::character varying, 'jurisdiction_judicial_activity'::character varying, 'new_court_opinion'::character varying]::text[]) THEN 'PROC_VIOL'::text\n                    WHEN s.signal_type::text = 'nonprofit_capacity_collapse'::text THEN 'JURIS_FAIL'::text\n                    WHEN s.signal_type::text = 'eeoc_complaint_cluster'::text THEN 'PROC_VIOL'::text\n                    WHEN s.signal_type::text = 'chain_verification_test'::text THEN 'TEST_SIGNAL'::text\n                    ELSE 'UNKNOWN_UNCLASSIFIED'::text\n                END AS canonical_signal_code,\n                CASE\n                    WHEN s.signal_type::text = 'benefit_access_gap'::text THEN 'access_gap'::text\n                    WHEN s.signal_type::text = ANY (ARRAY['regulatory_comment_concentration'::character varying, 'industry_sector_concentration'::character varying]::text[]) THEN 'regulatory_concentration'::text\n                    WHEN s.signal_type::text = ANY (ARRAY['classification_activity'::character varying, 'jurisdiction_legislative_activity'::character varying, 'new_statute_or_bill'::character varying]::text[]) THEN 'legislative_activity'::text\n                    WHEN s.signal_type::text = ANY (ARRAY['court_activity'::character varying, 'jurisdiction_judicial_activity'::character varying, 'new_court_opinion'::character varying]::text[]) THEN 'judicial_activity'::text\n                    WHEN s.signal_type::text = 'nonprofit_capacity_collapse'::text THEN 'civic_capacity'::text\n                    WHEN s.signal_type::text = 'eeoc_complaint_cluster'::text THEN 'enforcement_complaint_cluster'::text\n                    WHEN s.signal_type::text = 'chain_verification_test'::text THEN 'test_signal'::text\n                    ELSE 'unknown_unclassified'::text\n                END AS signal_family,\n            s.geography_key::text AS geography_key,\n            s.jurisdiction_raw_value,\n            s.jurisdiction_id::text AS jurisdiction_id,\n            s.entity_ids,\n            s.source_table::text AS source_table,\n            s.source_record_id::text AS source_record_id,\n            s.source_connector_id::text AS source_connector_id,\n            s.raw_record_id::text AS raw_record_id,\n            s.statute_id::text AS statute_id,\n            s.source_url,\n            s.confidence_score,\n            s.severity,\n            s.severity_score::numeric AS severity_score,\n            s.signal_status,\n            s.verification_status,\n            s.record_origin,\n                CASE\n                    WHEN s.signal_type::text = 'chain_verification_test'::text THEN true\n                    ELSE COALESCE(s.exclude_from_production, false)\n                END AS exclude_from_production,\n                CASE\n                    WHEN s.signal_type::text = 'chain_verification_test'::text THEN COALESCE(s.quarantine_reason, 'test_signal'::text)\n                    ELSE s.quarantine_reason\n                END AS quarantine_reason,\n            COALESCE(s.evidence_payload, '{}'::jsonb) AS evidence_payload,\n            COALESCE(s.metadata_json, '{}'::jsonb) AS metadata_json,\n            COALESCE(s.provenance_metadata, '{}'::jsonb) AS provenance_metadata,\n            s.detected_at,\n            s.created_at\n           FROM atlas.civic_map_signals s\n        ), typed AS (\n         SELECT sig.id::text AS signal_id,\n            'atlas.signals'::text AS source_signal_table,\n            COALESCE(st_1.type_code, 'UNKNOWN_UNCLASSIFIED'::text) AS raw_signal_type,\n            COALESCE(st_1.type_code, 'UNKNOWN_UNCLASSIFIED'::text) AS canonical_signal_code,\n            COALESCE(st_1.category, 'unknown'::text) AS signal_family,\n            sig.source_jurisdiction AS geography_key,\n            sig.source_jurisdiction AS jurisdiction_raw_value,\n            NULL::text AS jurisdiction_id,\n            NULL::text[] AS entity_ids,\n            sig.source_table,\n            sig.source_record_id::text AS source_record_id,\n            NULL::text AS source_connector_id,\n            sig.source_record_id::text AS raw_record_id,\n            NULL::text AS statute_id,\n            NULL::text AS source_url,\n            sig.confidence::numeric AS confidence_score,\n                CASE\n                    WHEN sig.severity >= 90 THEN 'critical'::text\n                    WHEN sig.severity >= 70 THEN 'high'::text\n                    WHEN sig.severity >= 40 THEN 'medium'::text\n                    ELSE 'low'::text\n                END AS severity,\n            sig.normalized_score::numeric AS severity_score,\n                CASE\n                    WHEN sig.is_suppressed THEN 'suppressed'::text\n                    ELSE 'detected'::text\n                END AS signal_status,\n            'unknown'::text AS verification_status,\n            'atlas_signal'::text AS record_origin,\n            COALESCE(sig.is_suppressed, false) AS exclude_from_production,\n            sig.suppression_reason AS quarantine_reason,\n            COALESCE(sig.raw_value, '{}'::jsonb) AS evidence_payload,\n            COALESCE(sig.metadata, '{}'::jsonb) AS metadata_json,\n            jsonb_build_object('fingerprint_hash', sig.fingerprint_hash, 'source_domain', sig.source_domain, 'source_table', sig.source_table, 'source_record_id', sig.source_record_id) AS provenance_metadata,\n            sig.detected_at,\n            sig.created_at\n           FROM atlas.signals sig\n             LEFT JOIN atlas.signal_types st_1 ON st_1.id = sig.signal_type_id\n        ), combined AS (\n         SELECT civic.signal_id,\n            civic.source_signal_table,\n            civic.raw_signal_type,\n            civic.canonical_signal_code,\n            civic.signal_family,\n            civic.geography_key,\n            civic.jurisdiction_raw_value,\n            civic.jurisdiction_id,\n            civic.entity_ids,\n            civic.source_table,\n            civic.source_record_id,\n            civic.source_connector_id,\n            civic.raw_record_id,\n            civic.statute_id,\n            civic.source_url,\n            civic.confidence_score,\n            civic.severity,\n            civic.severity_score,\n            civic.signal_status,\n            civic.verification_status,\n            civic.record_origin,\n            civic.exclude_from_production,\n            civic.quarantine_reason,\n            civic.evidence_payload,\n            civic.metadata_json,\n            civic.provenance_metadata,\n            civic.detected_at,\n            civic.created_at\n           FROM civic\n        UNION ALL\n         SELECT typed.signal_id,\n            typed.source_signal_table,\n            typed.raw_signal_type,\n            typed.canonical_signal_code,\n            typed.signal_family,\n            typed.geography_key,\n            typed.jurisdiction_raw_value,\n            typed.jurisdiction_id,\n            typed.entity_ids,\n            typed.source_table,\n            typed.source_record_id,\n            typed.source_connector_id,\n            typed.raw_record_id,\n            typed.statute_id,\n            typed.source_url,\n            typed.confidence_score,\n            typed.severity,\n            typed.severity_score,\n            typed.signal_status,\n            typed.verification_status,\n            typed.record_origin,\n            typed.exclude_from_production,\n            typed.quarantine_reason,\n            typed.evidence_payload,\n            typed.metadata_json,\n            typed.provenance_metadata,\n            typed.detected_at,\n            typed.created_at\n           FROM typed\n        )\n SELECT c.signal_id,\n    c.source_signal_table,\n    c.raw_signal_type,\n    c.canonical_signal_code,\n    COALESCE(st.type_name, initcap(replace(lower(c.canonical_signal_code), '_'::text, ' '::text))) AS canonical_signal_name,\n    c.signal_family,\n    COALESCE(st.category, c.signal_family, 'unknown'::text) AS signal_category,\n    COALESCE(c.metadata_json ->> 'display_title'::text, c.metadata_json ->> 'title'::text, c.metadata_json ->> 'narrative_summary'::text, c.evidence_payload ->> 'title'::text, initcap(replace(c.raw_signal_type, '_'::text, ' '::text)) || COALESCE(' — '::text || NULLIF(c.geography_key, ''::text), ''::text)) AS display_title,\n    COALESCE(c.metadata_json ->> 'display_summary'::text, c.metadata_json ->> 'narrative_summary'::text, c.metadata_json ->> 'summary'::text, c.evidence_payload ->> 'summary'::text, c.evidence_payload ->> 'description'::text, (('Pattern candidate from '::text || c.source_signal_table) || ' / '::text) || c.raw_signal_type) AS display_summary,\n    c.geography_key,\n    c.jurisdiction_raw_value,\n    c.jurisdiction_id,\n    c.entity_ids,\n    c.source_table,\n    c.source_record_id,\n    c.source_connector_id,\n    c.raw_record_id,\n    c.statute_id,\n    c.source_url,\n    c.confidence_score,\n    c.severity,\n    c.severity_score,\n    c.signal_status,\n    c.verification_status,\n    c.record_origin,\n    c.exclude_from_production,\n    c.quarantine_reason,\n    c.evidence_payload,\n    c.metadata_json,\n    c.provenance_metadata,\n    c.detected_at,\n    c.created_at\n   FROM combined c\n     LEFT JOIN atlas.signal_types st ON st.type_code = c.canonical_signal_code;",
+      "reloptions": null,
+      "dependencies": [
+        {
+          "name": "civic_map_signals",
+          "schema": "atlas",
+          "relkind": "r"
+        },
+        {
+          "name": "signal_types",
+          "schema": "atlas",
+          "relkind": "r"
+        },
+        {
+          "name": "signals",
+          "schema": "atlas",
+          "relkind": "r"
+        }
+      ]
+    }
+  ]
+}
