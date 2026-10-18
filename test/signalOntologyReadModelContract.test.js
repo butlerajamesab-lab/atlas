@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const migration = readFileSync(new URL('../src/schema/20260809_signal_ontology_read_model.sql', import.meta.url), 'utf8');
+const performanceMigration = readFileSync(new URL('../src/schema/20261018_signal_derivation_single_pass.sql', import.meta.url), 'utf8');
+const scripts = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).scripts;
 const privileges = readFileSync(new URL('../src/schema/20260809_signal_ontology_read_model_privileges.sql', import.meta.url), 'utf8');
 const ui = readFileSync(new URL('../src/routes/ui.js', import.meta.url), 'utf8');
 const app = readFileSync(new URL('../public/atlas-app.js', import.meta.url), 'utf8');
@@ -92,4 +94,30 @@ test('canonical documentation states the non-equivalence contract', () => {
   assert.match(contract, /One row is not automatically a civic signal/);
   assert.match(contract, /Convergence is not causation/);
   assert.match(contract, /Stream-health alerts remain separately counted/);
+});
+
+test('production ontology summary reads observation table once while retaining installed authority fields', () => {
+  const singlePass = performanceMigration.split('create or replace view public.v_atlas_signal_derivation_summary_v1')[1];
+  assert.ok(singlePass, 'optimize the installed authority view in place');
+  assert.match(singlePass, /WITH observation_metrics AS MATERIALIZED/i);
+  assert.equal((singlePass.match(/FROM public\.signal_events/g) ?? []).length, 1);
+  assert.equal((singlePass.match(/\bFROM signal_events\b/g) ?? []).length, 0);
+  for (const field of [
+    'normalized_observations', 'identity_bound_observations',
+    'observation_classifications', 'streams_with_observations',
+    'latest_observation_at', 'latest_observation_ingested_at',
+    'legacy_suppressed_canonical_signals',
+    'historical_signal_candidate_versions',
+    'signal_candidate_semantic_patterns', 'failed_signal_candidates',
+  ]) {
+    assert.match(singlePass, new RegExp('\\b' + field + '\\b'));
+  }
+  assert.match(singlePass, /is_suppressed IS FALSE/);
+  assert.match(singlePass, /is_current IS TRUE/);
+  assert.match(singlePass, /security_invoker = true/);
+  assert.match(singlePass, /revoke all on public\.v_atlas_signal_derivation_summary_v1/);
+  assert.match(singlePass, /grant select on public\.v_atlas_signal_derivation_summary_v1 to service_role/);
+  assert.doesNotMatch(singlePass, /\b(delete|truncate|drop table|drop view)\b/i);
+  assert.match(scripts['schema:apply:signal-ontology-performance'], /20261018_signal_derivation_single_pass\.sql/);
+  assert.doesNotMatch(scripts['schema:apply:signal-ontology-performance'], /20260809_signal_ontology_read_model\.sql/);
 });
