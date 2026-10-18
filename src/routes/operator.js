@@ -132,12 +132,13 @@ export function atlasOperatorRouter({ apiError }) {
     try {
       const requestedLimit = Number.parseInt(String(req.body?.limit ?? '1000'), 10);
       const limit = Number.isSafeInteger(requestedLimit) ? Math.min(Math.max(requestedLimit, 1), 10000) : 1000;
-      const result = await reconcileIngestJobSourceHealth({ limit });
+      const result = await reconcileIngestJobSourceHealth({ limit, after_id: req.body?.after_id ?? null });
       const summary = {
         jobs_seen: result.jobs_seen,
         receipts_processed: result.receipts_processed,
         persisted_count: result.persisted_count,
         idempotent_count: result.idempotent_count,
+        next_cursor: result.next_cursor,
       };
       const completedAt = new Date().toISOString();
       const receipt = await recordActionReceipt({

@@ -92,7 +92,8 @@ for each row execute function public.atlas_set_source_fallback_updated_at();
 -- The readiness view does not invent a weighted score. It exposes a conservative
 -- deterministic operational state from declared current registry state and the
 -- latest observed health receipt.
-create or replace view public.v_atlas_source_operational_readiness_v1 as
+create or replace view public.v_atlas_source_operational_readiness_v1
+with (security_invoker = true) as
 with latest_health as (
   select distinct on (h.connector_id)
     h.connector_id,
@@ -192,6 +193,8 @@ revoke all on public.atlas_source_fallback_binding from anon, authenticated;
 grant select, insert on public.atlas_source_health_event to service_role;
 grant select, insert on public.atlas_source_schema_snapshot to service_role;
 grant select, insert, update on public.atlas_source_fallback_binding to service_role;
+-- The view must not regain browser-role access through public-schema defaults.
+revoke all on public.v_atlas_source_operational_readiness_v1 from public, anon, authenticated;
 grant select on public.v_atlas_source_operational_readiness_v1 to service_role;
 
 commit;

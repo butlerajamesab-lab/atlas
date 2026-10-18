@@ -6,6 +6,13 @@ const migration = readFileSync(
   new URL('../src/schema/20260806_source_health_receipts.sql', import.meta.url),
   'utf8',
 );
+const upgrade = readFileSync(
+  new URL('../src/schema/20261018_source_health_readiness_view_security.sql', import.meta.url),
+  'utf8',
+);
+const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+const reconcileScript = readFileSync(new URL('../scripts/reconcile-source-health.mjs', import.meta.url), 'utf8');
+const operatorSource = readFileSync(new URL('../src/routes/operator.js', import.meta.url), 'utf8');
 const openSecretsAdapter = readFileSync(
   new URL('../src/adapters/openSecretsAdapter.js', import.meta.url),
   'utf8',
@@ -73,4 +80,20 @@ test('FARA ingestion uses the documented active-registrant endpoint and register
   assert.match(faraAdapter, /sourceId:\s*'fara'/);
   assert.match(faraAdapter, /moduleHint:\s*'foreign_influence'/);
   assert.doesNotMatch(faraAdapter, /sourceId:\s*'doj_fara'/);
+});
+
+test('readiness view revokes public browser grants and enforces invoker security', () => {
+  assert.match(migration, /create or replace view public\.v_atlas_source_operational_readiness_v1\s+with \(security_invoker = true\)/);
+  assert.match(migration, /revoke all on public\.v_atlas_source_operational_readiness_v1 from public, anon, authenticated/);
+  assert.match(upgrade, /alter view public\.v_atlas_source_operational_readiness_v1\s+set \(security_invoker = true\)/);
+  assert.match(upgrade, /revoke all on public\.v_atlas_source_operational_readiness_v1\s+from public, anon, authenticated/);
+  assert.match(upgrade, /grant select on public\.v_atlas_source_operational_readiness_v1 to service_role/);
+  assert.match(packageJson.scripts['schema:apply:source-health'], /20261018_source_health_readiness_view_security\.sql/);
+});
+
+test('historical reconciliation command drains every page and exposes operator cursor', () => {
+  assert.match(reconcileScript, /while \(after_id !== null\)/);
+  assert.match(reconcileScript, /reconcileIngestJobSourceHealth\(\{ limit, after_id \}\)/);
+  assert.match(operatorSource, /reconcileIngestJobSourceHealth\(\{ limit, after_id: req\.body\?\.after_id \?\? null \}\)/);
+  assert.match(operatorSource, /next_cursor: result\.next_cursor/);
 });
