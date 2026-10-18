@@ -71,31 +71,26 @@ test('live frontend refreshes retrieved state and never persists the operator to
   assert.doesNotMatch(app, /sessionStorage/);
 });
 
-test('drilldown public cache expires after server freshness window without caching operator reads', async () => {
+test('drilldown uses only the server freshness window and always re-fetches inspected data', async () => {
   const { runInNewContext } = await import('node:vm');
   const body = drilldown.match(/async function requestJson\(url, operator = false\) \{[\s\S]*?\n\}/)?.[0];
   assert.ok(body, 'requestJson implementation is available for isolation testing');
-  let now = 100_000;
-  let requests = 0;
+  assert.match(ui, /const PUBLIC_READ_CACHE_TTL_MS = 15_000/);
+  assert.doesNotMatch(drilldown, /publicCache|CACHE_TTL_MS/);
+  const calls = [];
   const context = {
-    publicCache: new Map(),
-    CACHE_TTL_MS: 15_000,
     operatorToken: 'test-operator-token',
-    Date: { now: () => now },
-    fetch: async (_url, _options) => ({
-      ok: true,
-      json: async () => ({ request_number: ++requests }),
-    }),
+    fetch: async (url, options) => {
+      calls.push({ url, options });
+      return { ok: true, json: async () => ({ request_number: calls.length }) };
+    },
   };
   const requestJson = runInNewContext(`(${body})`, context);
   assert.equal((await requestJson('/ui-api/overview')).request_number, 1);
-  now += 14_999;
-  assert.equal((await requestJson('/ui-api/overview')).request_number, 1);
-  now += 1;
   assert.equal((await requestJson('/ui-api/overview')).request_number, 2);
   assert.equal((await requestJson('/operator-api/status', true)).request_number, 3);
   assert.equal((await requestJson('/operator-api/status', true)).request_number, 4);
-  context.publicCache.clear();
-  assert.equal((await requestJson('/ui-api/overview')).request_number, 5);
-  assert.match(drilldown, /#refreshButton,\.nav-item/);
+  assert.deepEqual(calls.map((call) => call.options.cache), ['no-store', 'no-store', 'no-store', 'no-store']);
+  assert.equal(calls[0].options.headers.authorization, undefined);
+  assert.equal(calls[2].options.headers.authorization, 'Bearer test-operator-token');
 });
