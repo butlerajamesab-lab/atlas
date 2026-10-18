@@ -197,6 +197,7 @@ test('domain-space identity is complete and changes the governed manifest hash',
     space_definition_hash: normalized.definition_hash,
     space_configuration_hash: normalized.configuration_hash,
     coordinate_population_hash: hashDomainSpaceCoordinatePopulation(coordinates),
+    graph_snapshot_hash: sha256({ introduced: ['enrolled'], enrolled: [] }),
   });
   assert.equal(governed.domain_space.space_type, 'document_lineage');
   assert.notEqual(sha256(legacy), sha256(governed));
@@ -207,4 +208,67 @@ test('partial domain-space manifest identity fails closed', () => {
     ...manifestBase,
     space_type: 'document_lineage',
   }), /domain_space identity must be complete/);
+});
+
+test('unimplemented normalization and transform steps fail closed for registered space rules', () => {
+  assert.throws(() => normalizeDomainSpaceDefinition({
+    ...geographicDefinition,
+    normalization_rule: 'atlas.future.normalizer',
+  }), /domain_space_normalization_not_supported/);
+  assert.throws(() => compareDomainSpaceCoordinates({
+    definition: {
+      ...geographicDefinition,
+      transform_rule: 'atlas.future.transform',
+    },
+    left: { lat: 47.3826, lon: -120.4472 },
+    right: { lat: 43.8041, lon: -120.5542 },
+  }), /domain_space_transform_not_supported/);
+});
+
+test('graph-backed manifests require a bound snapshot and distinguish changed topology', () => {
+  const normalized = normalizeDomainSpaceDefinition(lineageDefinition);
+  const coordinates = [{ node_id: 'introduced' }, { node_id: 'enrolled' }];
+  const fields = {
+    ...manifestBase,
+    space_type: normalized.space_type,
+    space_rule_id: normalized.distance_or_similarity_rule,
+    space_rule_version: normalized.rule_version,
+    space_definition_hash: normalized.definition_hash,
+    space_configuration_hash: normalized.configuration_hash,
+    coordinate_population_hash: hashDomainSpaceCoordinatePopulation(coordinates),
+  };
+  assert.throws(() => createInputManifest(fields),
+    /graph-backed domain_space requires graph_snapshot_hash/);
+  const first = createInputManifest({
+    ...fields,
+    graph_snapshot_hash: sha256({ introduced: ['enrolled'], enrolled: [] }),
+  });
+  const second = createInputManifest({
+    ...fields,
+    graph_snapshot_hash: sha256({ introduced: [], enrolled: [] }),
+  });
+  assert.notEqual(sha256(first), sha256(second));
+  assert.notEqual(first.domain_space.graph_snapshot_hash, second.domain_space.graph_snapshot_hash);
+  assert.throws(() => createInputManifest({
+    ...fields,
+    graph_snapshot_hash: 'not-a-digest',
+  }), /graph-backed domain_space requires graph_snapshot_hash/);
+  assert.throws(() => createInputManifest({
+    ...manifestBase,
+    graph_snapshot_hash: sha256({}),
+  }), /domain_space identity must be complete/);
+});
+
+test('geographic manifests never accept a misleading graph snapshot identity', () => {
+  const normalized = normalizeDomainSpaceDefinition(geographicDefinition);
+  assert.throws(() => createInputManifest({
+    ...manifestBase,
+    space_type: normalized.space_type,
+    space_rule_id: normalized.distance_or_similarity_rule,
+    space_rule_version: normalized.rule_version,
+    space_definition_hash: normalized.definition_hash,
+    space_configuration_hash: normalized.configuration_hash,
+    coordinate_population_hash: hashDomainSpaceCoordinatePopulation([{ lat: 47.38, lon: -120.4 }]),
+    graph_snapshot_hash: sha256({ fake: ['edge'] }),
+  }), /graph_snapshot_hash is only valid for graph-backed/);
 });
