@@ -199,7 +199,7 @@ test('source-health keyset batches traverse every job without rereading the firs
   assert.deepEqual(saved, ids);
   assert.deepEqual(scans.map((row) => row.cursor), [null, ids[1], ids[3]]);
 
-  assert.throws(() => reconcileIngestJobSourceHealth({ limit: 2, after_id: 'not-a-uuid', client: db }),
+  await assert.rejects(() => reconcileIngestJobSourceHealth({ limit: 2, after_id: 'not-a-uuid', client: db }),
     /source_health_reconcile_cursor_invalid/);
 });
 
