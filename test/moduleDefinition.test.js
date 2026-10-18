@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { sha256 } from '../src/substrate/canonical.js';
+import { STRUCTURAL_LENS_REGISTRY_VERSION } from '../src/lenses/structuralLenses.js';
+
 import {
   ATLAS_MODULE_CONTRACT_VERSION,
   compileAtlasModuleDefinition,
@@ -163,4 +166,56 @@ test('module compiler rejects a high-impact lens contract that requires but omit
       require_disconfirmation: true,
     },
   }), /lens_disconfirmation_required/);
+});
+
+test('compiled module identity includes registered lens versions and its registry generation', () => {
+  const compiled = compileAtlasModuleDefinition(baseDefinition());
+  assert.equal(compiled.structural_lens_stack.lens_registry_version, STRUCTURAL_LENS_REGISTRY_VERSION);
+  assert.equal(compiled.structural_lens_stack.lenses.every((lens) => lens.lens_version === '1.0.0'), true);
+  const { module_definition_hash, ...payload } = compiled;
+  assert.equal(module_definition_hash, sha256(payload));
+
+  const modified = JSON.parse(JSON.stringify(compiled));
+  modified.structural_lens_stack.lenses[0].lens_version = '2.0.0';
+  assert.throws(() => validateAtlasModuleOperationalBindings(modified, {
+    connectors: [],
+    schemas: [],
+  }), /atlas_module_definition_hash_mismatch/);
+});
+
+test('non-boolean disconfirmation requirements fail closed instead of silently disabling the guard', () => {
+  for (const value of ['true', 1, null]) {
+    const definition = baseDefinition();
+    definition.structural_lens_stack.require_disconfirmation = value;
+    assert.throws(() => compileAtlasModuleDefinition(definition),
+      /atlas_module_lens_require_disconfirmation_must_be_boolean/);
+  }
+});
+
+test('operational readiness rejects mutated compiled adapter identities with stale hashes', () => {
+  const compiled = compileAtlasModuleDefinition(baseDefinition());
+  const untrusted = JSON.parse(JSON.stringify(compiled));
+  untrusted.adapter_bindings[0].connector_id = 'malicious-connector';
+  const matchingRegistry = {
+    connectors: [{
+      id: 'malicious-connector',
+      schema_id: schemaId,
+      adapter_class: 'civicGenomeVersionBindingAdapter',
+      active: true,
+    }],
+    schemas: [{ id: schemaId, active: true }],
+  };
+  assert.throws(() => validateAtlasModuleOperationalBindings(untrusted, matchingRegistry),
+    /atlas_module_definition_hash_mismatch/);
+
+  const serialized = JSON.parse(JSON.stringify(compiled));
+  assert.equal(validateAtlasModuleOperationalBindings(serialized, {
+    connectors: [{
+      id: connectorId,
+      schema_id: schemaId,
+      adapter_class: 'civicGenomeVersionBindingAdapter',
+      active: true,
+    }],
+    schemas: [{ id: schemaId, active: true }],
+  }).operational_state, 'ready');
 });
