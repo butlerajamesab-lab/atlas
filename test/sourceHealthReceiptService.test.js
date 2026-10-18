@@ -5,6 +5,7 @@ import {
   buildSourceHealthInsert,
   deriveSourceHealthFromIngestJob,
   recordSourceHealthReceipt,
+  reconcileIngestJobSourceHealth,
 } from '../src/services/sourceHealthReceiptService.js';
 
 const completedJob = Object.freeze({
@@ -125,4 +126,116 @@ test('missing canonical connector identity fails closed', () => {
     ...completedJob,
     connector_id: null,
   }), /source_health_connector_id_required/);
+});
+
+test('partial canonical ingest jobs are degraded, preserving known failures', () => {
+  const receipt = deriveSourceHealthFromIngestJob({
+    ...completedJob,
+    status: 'partial',
+    records_failed: 2,
+  });
+  assert.equal(receipt.health_status, 'degraded');
+  assert.equal(receipt.run_status, 'partial');
+  assert.equal(receipt.error_rate, 0.1);
+});
+
+test('source-health keyset batches traverse every job without rereading the first page', async () => {
+  const ids = [1, 2, 3, 4, 5].map((i) =>
+    `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`);
+  const jobs = ids.map((id) => ({ ...completedJob, id }));
+  const scans = [];
+  const saved = [];
+  const db = {
+    from(table) {
+      if (table === 'atlas_source_health_event') {
+        return {
+          upsert(row) {
+            saved.push(row.details.ingest_job_id);
+            return {
+              select() {
+                return { async maybeSingle() { return { data: { health_event_id: 'receipt-id' }, error: null }; } };
+              },
+            };
+          },
+        };
+      }
+      assert.equal(table, 'ingest_jobs');
+      let cursor = null;
+      let pageSize = null;
+      const query = {
+        select() { return this; },
+        not() { return this; },
+        order(column, options) {
+          assert.equal(column, 'id');
+          assert.equal(options.ascending, true);
+          return this;
+        },
+        limit(value) { pageSize = value; return this; },
+        gt(column, value) {
+          assert.equal(column, 'id');
+          cursor = value;
+          return this;
+        },
+        then(resolve, reject) {
+          scans.push({ cursor, pageSize });
+          return Promise.resolve({
+            data: jobs.filter((job) => cursor === null || job.id > cursor).slice(0, pageSize),
+            error: null,
+          }).then(resolve, reject);
+        },
+      };
+      return query;
+    },
+  };
+
+  const first = await reconcileIngestJobSourceHealth({ limit: 2, client: db });
+  const second = await reconcileIngestJobSourceHealth({ limit: 2, after_id: first.next_cursor, client: db });
+  const third = await reconcileIngestJobSourceHealth({ limit: 2, after_id: second.next_cursor, client: db });
+  assert.equal(first.jobs_seen, 2);
+  assert.equal(first.next_cursor, ids[1]);
+  assert.equal(second.next_cursor, ids[3]);
+  assert.equal(third.jobs_seen, 1);
+  assert.equal(third.next_cursor, null);
+  assert.deepEqual(saved, ids);
+  assert.deepEqual(scans.map((row) => row.cursor), [null, ids[1], ids[3]]);
+
+  assert.throws(() => reconcileIngestJobSourceHealth({ limit: 2, after_id: 'not-a-uuid', client: db }),
+    /source_health_reconcile_cursor_invalid/);
+});
+
+test('reconcile can scan multiple small database batches within an operator limit', async () => {
+  const ids = [1, 2, 3].map((i) =>
+    `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`);
+  const jobs = ids.map((id) => ({ ...completedJob, id }));
+  const queryLimits = [];
+  const db = {
+    from(table) {
+      if (table === 'atlas_source_health_event') {
+        return {
+          upsert() {
+            return { select() { return { async maybeSingle() { return { data: {}, error: null }; } }; } };
+          },
+        };
+      }
+      let cursor = null;
+      let pageSize;
+      return {
+        select() { return this; },
+        not() { return this; },
+        order() { return this; },
+        limit(value) { pageSize = value; queryLimits.push(value); return this; },
+        gt(_field, value) { cursor = value; return this; },
+        then(resolve, reject) {
+          return Promise.resolve({
+            data: jobs.filter((job) => cursor === null || job.id > cursor).slice(0, pageSize),
+            error: null,
+          }).then(resolve, reject);
+        },
+      };
+    },
+  };
+  const result = await reconcileIngestJobSourceHealth({ limit: 2000, client: db });
+  assert.equal(result.jobs_seen, 3);
+  assert.equal(result.next_cursor, null);
+  assert.deepEqual(queryLimits, [1000]);
 });
