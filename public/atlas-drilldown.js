@@ -1,5 +1,3 @@
-const publicCache = new Map();
-const CACHE_TTL_MS = 15_000; // Align with server PUBLIC_READ_CACHE_TTL_MS.
 let operatorToken = '';
 
 const form = document.getElementById('operatorForm');
@@ -41,12 +39,6 @@ function compactMatch(displayed, actual) {
 }
 
 async function requestJson(url, operator = false) {
-  const cacheKey = `${operator ? 'operator' : 'public'}:${url}`;
-  if (!operator && publicCache.has(cacheKey)) {
-    const entry = publicCache.get(cacheKey);
-    if (Date.now() - entry.at < CACHE_TTL_MS) return entry.payload;
-    publicCache.delete(cacheKey);
-  }
   const headers = { accept: 'application/json' };
   if (operator) {
     if (!operatorToken) throw new Error('Unlock operator controls to expose protected receipts and candidate evidence.');
@@ -55,7 +47,6 @@ async function requestJson(url, operator = false) {
   const response = await fetch(url, { headers, cache: 'no-store' });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(payload.details || payload.error || `${response.status} ${response.statusText}`);
-  if (!operator) publicCache.set(cacheKey, { at: Date.now(), payload });
   return payload;
 }
 
@@ -239,6 +230,3 @@ async function handleClick(event) {
 
 document.addEventListener('click', (event) => { void handleClick(event); });
 
-document.addEventListener('click', (event) => {
-  if (event.target.closest('#refreshButton,.nav-item')) publicCache.clear();
-});
