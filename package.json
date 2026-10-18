@@ -20,6 +20,7 @@
     "schema:apply:operator-surface-security": "node scripts/apply-sql-management-api.mjs src/schema/20260809_live_operator_surface_security.sql",
     "schema:apply:operator-surface-compact-reads": "node scripts/apply-sql-management-api.mjs src/schema/20260809_live_operator_surface_compact_reads.sql",
     "schema:apply:signal-ontology": "node scripts/apply-sql-management-api.mjs src/schema/20260809_signal_ontology_read_model.sql && node scripts/apply-sql-management-api.mjs src/schema/20260809_signal_ontology_read_model_privileges.sql",
+    "schema:apply:signal-ontology-performance": "node scripts/apply-sql-management-api.mjs src/schema/20261018_signal_derivation_single_pass.sql",
     "schema:apply:civic-genome-snapshot": "node scripts/apply-sql-management-api.mjs src/schema/20260806_civic_genome_external_snapshot_intake.sql",
     "schema:apply:civic-genome-legislative": "node scripts/apply-sql-management-api.mjs src/schema/20260806_civic_genome_legislative_projection.sql",
     "schema:apply:civic-genome-trait-accounting": "node scripts/apply-sql-management-api.mjs src/schema/20260806_civic_genome_trait_binding_accounting.sql",
