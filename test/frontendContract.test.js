@@ -73,7 +73,7 @@ test('live frontend refreshes retrieved state and never persists the operator to
 
 test('drilldown uses only the server freshness window and always re-fetches inspected data', async () => {
   const { runInNewContext } = await import('node:vm');
-  const body = drilldown.match(/async function requestJson\\(url, operator = false\\) \\{[\\s\\S]*?\\n\\}/)?.[0];
+  const body = drilldown.match(/async function requestJson\(url, operator = false\) \{[\s\S]*?\n\}/)?.[0];
   assert.ok(body, 'requestJson implementation is available for isolation testing');
   assert.match(ui, /const PUBLIC_READ_CACHE_TTL_MS = 15_000/);
   assert.doesNotMatch(drilldown, /publicCache|CACHE_TTL_MS/);
