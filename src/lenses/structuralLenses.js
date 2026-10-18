@@ -47,11 +47,12 @@ function normalizeWeight(value, lensId) {
 }
 
 function normalizeBoundedScore(value) {
-  const normalized = Number(value.toFixed(15));
-  if (!Number.isFinite(normalized) || normalized < 0 || normalized > 1) {
+  // The stack validator accepts a weight sum within 1e-12 of one.
+  // Clamp only that tolerated rounding error; reject larger excursions.
+  if (!Number.isFinite(value) || value < -1e-12 || value > 1 + 1e-12) {
     throw new Error('structural_lens_blended_score_out_of_range');
   }
-  return normalized;
+  return Number(Math.max(0, Math.min(1, value)).toFixed(15));
 }
 
 function normalizeActivation(entry) {
@@ -114,7 +115,7 @@ export function resolveStructuralLensStack({
   if (!Array.isArray(activations)) throw new Error('structural_lens_activations_must_be_array');
   if (typeof require_disconfirmation !== 'boolean') throw new Error('structural_lens_require_disconfirmation_must_be_boolean');
 
-  const stack = lenses.map(normalizeStackEntry).sort((a, b) => a.lens_id.localeCompare(b.lens_id));
+  const stack = Object.freeze(lenses.map(normalizeStackEntry).sort((a, b) => a.lens_id.localeCompare(b.lens_id)));
   const duplicateStackIds = stack.filter((entry, index) => index > 0 && stack[index - 1].lens_id === entry.lens_id);
   if (duplicateStackIds.length > 0) throw new Error(`structural_lens_stack_duplicate:${duplicateStackIds[0].lens_id}`);
 
@@ -131,7 +132,7 @@ export function resolveStructuralLensStack({
     activationMap.set(activation.lens_id, activation);
   }
 
-  const resolved = stack.map((entry) => {
+  const resolved = Object.freeze(stack.map((entry) => {
     const activation = activationMap.get(entry.lens_id);
     if (!activation) {
       return Object.freeze({
@@ -144,7 +145,7 @@ export function resolveStructuralLensStack({
       });
     }
     return Object.freeze({ ...entry, ...activation, unresolved_reason: null });
-  });
+  }));
 
   const unusedActivations = normalizedActivations.filter((activation) => !stack.some((entry) => entry.lens_id === activation.lens_id));
   if (unusedActivations.length > 0) {
