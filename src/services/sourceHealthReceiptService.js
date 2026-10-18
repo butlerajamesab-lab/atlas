@@ -47,6 +47,8 @@ export function deriveSourceHealthFromIngestJob(job) {
   let healthStatus;
   if (status === 'completed') {
     healthStatus = failed > 0 ? 'degraded' : 'healthy';
+  } else if (status === 'partial') {
+    healthStatus = 'degraded';
   } else if (status === 'failed') {
     healthStatus = 'failing';
   } else if (status === 'paused') {
@@ -134,30 +136,54 @@ export async function recordIngestJobSourceHealth(job, client = null) {
   return Object.freeze({ receipt, persistence });
 }
 
-export async function reconcileIngestJobSourceHealth({ limit = 1000, client = null } = {}) {
+export async function reconcileIngestJobSourceHealth({ limit = 1000, after_id = null, client = null } = {}) {
   if (!Number.isSafeInteger(limit) || limit <= 0 || limit > 10000) {
     throw new Error('source_health_reconcile_limit_invalid');
   }
+  if (after_id !== null && (typeof after_id !== 'string'
+    || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(after_id))) {
+    throw new Error('source_health_reconcile_cursor_invalid');
+  }
   const db = client ?? await defaultClient();
 
-  const { data, error } = await db
-    .from('ingest_jobs')
-    .select('id,connector_id,schema_id,status,started_at,completed_at,records_fetched,records_inserted,records_updated,records_failed,records_deduplicated,next_cursor,error_log,metadata')
-    .not('connector_id', 'is', null)
-    .order('started_at', { ascending: true, nullsFirst: false })
-    .limit(limit);
-
-  if (error) throw new Error(`source_health_ingest_job_read_failed:${error.message}`);
-
   const results = [];
-  for (const job of data ?? []) {
-    results.push(await recordIngestJobSourceHealth(job, db));
+  let cursor = after_id;
+  let exhausted = false;
+  while (results.length < limit) {
+    // UUID identity is immutable and unique; no mutable timestamp or offset
+    // pagination means previously receipted rows cannot hide later jobs.
+    // PostgREST installations commonly cap responses at 1,000 rows.
+    const pageLimit = Math.min(1000, limit - results.length);
+    let query = db.from('ingest_jobs')
+      .select('id,connector_id,schema_id,status,started_at,completed_at,records_fetched,records_inserted,records_updated,records_failed,records_deduplicated,next_cursor,error_log,metadata')
+      .not('connector_id', 'is', null)
+      .order('id', { ascending: true })
+      .limit(pageLimit);
+    if (cursor !== null) query = query.gt('id', cursor);
+    const { data, error } = await query;
+    if (error) throw new Error(`source_health_ingest_job_read_failed:${error.message}`);
+
+    const page = data ?? [];
+    if (page.length > pageLimit) throw new Error('source_health_reconcile_unbounded_page');
+    for (const job of page) {
+      if (typeof job.id !== 'string' || (cursor !== null && job.id <= cursor)) {
+        throw new Error('source_health_reconcile_cursor_did_not_advance');
+      }
+      results.push(await recordIngestJobSourceHealth(job, db));
+      cursor = job.id;
+    }
+    if (page.length < pageLimit) {
+      exhausted = true;
+      break;
+    }
   }
+
   return Object.freeze({
-    jobs_seen: (data ?? []).length,
+    jobs_seen: results.length,
     receipts_processed: results.length,
     persisted_count: results.filter((entry) => entry.persistence.persisted).length,
     idempotent_count: results.filter((entry) => !entry.persistence.persisted).length,
+    next_cursor: exhausted ? null : cursor,
     results: Object.freeze(results),
   });
 }
