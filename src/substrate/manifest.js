@@ -26,7 +26,7 @@ function appendDomainSpaceIdentity(manifest, domainSpace) {
     'coordinate_population_hash',
   ];
   const supplied = fields.filter((field) => domainSpace[field] !== null && domainSpace[field] !== undefined);
-  if (supplied.length === 0) return manifest;
+  if (supplied.length === 0 && domainSpace.graph_snapshot_hash == null) return manifest;
   if (supplied.length !== fields.length) {
     throw new Error('manifest domain_space identity must be complete when supplied');
   }
@@ -35,9 +35,18 @@ function appendDomainSpaceIdentity(manifest, domainSpace) {
       throw new Error(`manifest domain_space ${field} is required`);
     }
   }
+  const graphBacked = domainSpace.space_rule_id.startsWith('atlas.graph.');
+  if (graphBacked && (typeof domainSpace.graph_snapshot_hash !== 'string'
+    || !/^[0-9a-f]{64}$/.test(domainSpace.graph_snapshot_hash))) {
+    throw new Error('manifest graph-backed domain_space requires graph_snapshot_hash');
+  }
+  if (!graphBacked && domainSpace.graph_snapshot_hash != null) {
+    throw new Error('manifest graph_snapshot_hash is only valid for graph-backed domain_space');
+  }
+  const identityFields = graphBacked ? [...fields, 'graph_snapshot_hash'] : fields;
   return {
     ...manifest,
-    domain_space: Object.freeze(Object.fromEntries(fields.map((field) => [field, domainSpace[field]]))),
+    domain_space: Object.freeze(Object.fromEntries(identityFields.map((field) => [field, domainSpace[field]]))),
   };
 }
 
@@ -76,6 +85,7 @@ export function createInputManifest({
   space_definition_hash = null,
   space_configuration_hash = null,
   coordinate_population_hash = null,
+  graph_snapshot_hash = null,
   filter_stack_receipt_identity = null,
   structural_lens_receipt_identity = null,
 }) {
@@ -111,6 +121,7 @@ export function createInputManifest({
     space_definition_hash,
     space_configuration_hash,
     coordinate_population_hash,
+    graph_snapshot_hash,
   });
   const withFilterStack = appendReceiptIdentity(
     withDomainSpace,

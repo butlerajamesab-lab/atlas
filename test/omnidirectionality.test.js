@@ -86,7 +86,9 @@ const orbitalVectorSpace = {
   space_type: 'registered_extension',
   coordinate_schema: 'atlas.normalized_orbital_parameters.v1',
   distance_or_similarity_rule: 'atlas.vector.euclidean_gaussian',
-  normalization_rule: 'adapter_declared_normalization.v1',
+  // The fixture coordinates are already normalized by the adapter. Atlas has
+  // no executable normalization step and must not claim one in its contract.
+  normalization_rule: null,
   transform_rule: null,
   rule_version: '1.0.0',
   configuration: { dimension_count: 4, sigma: 0.5 },

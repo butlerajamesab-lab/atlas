@@ -240,6 +240,14 @@ export function normalizeDomainSpaceDefinition(definition) {
   const transform_rule = definition.transform_rule === null || definition.transform_rule === undefined
     ? null
     : assertNonEmptyString(definition.transform_rule, 'domain_space.transform_rule');
+  // No normalization or transform implementations are registered yet.
+  // Reject declared steps rather than receipt an untransformed computation.
+  if (normalization_rule !== null) {
+    throw new Error(`domain_space_normalization_not_supported:${normalization_rule}`);
+  }
+  if (transform_rule !== null) {
+    throw new Error(`domain_space_transform_not_supported:${transform_rule}`);
+  }
   assertPlainObject(definition.configuration ?? {}, 'domain_space.configuration');
   const configuration = Object.freeze({ ...(definition.configuration ?? {}) });
 

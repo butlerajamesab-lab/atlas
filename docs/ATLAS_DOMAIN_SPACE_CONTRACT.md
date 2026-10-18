@@ -1,8 +1,8 @@
 # Atlas Domain-Space Contract
 
-**Version:** 0.1.0
+**Version:** 0.2.0
 **Status:** implementation target
-**Date:** 2026-08-06
+**Date:** 2026-10-18
 
 ## Purpose
 
@@ -104,6 +104,21 @@ Every computation that uses a domain-space rule must include:
 - final normalized score where applicable
 
 These fields must contribute to the complete run/input identity.
+
+For graph-backed rules (currently `atlas.graph.shortest_path_gaussian`), the
+input manifest additionally **requires** `graph_snapshot_hash`, a lowercase
+64-character SHA-256 of the exact canonical adjacency/network snapshot used in
+the comparison. A different graph with identical node coordinates, rule, and
+configuration must yield a different manifest identity. Omitting or
+malforming this value fails closed; geographic-only manifests must not claim a
+graph hash. Any consumer constructing `createInputManifest` for a graph
+comparison must provide this value and include a regression test showing that
+changing only the adjacency snapshot changes the manifest hash.
+
+Until the rule registry contains executable implementations for normalization
+or transforms, both `normalization_rule` and `transform_rule` **must be
+null**. Non-null values fail closed rather than altering an identity hash
+while silently running the untransformed comparison.
 
 ## Failure states
 
