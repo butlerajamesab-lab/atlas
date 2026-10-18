@@ -33,7 +33,10 @@ function freezeFilter(definition) {
     filter_category: definition.filter_category,
     permission_level: definition.permission_level,
     description: definition.description,
-    parameter_contract: Object.freeze(definition.parameter_contract ?? {}),
+    parameter_contract: Object.freeze({
+      ...(definition.parameter_contract ?? {}),
+      allow: Object.freeze([...(definition.parameter_contract?.allow ?? [])]),
+    }),
   });
 }
 
@@ -168,10 +171,10 @@ function asPlainObject(value, label) {
 
 function normalizeStringArray(value, label) {
   if (!Array.isArray(value)) throw new Error(`${label}_must_be_array`);
-  return [...new Set(value.map((entry) => {
+  return Object.freeze([...new Set(value.map((entry) => {
     if (typeof entry !== 'string' || entry.trim() === '') throw new Error(`${label}_invalid_entry`);
     return entry.trim();
-  }))].sort();
+  }))].sort());
 }
 
 function normalizeScalar(value, label) {
@@ -281,7 +284,11 @@ export function resolveAtlasFilterStack({
 
   const normalizedGroups = Object.fromEntries(groups.map(([label, values]) => [
     label,
-    values.map((entry) => normalizeRequest(entry, label)),
+    Object.freeze(values.map((entry) => normalizeRequest(entry, label)).sort((left, right) => (
+      filterSort(left, right)
+      || requestIdentity(left).localeCompare(requestIdentity(right))
+      || Number(left.enabled) - Number(right.enabled)
+    ))),
   ]));
 
   for (const entry of normalizedGroups.system_required_hardened) {

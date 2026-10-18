@@ -132,3 +132,67 @@ test('invalid filter stack manifest identity fails closed', () => {
     filter_stack_receipt_identity: 'not-a-hash',
   }), /filter_stack_receipt_identity/);
 });
+
+test('exported filter registry cannot be extended through nested permission arrays', () => {
+  const definition = listAtlasFilters().find((filter) => filter.filter_id === 'source_scope');
+  const originalAllow = [...definition.parameter_contract.allow];
+  assert.equal(Object.isFrozen(definition.parameter_contract.allow), true);
+  assert.throws(() => definition.parameter_contract.allow.push('undeclared_parameter'), TypeError);
+  assert.deepEqual(definition.parameter_contract.allow, originalAllow);
+  assert.throws(() => resolveAtlasFilterStack({
+    requested_filters: [{ filter_id: 'source_scope', parameters: { undeclared_parameter: 'x' } }],
+  }), /filter_parameter_not_allowed/);
+});
+
+test('receipt parameter arrays are immutable across requested trace and effective filters', () => {
+  const receipt = resolveAtlasFilterStack({
+    requested_filters: [{
+      filter_id: 'source_scope',
+      parameters: { source_ids: ['source-b', 'source-a'] },
+    }],
+  });
+  const requested = receipt.trace.requested_filters[0].parameters.source_ids;
+  const effective = receipt.trace.effective_filters.find((entry) => entry.filter_id === 'source_scope').parameters.source_ids;
+  assert.equal(Object.isFrozen(requested), true);
+  assert.equal(Object.isFrozen(effective), true);
+  assert.throws(() => requested.push('unbound'), TypeError);
+  assert.throws(() => effective.push('unbound'), TypeError);
+  assert.deepEqual(requested, ['source-a', 'source-b']);
+  assert.equal(sha256(receipt.trace.effective_filters), receipt.effective_filter_hash);
+  assert.equal(sha256({
+    contract_version: receipt.contract_version,
+    registry_version: receipt.registry_version,
+    trace: receipt.trace,
+    effective_filter_hash: receipt.effective_filter_hash,
+  }), receipt.receipt_identity);
+});
+
+test('permuting filter groups cannot change the deterministic complete receipt identity', () => {
+  const original = resolveAtlasFilterStack({
+    requested_filters: [
+      { filter_id: 'source_scope', parameters: { source_ids: ['a', 'b'] } },
+      { filter_id: 'jurisdiction_scope', parameters: { jurisdiction_ids: ['WA'] } },
+    ],
+    module_required_filters: ['provenance_threshold', 'convergence_window'],
+    domain_required_filters: ['relationship_scope', 'actor_entity_scope'],
+    system_required_hardened_filters: [
+      'canonical_source_identity_required',
+      'unresolved_state_preservation',
+    ],
+  });
+  const reordered = resolveAtlasFilterStack({
+    requested_filters: [
+      { filter_id: 'jurisdiction_scope', parameters: { jurisdiction_ids: ['WA'] } },
+      { filter_id: 'source_scope', parameters: { source_ids: ['b', 'a'] } },
+    ],
+    module_required_filters: ['convergence_window', 'provenance_threshold'],
+    domain_required_filters: ['actor_entity_scope', 'relationship_scope'],
+    system_required_hardened_filters: [
+      'unresolved_state_preservation',
+      'canonical_source_identity_required',
+    ],
+  });
+  assert.deepEqual(original.trace, reordered.trace);
+  assert.equal(original.effective_filter_hash, reordered.effective_filter_hash);
+  assert.equal(original.receipt_identity, reordered.receipt_identity);
+});
