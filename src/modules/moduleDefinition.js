@@ -1,11 +1,11 @@
 import { sha256 } from '../substrate/canonical.js';
 import { normalizeDomainSpaceDefinition } from '../domain-space/domainSpace.js';
 import { resolveAtlasFilterStack } from '../filters/filterStack.js';
-import { listStructuralLenses } from '../lenses/structuralLenses.js';
+import { listStructuralLenses, STRUCTURAL_LENS_REGISTRY_VERSION } from '../lenses/structuralLenses.js';
 
 export const ATLAS_MODULE_CONTRACT_VERSION = '1.0.0';
 
-const LENS_IDS = new Set(listStructuralLenses().map((lens) => lens.lens_id));
+const LENS_BY_ID = new Map(listStructuralLenses().map((lens) => [lens.lens_id, lens]));
 const RECEIPT_REQUIREMENTS = new Set([
   'source_population_hash',
   'deduplicated_population_hash',
@@ -77,11 +77,12 @@ function normalizeLensDefinition(definition) {
   const lenses = definition.lenses.map((lens) => {
     assertPlainObject(lens, 'atlas_module_lens_entry');
     const lens_id = nonEmpty(lens.lens_id, 'atlas_module_lens_id');
-    if (!LENS_IDS.has(lens_id)) throw new Error(`atlas_module_lens_not_registered:${lens_id}`);
+    const registeredLens = LENS_BY_ID.get(lens_id);
+    if (!registeredLens) throw new Error(`atlas_module_lens_not_registered:${lens_id}`);
     if (!Number.isFinite(lens.weight) || lens.weight < 0 || lens.weight > 1) {
       throw new Error(`atlas_module_lens_weight_invalid:${lens_id}`);
     }
-    return Object.freeze({ lens_id, weight: lens.weight });
+    return Object.freeze({ lens_id, lens_version: registeredLens.lens_version, weight: lens.weight });
   }).sort((a, b) => a.lens_id.localeCompare(b.lens_id));
   for (let index = 1; index < lenses.length; index += 1) {
     if (lenses[index - 1].lens_id === lenses[index].lens_id) {
@@ -90,11 +91,19 @@ function normalizeLensDefinition(definition) {
   }
   const sum = lenses.reduce((total, lens) => total + lens.weight, 0);
   if (Math.abs(sum - 1) > 1e-12) throw new Error(`atlas_module_lens_weight_sum_invalid:${sum}`);
-  const require_disconfirmation = definition.require_disconfirmation === true;
+  if (definition.require_disconfirmation !== undefined && typeof definition.require_disconfirmation !== 'boolean') {
+    throw new Error('atlas_module_lens_require_disconfirmation_must_be_boolean');
+  }
+  const require_disconfirmation = definition.require_disconfirmation ?? false;
   if (require_disconfirmation && !lenses.some((lens) => lens.lens_id === 'disconfirmation')) {
     throw new Error('atlas_module_lens_disconfirmation_required');
   }
-  return Object.freeze({ stack_id, lenses: Object.freeze(lenses), require_disconfirmation });
+  return Object.freeze({
+    stack_id,
+    lens_registry_version: STRUCTURAL_LENS_REGISTRY_VERSION,
+    lenses: Object.freeze(lenses),
+    require_disconfirmation,
+  });
 }
 
 function normalizeConvergenceConfig(configuration) {
@@ -187,6 +196,20 @@ export function compileAtlasModuleDefinition(definition) {
 
 export function validateAtlasModuleOperationalBindings(compiled, registry_snapshot) {
   assertPlainObject(compiled, 'compiled_atlas_module');
+  const { module_definition_hash, ...compiledPayload } = compiled;
+  if (typeof module_definition_hash !== 'string' || module_definition_hash !== sha256(compiledPayload)) {
+    throw new Error('atlas_module_definition_hash_mismatch');
+  }
+  for (const [label, value, digest] of [
+    ['adapter_binding', compiled.adapter_bindings, compiled.adapter_binding_hash],
+    ['signal_taxonomy', compiled.signal_taxonomy, compiled.signal_taxonomy_hash],
+    ['structural_lens_stack', compiled.structural_lens_stack, compiled.structural_lens_stack_hash],
+    ['convergence_configuration', compiled.convergence_configuration, compiled.convergence_configuration_hash],
+  ]) {
+    if (typeof digest !== 'string' || digest !== sha256(value)) {
+      throw new Error(`atlas_module_${label}_hash_mismatch`);
+    }
+  }
   assertPlainObject(registry_snapshot, 'atlas_module_registry_snapshot');
   if (!Array.isArray(registry_snapshot.connectors)) throw new Error('atlas_module_registry_connectors_required');
   if (!Array.isArray(registry_snapshot.schemas)) throw new Error('atlas_module_registry_schemas_required');
