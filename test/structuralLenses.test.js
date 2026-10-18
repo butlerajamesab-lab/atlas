@@ -143,3 +143,45 @@ test('invalid structural lens manifest identity fails closed', () => {
     structural_lens_receipt_identity: 'bad',
   }), /structural_lens_receipt_identity/);
 });
+
+test('structural lens receipts freeze ordered stack and resolved arrays', () => {
+  const receipt = resolveStructuralLensStack({
+    stack_id: 'immutable_lens_receipt',
+    lenses: stack,
+    activations: completeActivations,
+  });
+  assert.equal(Object.isFrozen(receipt.stack), true);
+  assert.equal(Object.isFrozen(receipt.resolved), true);
+  assert.equal(Object.isFrozen(receipt.resolved[0].evidence_ids), true);
+  assert.throws(() => receipt.stack.reverse(), TypeError);
+  assert.throws(() => receipt.resolved.splice(0, 1), TypeError);
+  assert.throws(() => receipt.resolved[0].evidence_ids.push('late_evidence'), TypeError);
+  assert.equal(sha256(receipt.stack), receipt.stack_hash);
+  assert.equal(sha256(receipt.resolved), receipt.resolved_hash);
+  const { receipt_identity, ...receiptPayload } = receipt;
+  assert.equal(sha256(receiptPayload), receipt_identity);
+});
+
+test('accepted weight-sum floating-point tolerance cannot spuriously reject a complete lens score', () => {
+  const receipt = resolveStructuralLensStack({
+    stack_id: 'tolerated_weight_rounding',
+    lenses: [
+      { lens_id: 'recurrence', weight: 0.5 },
+      { lens_id: 'contradiction', weight: 0.5000000000005 },
+    ],
+    activations: [
+      { lens_id: 'recurrence', status: 'observed', score: 1, evidence_ids: ['e1'] },
+      { lens_id: 'contradiction', status: 'observed', score: 1, evidence_ids: ['e2'] },
+    ],
+  });
+  assert.equal(receipt.stack_status, 'complete');
+  assert.equal(receipt.blended_score, 1);
+  assert.throws(() => resolveStructuralLensStack({
+    stack_id: 'invalid_weight_rounding',
+    lenses: [
+      { lens_id: 'recurrence', weight: 0.5 },
+      { lens_id: 'contradiction', weight: 0.500000000002 },
+    ],
+    activations: [],
+  }), /weight_sum_invalid/);
+});
