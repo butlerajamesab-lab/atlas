@@ -1,0 +1,208 @@
+{
+  "schemaVersion": 1,
+  "evidenceKind": "Atlas current production trigger catalog",
+  "capturedAt": "2026-08-30T20:40:00Z",
+  "projectRef": "bjdjjgnkhxblnpdrjqtw",
+  "triggers": [
+    {
+      "table": "action_queue",
+      "schema": "atlas",
+      "comment": null,
+      "enabled": "O",
+      "function": "atlas.bridge_push_action_to_lighthouse()",
+      "internal": false,
+      "definition": "CREATE TRIGGER trg_bridge_action AFTER INSERT OR UPDATE ON atlas.action_queue FOR EACH ROW WHEN (new.status::text = 'pending'::text OR new.status::text = 'escalated'::text) EXECUTE FUNCTION atlas.bridge_push_action_to_lighthouse()",
+      "trigger_name": "trg_bridge_action"
+    },
+    {
+      "table": "civic_genome_external_snapshot",
+      "schema": "atlas",
+      "comment": null,
+      "enabled": "O",
+      "function": "atlas.prevent_civic_genome_snapshot_mutation()",
+      "internal": false,
+      "definition": "CREATE TRIGGER civic_genome_external_snapshot_immutable BEFORE DELETE OR UPDATE ON atlas.civic_genome_external_snapshot FOR EACH ROW EXECUTE FUNCTION atlas.prevent_civic_genome_snapshot_mutation()",
+      "trigger_name": "civic_genome_external_snapshot_immutable"
+    },
+    {
+      "table": "civic_genome_legislative_projection_run",
+      "schema": "atlas",
+      "comment": null,
+      "enabled": "O",
+      "function": "atlas.prevent_civic_genome_legislative_projection_mutation()",
+      "internal": false,
+      "definition": "CREATE TRIGGER civic_genome_legislative_projection_immutable BEFORE DELETE OR UPDATE ON atlas.civic_genome_legislative_projection_run FOR EACH ROW EXECUTE FUNCTION atlas.prevent_civic_genome_legislative_projection_mutation()",
+      "trigger_name": "civic_genome_legislative_projection_immutable"
+    },
+    {
+      "table": "civic_genome_legislative_trait_binding_accounting",
+      "schema": "atlas",
+      "comment": null,
+      "enabled": "O",
+      "function": "atlas.prevent_civic_genome_trait_accounting_mutation()",
+      "internal": false,
+      "definition": "CREATE TRIGGER civic_genome_trait_accounting_immutable BEFORE DELETE OR UPDATE ON atlas.civic_genome_legislative_trait_binding_accounting FOR EACH ROW EXECUTE FUNCTION atlas.prevent_civic_genome_trait_accounting_mutation()",
+      "trigger_name": "civic_genome_trait_accounting_immutable"
+    },
+    {
+      "table": "civic_map_signals",
+      "schema": "atlas",
+      "comment": null,
+      "enabled": "O",
+      "function": "atlas.bridge_emit_signal_v1()",
+      "internal": false,
+      "definition": "CREATE TRIGGER trg_bridge_emit_signal_v1 AFTER INSERT OR UPDATE ON atlas.civic_map_signals FOR EACH ROW EXECUTE FUNCTION atlas.bridge_emit_signal_v1()",
+      "trigger_name": "trg_bridge_emit_signal_v1"
+    },
+    {
+      "table": "civic_map_signals",
+      "schema": "atlas",
+      "comment": null,
+      "enabled": "D",
+      "function": "atlas.trigger_queue_bridge_v3()",
+      "internal": false,
+      "definition": "CREATE TRIGGER trg_queue_bridge_v3 AFTER INSERT ON atlas.civic_map_signals FOR EACH ROW EXECUTE FUNCTION atlas.trigger_queue_bridge_v3()",
+      "trigger_name": "trg_queue_bridge_v3"
+    },
+    {
+      "table": "convergence_receipt",
+      "schema": "atlas",
+      "comment": null,
+      "enabled": "O",
+      "function": "atlas.prevent_convergence_mutation()",
+      "internal": false,
+      "definition": "CREATE TRIGGER convergence_receipt_immutable BEFORE DELETE OR UPDATE ON atlas.convergence_receipt FOR EACH ROW EXECUTE FUNCTION atlas.prevent_convergence_mutation()",
+      "trigger_name": "convergence_receipt_immutable"
+    },
+    {
+      "table": "convergence_result_payload",
+      "schema": "atlas",
+      "comment": null,
+      "enabled": "O",
+      "function": "atlas.prevent_convergence_mutation()",
+      "internal": false,
+      "definition": "CREATE TRIGGER convergence_result_payload_immutable BEFORE DELETE OR UPDATE ON atlas.convergence_result_payload FOR EACH ROW EXECUTE FUNCTION atlas.prevent_convergence_mutation()",
+      "trigger_name": "convergence_result_payload_immutable"
+    },
+    {
+      "table": "convergence_run_manifest",
+      "schema": "atlas",
+      "comment": null,
+      "enabled": "O",
+      "function": "atlas.prevent_convergence_mutation()",
+      "internal": false,
+      "definition": "CREATE TRIGGER convergence_run_manifest_immutable BEFORE DELETE OR UPDATE ON atlas.convergence_run_manifest FOR EACH ROW EXECUTE FUNCTION atlas.prevent_convergence_mutation()",
+      "trigger_name": "convergence_run_manifest_immutable"
+    },
+    {
+      "table": "convergence_signal_snapshot",
+      "schema": "atlas",
+      "comment": null,
+      "enabled": "O",
+      "function": "atlas.prevent_convergence_mutation()",
+      "internal": false,
+      "definition": "CREATE TRIGGER convergence_signal_snapshot_immutable BEFORE DELETE OR UPDATE ON atlas.convergence_signal_snapshot FOR EACH ROW EXECUTE FUNCTION atlas.prevent_convergence_mutation()",
+      "trigger_name": "convergence_signal_snapshot_immutable"
+    },
+    {
+      "table": "entity_registry",
+      "schema": "atlas",
+      "comment": null,
+      "enabled": "O",
+      "function": "atlas.bridge_sync_entity_to_lighthouse()",
+      "internal": false,
+      "definition": "CREATE TRIGGER trg_bridge_entity AFTER INSERT OR UPDATE ON atlas.entity_registry FOR EACH ROW EXECUTE FUNCTION atlas.bridge_sync_entity_to_lighthouse()",
+      "trigger_name": "trg_bridge_entity"
+    },
+    {
+      "table": "geography_registry_snapshot",
+      "schema": "atlas",
+      "comment": null,
+      "enabled": "O",
+      "function": "atlas.prevent_convergence_mutation()",
+      "internal": false,
+      "definition": "CREATE TRIGGER geography_registry_snapshot_immutable BEFORE DELETE OR UPDATE ON atlas.geography_registry_snapshot FOR EACH ROW EXECUTE FUNCTION atlas.prevent_convergence_mutation()",
+      "trigger_name": "geography_registry_snapshot_immutable"
+    },
+    {
+      "table": "live_data_signal_candidate",
+      "schema": "atlas",
+      "comment": null,
+      "enabled": "O",
+      "function": "atlas.enforce_live_data_signal_candidate_currentness_v1()",
+      "internal": false,
+      "definition": "CREATE TRIGGER trg_live_data_signal_candidate_currentness_v1 BEFORE INSERT OR UPDATE ON atlas.live_data_signal_candidate FOR EACH ROW EXECUTE FUNCTION atlas.enforce_live_data_signal_candidate_currentness_v1()",
+      "trigger_name": "trg_live_data_signal_candidate_currentness_v1"
+    },
+    {
+      "table": "signal_event_entity_resolution",
+      "schema": "atlas",
+      "comment": null,
+      "enabled": "O",
+      "function": "atlas.guard_signal_event_entity_resolution_immutable_v1()",
+      "internal": false,
+      "definition": "CREATE TRIGGER signal_event_entity_resolution_immutable_v1 BEFORE DELETE OR UPDATE ON atlas.signal_event_entity_resolution FOR EACH ROW EXECUTE FUNCTION atlas.guard_signal_event_entity_resolution_immutable_v1()",
+      "trigger_name": "signal_event_entity_resolution_immutable_v1"
+    },
+    {
+      "table": "signal_event_entity_resolution_rule",
+      "schema": "atlas",
+      "comment": null,
+      "enabled": "O",
+      "function": "atlas.guard_signal_event_entity_resolution_rule_immutable_v1()",
+      "internal": false,
+      "definition": "CREATE TRIGGER signal_event_entity_resolution_rule_immutable_v1 BEFORE DELETE OR UPDATE ON atlas.signal_event_entity_resolution_rule FOR EACH ROW EXECUTE FUNCTION atlas.guard_signal_event_entity_resolution_rule_immutable_v1()",
+      "trigger_name": "signal_event_entity_resolution_rule_immutable_v1"
+    },
+    {
+      "table": "atlas_source_fallback_binding",
+      "schema": "public",
+      "comment": null,
+      "enabled": "O",
+      "function": "atlas_set_source_fallback_updated_at()",
+      "internal": false,
+      "definition": "CREATE TRIGGER atlas_source_fallback_updated_at BEFORE UPDATE ON atlas_source_fallback_binding FOR EACH ROW EXECUTE FUNCTION atlas_set_source_fallback_updated_at()",
+      "trigger_name": "atlas_source_fallback_updated_at"
+    },
+    {
+      "table": "cursors",
+      "schema": "public",
+      "comment": null,
+      "enabled": "O",
+      "function": "set_updated_at()",
+      "internal": false,
+      "definition": "CREATE TRIGGER set_cursors_updated_at BEFORE UPDATE ON cursors FOR EACH ROW EXECUTE FUNCTION set_updated_at()",
+      "trigger_name": "set_cursors_updated_at"
+    },
+    {
+      "table": "streams",
+      "schema": "public",
+      "comment": null,
+      "enabled": "O",
+      "function": "set_updated_at()",
+      "internal": false,
+      "definition": "CREATE TRIGGER set_streams_updated_at BEFORE UPDATE ON streams FOR EACH ROW EXECUTE FUNCTION set_updated_at()",
+      "trigger_name": "set_streams_updated_at"
+    },
+    {
+      "table": "verification_claims",
+      "schema": "public",
+      "comment": null,
+      "enabled": "O",
+      "function": "promote_verified_chronicle()",
+      "internal": false,
+      "definition": "CREATE TRIGGER trg_promote_verified_chronicle AFTER UPDATE OF verification_status, verification_score, conflict_status ON verification_claims FOR EACH ROW EXECUTE FUNCTION promote_verified_chronicle()",
+      "trigger_name": "trg_promote_verified_chronicle"
+    },
+    {
+      "table": "verification_claims",
+      "schema": "public",
+      "comment": null,
+      "enabled": "O",
+      "function": "set_updated_at()",
+      "internal": false,
+      "definition": "CREATE TRIGGER trg_verification_claims_updated_at BEFORE UPDATE ON verification_claims FOR EACH ROW EXECUTE FUNCTION set_updated_at()",
+      "trigger_name": "trg_verification_claims_updated_at"
+    }
+  ]
+}

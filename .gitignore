@@ -8,3 +8,5 @@ coverage/
 dist/
 .cache/
 /tmp/
+supabase/.branches/
+supabase/.temp/

@@ -1,0 +1,155 @@
+{
+  "schemaVersion": 1,
+  "evidenceKind": "Atlas current production table catalog",
+  "capturedAt": "2026-08-30T20:40:00Z",
+  "projectRef": "bjdjjgnkhxblnpdrjqtw",
+  "schema": "private",
+  "offset": 0,
+  "relations": [
+    {
+      "name": "lighthouse_stream_export_allowlist",
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        }
+      ],
+      "schema": "private",
+      "columns": [
+        {
+          "name": "stream_id",
+          "type": "text",
+          "comment": null,
+          "default": null,
+          "ordinal": 1,
+          "storage": "x",
+          "identity": null,
+          "not_null": true,
+          "collation": null,
+          "generated": null,
+          "statistics": null,
+          "compression": null,
+          "collation_schema": null
+        },
+        {
+          "name": "export_enabled",
+          "type": "boolean",
+          "comment": null,
+          "default": "true",
+          "ordinal": 2,
+          "storage": "p",
+          "identity": null,
+          "not_null": true,
+          "collation": null,
+          "generated": null,
+          "statistics": null,
+          "compression": null,
+          "collation_schema": null
+        },
+        {
+          "name": "added_at",
+          "type": "timestamp with time zone",
+          "comment": null,
+          "default": "now()",
+          "ordinal": 3,
+          "storage": "p",
+          "identity": null,
+          "not_null": true,
+          "collation": null,
+          "generated": null,
+          "statistics": null,
+          "compression": null,
+          "collation_schema": null
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "comment": null,
+          "default": "now()",
+          "ordinal": 4,
+          "storage": "p",
+          "identity": null,
+          "not_null": true,
+          "collation": null,
+          "generated": null,
+          "statistics": null,
+          "compression": null,
+          "collation_schema": null
+        }
+      ],
+      "comment": "Explicit Atlas stream allowlist for the read-only Lighthouse event bridge.",
+      "indexes": [
+        {
+          "name": "lighthouse_stream_export_allowlist_pkey",
+          "ready": true,
+          "valid": true,
+          "unique": true,
+          "primary": true,
+          "definition": "CREATE UNIQUE INDEX lighthouse_stream_export_allowlist_pkey ON private.lighthouse_stream_export_allowlist USING btree (stream_id)"
+        }
+      ],
+      "relkind": "r",
+      "policies": [],
+      "reloptions": null,
+      "rls_forced": false,
+      "constraints": [
+        {
+          "name": "lighthouse_stream_export_allowlist_pkey",
+          "type": "p",
+          "deferred": false,
+          "validated": true,
+          "deferrable": false,
+          "definition": "PRIMARY KEY (stream_id)"
+        }
+      ],
+      "persistence": "p",
+      "rls_enabled": false,
+      "replica_identity": "d"
+    }
+  ]
+}

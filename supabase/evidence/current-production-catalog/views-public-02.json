@@ -1,0 +1,3344 @@
+{
+  "schemaVersion": 1,
+  "evidenceKind": "Atlas current production view catalog",
+  "capturedAt": "2026-08-30T20:40:00Z",
+  "projectRef": "bjdjjgnkhxblnpdrjqtw",
+  "schema": "public",
+  "offset": 20,
+  "views": [
+    {
+      "name": "v_atlas_processing_queue",
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        }
+      ],
+      "schema": "public",
+      "columns": [
+        "connector",
+        "process_status",
+        "record_count",
+        "oldest_record",
+        "newest_record"
+      ],
+      "comment": null,
+      "relkind": "v",
+      "definition": " SELECT c.name AS connector,\n    rr.process_status,\n    count(*) AS record_count,\n    min(rr.fetch_timestamp) AS oldest_record,\n    max(rr.fetch_timestamp) AS newest_record\n   FROM raw_records rr\n     JOIN connector_registry c ON rr.connector_id = c.id\n  GROUP BY c.name, rr.process_status\n  ORDER BY c.name, rr.process_status;",
+      "reloptions": [
+        "security_invoker=true"
+      ],
+      "dependencies": [
+        {
+          "name": "connector_registry",
+          "schema": "public",
+          "relkind": "r"
+        },
+        {
+          "name": "raw_records",
+          "schema": "public",
+          "relkind": "r"
+        }
+      ]
+    },
+    {
+      "name": "v_atlas_resolved_signal_event_entities_v1",
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        }
+      ],
+      "schema": "public",
+      "columns": [
+        "stream_id",
+        "event_offset",
+        "event_timestamp",
+        "signal_type",
+        "source_id",
+        "jurisdiction_id",
+        "module_hint",
+        "entity_role",
+        "entity_id",
+        "canonical_entity_name",
+        "canonical_entity_type",
+        "rule_id",
+        "rule_version",
+        "match_method",
+        "resolution_hash",
+        "resolver_id",
+        "resolver_version",
+        "entity_index_hash",
+        "spacetime",
+        "provenance",
+        "payload"
+      ],
+      "comment": null,
+      "relkind": "v",
+      "definition": " SELECT r.stream_id,\n    r.event_offset,\n    r.event_timestamp,\n    r.signal_type,\n    r.source_id,\n    r.jurisdiction_id,\n    r.module_hint,\n    r.entity_role,\n    r.entity_id,\n    er.primary_name AS canonical_entity_name,\n    er.entity_type AS canonical_entity_type,\n    r.rule_id,\n    r.rule_version,\n    r.match_method,\n    r.resolution_hash,\n    r.resolver_id,\n    r.resolver_version,\n    r.entity_index_hash,\n    se.spacetime,\n    se.provenance,\n    se.payload\n   FROM atlas.signal_event_entity_resolution r\n     JOIN atlas.entity_registry er ON er.entity_id::text = r.entity_id::text\n     JOIN signal_events se ON se.stream_id = r.stream_id AND se.\"offset\" = r.event_offset\n  WHERE r.is_current = true AND r.resolution_status = 'resolved'::text;",
+      "reloptions": null,
+      "dependencies": [
+        {
+          "name": "entity_registry",
+          "schema": "atlas",
+          "relkind": "r"
+        },
+        {
+          "name": "signal_event_entity_resolution",
+          "schema": "atlas",
+          "relkind": "r"
+        },
+        {
+          "name": "signal_events",
+          "schema": "public",
+          "relkind": "r"
+        }
+      ]
+    },
+    {
+      "name": "v_atlas_secrets_checklist",
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        }
+      ],
+      "schema": "public",
+      "columns": [
+        "secret_name",
+        "source_name",
+        "auth_type",
+        "status",
+        "base_url"
+      ],
+      "comment": null,
+      "relkind": "v",
+      "definition": " SELECT DISTINCT auth_config ->> 'env_var'::text AS secret_name,\n    name AS source_name,\n    auth_type,\n        CASE\n            WHEN active AND last_run_at IS NOT NULL THEN 'live'::text\n            WHEN active AND last_run_at IS NULL THEN 'configured'::text\n            WHEN NOT active THEN 'not_started'::text\n            ELSE NULL::text\n        END AS status,\n    api_base_url AS base_url\n   FROM connector_registry c\n  WHERE (auth_config ->> 'env_var'::text) IS NOT NULL\n  ORDER BY (auth_config ->> 'env_var'::text);",
+      "reloptions": [
+        "security_invoker=true"
+      ],
+      "dependencies": [
+        {
+          "name": "connector_registry",
+          "schema": "public",
+          "relkind": "r"
+        }
+      ]
+    },
+    {
+      "name": "v_atlas_signal_candidate_detail_v1",
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        }
+      ],
+      "schema": "public",
+      "columns": [
+        "candidate_id",
+        "candidate_hash",
+        "rule_id",
+        "rule_version",
+        "rule_contract_hash",
+        "engine_id",
+        "engine_version",
+        "signal_type",
+        "title",
+        "description",
+        "primary_stream_id",
+        "source_event_refs",
+        "entity_ids",
+        "entity_resolution_status",
+        "jurisdiction_id",
+        "severity",
+        "confidence_score",
+        "verification_state",
+        "supporting_statistics",
+        "evidence_refs",
+        "source_freshness_at",
+        "detected_at",
+        "source_input_hash",
+        "lighthouse_status",
+        "lighthouse_record_id",
+        "lighthouse_bridged_at",
+        "semantic_key",
+        "is_current",
+        "supersedes_candidate_id",
+        "retired_at",
+        "first_detected_at",
+        "last_replayed_at",
+        "first_run_id",
+        "last_run_id",
+        "lighthouse_last_error"
+      ],
+      "comment": null,
+      "relkind": "v",
+      "definition": " SELECT candidate_id,\n    candidate_hash,\n    rule_id,\n    rule_version,\n    rule_contract_hash,\n    engine_id,\n    engine_version,\n    signal_type,\n    title,\n    description,\n    primary_stream_id,\n    source_event_refs,\n    entity_ids,\n    entity_resolution_status,\n    jurisdiction_id,\n    severity,\n    confidence_score,\n    verification_state,\n    supporting_statistics,\n    evidence_refs,\n    source_freshness_at,\n    detected_at,\n    source_input_hash,\n    lighthouse_status,\n    lighthouse_record_id,\n    lighthouse_bridged_at,\n    semantic_key,\n    is_current,\n    supersedes_candidate_id,\n    retired_at,\n    first_detected_at,\n    last_replayed_at,\n    first_run_id,\n    last_run_id,\n    lighthouse_last_error\n   FROM atlas.live_data_signal_candidate candidate;",
+      "reloptions": [
+        "security_invoker=true"
+      ],
+      "dependencies": [
+        {
+          "name": "live_data_signal_candidate",
+          "schema": "atlas",
+          "relkind": "r"
+        }
+      ]
+    },
+    {
+      "name": "v_atlas_signal_candidate_rule_summary_v1",
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        }
+      ],
+      "schema": "public",
+      "columns": [
+        "rule_id",
+        "rule_version",
+        "signal_type",
+        "engine_id",
+        "engine_version",
+        "rule_contract_hash",
+        "rule_contract",
+        "is_active",
+        "candidate_count",
+        "verified_candidate_count",
+        "bridged_candidate_count",
+        "pending_candidate_count",
+        "failed_candidate_count",
+        "first_detected_at",
+        "latest_detected_at"
+      ],
+      "comment": "Current semantic Domain 3 candidate versions only; historical versions remain in candidate detail.",
+      "relkind": "v",
+      "definition": " SELECT rule.rule_id,\n    rule.rule_version,\n    rule.signal_type,\n    rule.engine_id,\n    rule.engine_version,\n    rule.rule_contract_hash,\n    rule.rule_contract,\n    rule.is_active,\n    count(candidate.candidate_id) AS candidate_count,\n    count(candidate.candidate_id) FILTER (WHERE candidate.verification_state = 'verified'::text) AS verified_candidate_count,\n    count(candidate.candidate_id) FILTER (WHERE candidate.lighthouse_status = 'bridged'::text) AS bridged_candidate_count,\n    count(candidate.candidate_id) FILTER (WHERE candidate.lighthouse_status = 'pending'::text) AS pending_candidate_count,\n    count(candidate.candidate_id) FILTER (WHERE candidate.lighthouse_status = 'failed'::text) AS failed_candidate_count,\n    min(candidate.first_detected_at) AS first_detected_at,\n    max(candidate.detected_at) AS latest_detected_at\n   FROM atlas.live_data_signal_rule rule\n     LEFT JOIN atlas.live_data_signal_candidate candidate ON candidate.rule_id = rule.rule_id AND candidate.rule_version = rule.rule_version AND candidate.is_current IS TRUE\n  GROUP BY rule.rule_id, rule.rule_version, rule.signal_type, rule.engine_id, rule.engine_version, rule.rule_contract_hash, rule.rule_contract, rule.is_active;",
+      "reloptions": [
+        "security_invoker=true"
+      ],
+      "dependencies": [
+        {
+          "name": "live_data_signal_candidate",
+          "schema": "atlas",
+          "relkind": "r"
+        },
+        {
+          "name": "live_data_signal_rule",
+          "schema": "atlas",
+          "relkind": "r"
+        }
+      ]
+    },
+    {
+      "name": "v_atlas_signal_derivation_summary_v1",
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        }
+      ],
+      "schema": "public",
+      "columns": [
+        "normalized_observations",
+        "identity_bound_observations",
+        "observation_classifications",
+        "streams_with_observations",
+        "latest_observation_at",
+        "latest_observation_ingested_at",
+        "canonical_signals",
+        "canonical_signal_types",
+        "receipted_canonical_signals",
+        "unreceipted_canonical_signals",
+        "signal_extraction_receipts",
+        "latest_canonical_signal_at",
+        "signal_candidates",
+        "verified_signal_candidates",
+        "bridged_signal_candidates",
+        "pending_signal_candidates",
+        "signal_rule_versions",
+        "active_signal_rules",
+        "latest_signal_candidate_at",
+        "convergence_runs",
+        "convergence_receipts",
+        "convergence_events",
+        "latest_convergence_run_key",
+        "latest_convergence_source_rows",
+        "latest_convergence_transformed_signals",
+        "latest_convergence_deduplicated_signals",
+        "latest_detected_convergences",
+        "latest_convergence_at",
+        "legacy_investigation_outputs",
+        "stream_health_alerts",
+        "non_health_legacy_patterns",
+        "legacy_investigation_jobs",
+        "observed_at",
+        "legacy_suppressed_canonical_signals",
+        "historical_signal_candidate_versions",
+        "signal_candidate_semantic_patterns",
+        "failed_signal_candidates"
+      ],
+      "comment": "Current ontology summary with additive legacy/currentness diagnostics; established column order is preserved.",
+      "relkind": "v",
+      "definition": " WITH latest_convergence AS (\n         SELECT v_atlas_convergence_run_summary_v1.run_key,\n            v_atlas_convergence_run_summary_v1.engine_version,\n            v_atlas_convergence_run_summary_v1.as_of,\n            v_atlas_convergence_run_summary_v1.time_window_ms,\n            v_atlas_convergence_run_summary_v1.temporal_bucket_ms,\n            v_atlas_convergence_run_summary_v1.geography_registry_version,\n            v_atlas_convergence_run_summary_v1.analysis_registry_hash,\n            v_atlas_convergence_run_summary_v1.analysis_level,\n            v_atlas_convergence_run_summary_v1.rule_manifest_hash,\n            v_atlas_convergence_run_summary_v1.configuration_hash,\n            v_atlas_convergence_run_summary_v1.source_population_hash,\n            v_atlas_convergence_run_summary_v1.transformed_population_hash,\n            v_atlas_convergence_run_summary_v1.deduplicated_population_hash,\n            v_atlas_convergence_run_summary_v1.total_source_rows,\n            v_atlas_convergence_run_summary_v1.transformed_signal_count,\n            v_atlas_convergence_run_summary_v1.deduplicated_signal_count,\n            v_atlas_convergence_run_summary_v1.total_geographies,\n            v_atlas_convergence_run_summary_v1.receipt_count,\n            v_atlas_convergence_run_summary_v1.detected_convergence_count,\n            v_atlas_convergence_run_summary_v1.resolved_receipt_count,\n            v_atlas_convergence_run_summary_v1.unresolved_receipt_count,\n            v_atlas_convergence_run_summary_v1.output_hash,\n            v_atlas_convergence_run_summary_v1.persisted_at\n           FROM v_atlas_convergence_run_summary_v1\n          ORDER BY v_atlas_convergence_run_summary_v1.persisted_at DESC, v_atlas_convergence_run_summary_v1.run_key\n         LIMIT 1\n        )\n SELECT ( SELECT count(*) AS count\n           FROM signal_events) AS normalized_observations,\n    ( SELECT count(signal_events.event_identity_hash) AS count\n           FROM signal_events) AS identity_bound_observations,\n    ( SELECT count(DISTINCT signal_events.signal_type) AS count\n           FROM signal_events) AS observation_classifications,\n    ( SELECT count(DISTINCT signal_events.stream_id) AS count\n           FROM signal_events) AS streams_with_observations,\n    ( SELECT max(signal_events.\"timestamp\") AS max\n           FROM signal_events) AS latest_observation_at,\n    ( SELECT max(signal_events.ingested_at) AS max\n           FROM signal_events) AS latest_observation_ingested_at,\n    ( SELECT count(*) AS count\n           FROM atlas.signals\n          WHERE signals.is_suppressed IS FALSE) AS canonical_signals,\n    ( SELECT count(DISTINCT signals.signal_type_id) AS count\n           FROM atlas.signals\n          WHERE signals.is_suppressed IS FALSE) AS canonical_signal_types,\n    ( SELECT count(*) AS count\n           FROM atlas.signals signal\n          WHERE signal.is_suppressed IS FALSE AND (EXISTS ( SELECT 1\n                   FROM atlas.signal_extractions extraction\n                  WHERE extraction.signal_id = signal.id))) AS receipted_canonical_signals,\n    ( SELECT count(*) AS count\n           FROM atlas.signals signal\n          WHERE signal.is_suppressed IS FALSE AND NOT (EXISTS ( SELECT 1\n                   FROM atlas.signal_extractions extraction\n                  WHERE extraction.signal_id = signal.id))) AS unreceipted_canonical_signals,\n    ( SELECT count(*) AS count\n           FROM atlas.signal_extractions) AS signal_extraction_receipts,\n    ( SELECT max(signals.detected_at) AS max\n           FROM atlas.signals\n          WHERE signals.is_suppressed IS FALSE) AS latest_canonical_signal_at,\n    ( SELECT count(*) AS count\n           FROM atlas.live_data_signal_candidate\n          WHERE live_data_signal_candidate.is_current IS TRUE) AS signal_candidates,\n    ( SELECT count(*) AS count\n           FROM atlas.live_data_signal_candidate\n          WHERE live_data_signal_candidate.is_current IS TRUE AND live_data_signal_candidate.verification_state = 'verified'::text) AS verified_signal_candidates,\n    ( SELECT count(*) AS count\n           FROM atlas.live_data_signal_candidate\n          WHERE live_data_signal_candidate.is_current IS TRUE AND live_data_signal_candidate.lighthouse_status = 'bridged'::text) AS bridged_signal_candidates,\n    ( SELECT count(*) AS count\n           FROM atlas.live_data_signal_candidate\n          WHERE live_data_signal_candidate.is_current IS TRUE AND live_data_signal_candidate.lighthouse_status = 'pending'::text) AS pending_signal_candidates,\n    ( SELECT count(*) AS count\n           FROM atlas.live_data_signal_rule) AS signal_rule_versions,\n    ( SELECT count(*) AS count\n           FROM atlas.live_data_signal_rule\n          WHERE live_data_signal_rule.is_active) AS active_signal_rules,\n    ( SELECT max(live_data_signal_candidate.detected_at) AS max\n           FROM atlas.live_data_signal_candidate\n          WHERE live_data_signal_candidate.is_current IS TRUE) AS latest_signal_candidate_at,\n    ( SELECT count(*) AS count\n           FROM atlas.convergence_run_manifest) AS convergence_runs,\n    ( SELECT count(*) AS count\n           FROM atlas.convergence_receipt) AS convergence_receipts,\n    ( SELECT count(*) AS count\n           FROM atlas.convergence_events) AS convergence_events,\n    ( SELECT latest_convergence.run_key\n           FROM latest_convergence) AS latest_convergence_run_key,\n    ( SELECT latest_convergence.total_source_rows\n           FROM latest_convergence) AS latest_convergence_source_rows,\n    ( SELECT latest_convergence.transformed_signal_count\n           FROM latest_convergence) AS latest_convergence_transformed_signals,\n    ( SELECT latest_convergence.deduplicated_signal_count\n           FROM latest_convergence) AS latest_convergence_deduplicated_signals,\n    ( SELECT latest_convergence.detected_convergence_count\n           FROM latest_convergence) AS latest_detected_convergences,\n    ( SELECT latest_convergence.persisted_at\n           FROM latest_convergence) AS latest_convergence_at,\n    ( SELECT count(*) AS count\n           FROM prime_patterns) AS legacy_investigation_outputs,\n    ( SELECT count(*) AS count\n           FROM prime_patterns\n          WHERE prime_patterns.pattern_type = 'stream_health_alert'::text) AS stream_health_alerts,\n    ( SELECT count(*) AS count\n           FROM prime_patterns\n          WHERE prime_patterns.pattern_type <> 'stream_health_alert'::text) AS non_health_legacy_patterns,\n    ( SELECT count(*) AS count\n           FROM investigative_jobs) AS legacy_investigation_jobs,\n    now() AS observed_at,\n    ( SELECT count(*) AS count\n           FROM atlas.signals\n          WHERE signals.is_suppressed IS TRUE) AS legacy_suppressed_canonical_signals,\n    ( SELECT count(*) AS count\n           FROM atlas.live_data_signal_candidate\n          WHERE live_data_signal_candidate.is_current IS FALSE) AS historical_signal_candidate_versions,\n    ( SELECT count(DISTINCT live_data_signal_candidate.semantic_key) AS count\n           FROM atlas.live_data_signal_candidate) AS signal_candidate_semantic_patterns,\n    ( SELECT count(*) AS count\n           FROM atlas.live_data_signal_candidate\n          WHERE live_data_signal_candidate.is_current IS TRUE AND live_data_signal_candidate.lighthouse_status = 'failed'::text) AS failed_signal_candidates;",
+      "reloptions": [
+        "security_invoker=true"
+      ],
+      "dependencies": [
+        {
+          "name": "convergence_events",
+          "schema": "atlas",
+          "relkind": "r"
+        },
+        {
+          "name": "convergence_receipt",
+          "schema": "atlas",
+          "relkind": "r"
+        },
+        {
+          "name": "convergence_run_manifest",
+          "schema": "atlas",
+          "relkind": "r"
+        },
+        {
+          "name": "investigative_jobs",
+          "schema": "public",
+          "relkind": "r"
+        },
+        {
+          "name": "live_data_signal_candidate",
+          "schema": "atlas",
+          "relkind": "r"
+        },
+        {
+          "name": "live_data_signal_rule",
+          "schema": "atlas",
+          "relkind": "r"
+        },
+        {
+          "name": "prime_patterns",
+          "schema": "public",
+          "relkind": "r"
+        },
+        {
+          "name": "signal_events",
+          "schema": "public",
+          "relkind": "r"
+        },
+        {
+          "name": "signal_extractions",
+          "schema": "atlas",
+          "relkind": "r"
+        },
+        {
+          "name": "signals",
+          "schema": "atlas",
+          "relkind": "r"
+        },
+        {
+          "name": "v_atlas_convergence_run_summary_v1",
+          "schema": "public",
+          "relkind": "v"
+        }
+      ]
+    },
+    {
+      "name": "v_atlas_signal_event_entity_resolution_v1",
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        }
+      ],
+      "schema": "public",
+      "columns": [
+        "resolution_id",
+        "stream_id",
+        "event_offset",
+        "event_timestamp",
+        "signal_type",
+        "source_id",
+        "jurisdiction_id",
+        "module_hint",
+        "rule_id",
+        "rule_version",
+        "candidate_key",
+        "entity_role",
+        "source_field",
+        "source_field_value",
+        "source_entity_value",
+        "normalized_entity_value",
+        "source_identifier_field",
+        "source_identifier_type",
+        "source_identifier_value",
+        "normalized_identifier_value",
+        "expected_entity_type",
+        "entity_id",
+        "canonical_entity_name",
+        "canonical_entity_type",
+        "resolution_status",
+        "match_method",
+        "candidate_entity_ids",
+        "match_evidence",
+        "event_input_hash",
+        "entity_index_hash",
+        "rule_manifest_hash",
+        "resolution_hash",
+        "resolver_id",
+        "resolver_version",
+        "first_run_id",
+        "last_run_id",
+        "resolved_at",
+        "last_replayed_at"
+      ],
+      "comment": null,
+      "relkind": "v",
+      "definition": " SELECT r.resolution_id,\n    r.stream_id,\n    r.event_offset,\n    r.event_timestamp,\n    r.signal_type,\n    r.source_id,\n    r.jurisdiction_id,\n    r.module_hint,\n    r.rule_id,\n    r.rule_version,\n    r.candidate_key,\n    r.entity_role,\n    r.source_field,\n    r.source_field_value,\n    r.source_entity_value,\n    r.normalized_entity_value,\n    r.source_identifier_field,\n    r.source_identifier_type,\n    r.source_identifier_value,\n    r.normalized_identifier_value,\n    r.expected_entity_type,\n    r.entity_id,\n    er.primary_name AS canonical_entity_name,\n    er.entity_type AS canonical_entity_type,\n    r.resolution_status,\n    r.match_method,\n    r.candidate_entity_ids,\n    r.match_evidence,\n    r.event_input_hash,\n    r.entity_index_hash,\n    r.rule_manifest_hash,\n    r.resolution_hash,\n    r.resolver_id,\n    r.resolver_version,\n    r.first_run_id,\n    r.last_run_id,\n    r.resolved_at,\n    r.last_replayed_at\n   FROM atlas.signal_event_entity_resolution r\n     LEFT JOIN atlas.entity_registry er ON er.entity_id::text = r.entity_id::text\n  WHERE r.is_current = true;",
+      "reloptions": null,
+      "dependencies": [
+        {
+          "name": "entity_registry",
+          "schema": "atlas",
+          "relkind": "r"
+        },
+        {
+          "name": "signal_event_entity_resolution",
+          "schema": "atlas",
+          "relkind": "r"
+        }
+      ]
+    },
+    {
+      "name": "v_atlas_signal_substrate_summary_v1",
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        }
+      ],
+      "schema": "public",
+      "columns": [
+        "registered_streams",
+        "active_streams",
+        "signal_events",
+        "identity_bound_events",
+        "signal_types",
+        "producing_streams",
+        "latest_signal_at",
+        "latest_ingested_at",
+        "prime_patterns",
+        "latest_pattern_at",
+        "investigative_jobs",
+        "failed_investigative_jobs",
+        "action_receipts",
+        "observed_at"
+      ],
+      "comment": null,
+      "relkind": "v",
+      "definition": " SELECT ( SELECT count(*) AS count\n           FROM streams) AS registered_streams,\n    ( SELECT count(*) AS count\n           FROM streams\n          WHERE streams.status = 'active'::text) AS active_streams,\n    ( SELECT count(*) AS count\n           FROM signal_events) AS signal_events,\n    ( SELECT count(signal_events.event_identity_hash) AS count\n           FROM signal_events) AS identity_bound_events,\n    ( SELECT count(DISTINCT signal_events.signal_type) AS count\n           FROM signal_events) AS signal_types,\n    ( SELECT count(DISTINCT signal_events.stream_id) AS count\n           FROM signal_events) AS producing_streams,\n    ( SELECT max(signal_events.\"timestamp\") AS max\n           FROM signal_events) AS latest_signal_at,\n    ( SELECT max(signal_events.ingested_at) AS max\n           FROM signal_events) AS latest_ingested_at,\n    ( SELECT count(*) AS count\n           FROM prime_patterns) AS prime_patterns,\n    ( SELECT max(prime_patterns.detected_at) AS max\n           FROM prime_patterns) AS latest_pattern_at,\n    ( SELECT count(*) AS count\n           FROM investigative_jobs) AS investigative_jobs,\n    ( SELECT count(*) AS count\n           FROM investigative_jobs\n          WHERE investigative_jobs.status = 'failed'::text) AS failed_investigative_jobs,\n    ( SELECT count(*) AS count\n           FROM atlas_action_receipt) AS action_receipts,\n    now() AS observed_at;",
+      "reloptions": [
+        "security_invoker=true"
+      ],
+      "dependencies": [
+        {
+          "name": "atlas_action_receipt",
+          "schema": "public",
+          "relkind": "r"
+        },
+        {
+          "name": "investigative_jobs",
+          "schema": "public",
+          "relkind": "r"
+        },
+        {
+          "name": "prime_patterns",
+          "schema": "public",
+          "relkind": "r"
+        },
+        {
+          "name": "signal_events",
+          "schema": "public",
+          "relkind": "r"
+        },
+        {
+          "name": "streams",
+          "schema": "public",
+          "relkind": "r"
+        }
+      ]
+    },
+    {
+      "name": "v_atlas_signal_type_summary_v1",
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        }
+      ],
+      "schema": "public",
+      "columns": [
+        "stream_id",
+        "signal_type",
+        "module_hint",
+        "jurisdiction_id",
+        "event_count",
+        "identity_count",
+        "first_event_at",
+        "latest_event_at",
+        "latest_ingested_at"
+      ],
+      "comment": null,
+      "relkind": "v",
+      "definition": " SELECT stream_id,\n    signal_type,\n    module_hint,\n    jurisdiction_id,\n    count(*) AS event_count,\n    count(event_identity_hash) AS identity_count,\n    min(\"timestamp\") AS first_event_at,\n    max(\"timestamp\") AS latest_event_at,\n    max(ingested_at) AS latest_ingested_at\n   FROM signal_events event\n  GROUP BY stream_id, signal_type, module_hint, jurisdiction_id;",
+      "reloptions": [
+        "security_invoker=true"
+      ],
+      "dependencies": [
+        {
+          "name": "signal_events",
+          "schema": "public",
+          "relkind": "r"
+        }
+      ]
+    },
+    {
+      "name": "v_atlas_source_inventory",
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        }
+      ],
+      "schema": "public",
+      "columns": [
+        "connector_id",
+        "source_name",
+        "schema_name",
+        "target_table",
+        "adapter_class",
+        "auth_type",
+        "required_secret_name",
+        "base_url",
+        "rate_limit_rpm",
+        "pagination_type",
+        "refresh_cadence",
+        "jurisdiction_filter",
+        "connector_status",
+        "is_active",
+        "required_fields",
+        "external_id_field"
+      ],
+      "comment": null,
+      "relkind": "v",
+      "definition": " SELECT c.id AS connector_id,\n    c.name AS source_name,\n    s.name AS schema_name,\n    s.target_table,\n    c.adapter_class,\n    c.auth_type,\n    c.auth_config ->> 'env_var'::text AS required_secret_name,\n    c.api_base_url AS base_url,\n    c.rate_limit_rpm,\n    c.pagination_type,\n    c.schedule_cron AS refresh_cadence,\n    c.jurisdiction_filter,\n        CASE\n            WHEN c.active AND c.last_run_at IS NOT NULL THEN 'live'::text\n            WHEN c.active AND c.last_run_at IS NULL THEN 'configured'::text\n            WHEN NOT c.active THEN 'not_started'::text\n            ELSE NULL::text\n        END AS connector_status,\n    c.active AS is_active,\n    s.validation_rules ->> 'required'::text AS required_fields,\n    s.field_mappings ->> 'external_id'::text AS external_id_field\n   FROM connector_registry c\n     LEFT JOIN schema_registry s ON c.schema_id = s.id\n  ORDER BY (\n        CASE c.auth_type\n            WHEN 'api_key'::text THEN 1\n            WHEN 'bearer'::text THEN 2\n            WHEN 'oauth'::text THEN 3\n            WHEN 'none'::text THEN 4\n            ELSE NULL::integer\n        END), c.name;",
+      "reloptions": [
+        "security_invoker=true"
+      ],
+      "dependencies": [
+        {
+          "name": "connector_registry",
+          "schema": "public",
+          "relkind": "r"
+        },
+        {
+          "name": "schema_registry",
+          "schema": "public",
+          "relkind": "r"
+        }
+      ]
+    },
+    {
+      "name": "v_atlas_source_operational_readiness_v1",
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        }
+      ],
+      "schema": "public",
+      "columns": [
+        "connector_id",
+        "source_name",
+        "adapter_class",
+        "connector_active",
+        "last_run_at",
+        "next_run_at",
+        "schema_id",
+        "schema_name",
+        "schema_version",
+        "schema_active",
+        "health_event_id",
+        "health_observed_at",
+        "health_status",
+        "freshness_status",
+        "schema_status",
+        "latency_ms",
+        "error_rate",
+        "duplicate_rate",
+        "missing_required_field_rate",
+        "records_observed",
+        "source_state_hash",
+        "ingest_job_id",
+        "ingest_status",
+        "ingest_started_at",
+        "ingest_completed_at",
+        "records_fetched",
+        "records_inserted",
+        "records_updated",
+        "records_failed",
+        "records_deduplicated",
+        "active_fallback_count",
+        "operational_readiness_state"
+      ],
+      "comment": null,
+      "relkind": "v",
+      "definition": " WITH latest_health AS (\n         SELECT DISTINCT ON (h_1.connector_id) h_1.connector_id,\n            h_1.health_event_id,\n            h_1.observed_at AS health_observed_at,\n            h_1.health_status,\n            h_1.freshness_status,\n            h_1.schema_status,\n            h_1.latency_ms,\n            h_1.error_rate,\n            h_1.duplicate_rate,\n            h_1.missing_required_field_rate,\n            h_1.records_observed,\n            h_1.source_state_hash\n           FROM atlas_source_health_event h_1\n          ORDER BY h_1.connector_id, h_1.observed_at DESC, h_1.health_event_id DESC\n        ), latest_job AS (\n         SELECT DISTINCT ON (j_1.connector_id) j_1.connector_id,\n            j_1.id AS ingest_job_id,\n            j_1.status AS ingest_status,\n            j_1.started_at AS ingest_started_at,\n            j_1.completed_at AS ingest_completed_at,\n            j_1.records_fetched,\n            j_1.records_inserted,\n            j_1.records_updated,\n            j_1.records_failed,\n            j_1.records_deduplicated\n           FROM ingest_jobs j_1\n          ORDER BY j_1.connector_id, j_1.started_at DESC NULLS LAST, j_1.id DESC\n        ), fallback_counts AS (\n         SELECT f_1.connector_id,\n            count(*) FILTER (WHERE f_1.active) AS active_fallback_count\n           FROM atlas_source_fallback_binding f_1\n          GROUP BY f_1.connector_id\n        )\n SELECT c.id AS connector_id,\n    c.name AS source_name,\n    c.adapter_class,\n    c.active AS connector_active,\n    c.last_run_at,\n    c.next_run_at,\n    s.id AS schema_id,\n    s.name AS schema_name,\n    s.version AS schema_version,\n    s.active AS schema_active,\n    h.health_event_id,\n    h.health_observed_at,\n    h.health_status,\n    h.freshness_status,\n    h.schema_status,\n    h.latency_ms,\n    h.error_rate,\n    h.duplicate_rate,\n    h.missing_required_field_rate,\n    h.records_observed,\n    h.source_state_hash,\n    j.ingest_job_id,\n    j.ingest_status,\n    j.ingest_started_at,\n    j.ingest_completed_at,\n    j.records_fetched,\n    j.records_inserted,\n    j.records_updated,\n    j.records_failed,\n    j.records_deduplicated,\n    COALESCE(f.active_fallback_count, 0::bigint) AS active_fallback_count,\n        CASE\n            WHEN NOT c.active OR NOT COALESCE(s.active, false) THEN 'not_active'::text\n            WHEN h.health_event_id IS NULL THEN 'unknown'::text\n            WHEN h.health_status = ANY (ARRAY['failing'::text, 'paused'::text, 'retired'::text]) THEN 'blocked'::text\n            WHEN h.schema_status = 'breaking_change'::text THEN 'blocked'::text\n            WHEN h.health_status = 'healthy'::text AND h.freshness_status = 'fresh'::text AND h.schema_status = 'stable'::text THEN 'ready'::text\n            ELSE 'degraded'::text\n        END AS operational_readiness_state\n   FROM connector_registry c\n     LEFT JOIN schema_registry s ON s.id = c.schema_id\n     LEFT JOIN latest_health h ON h.connector_id = c.id\n     LEFT JOIN latest_job j ON j.connector_id = c.id\n     LEFT JOIN fallback_counts f ON f.connector_id = c.id;",
+      "reloptions": [
+        "security_invoker=true"
+      ],
+      "dependencies": [
+        {
+          "name": "atlas_source_fallback_binding",
+          "schema": "public",
+          "relkind": "r"
+        },
+        {
+          "name": "atlas_source_health_event",
+          "schema": "public",
+          "relkind": "r"
+        },
+        {
+          "name": "connector_registry",
+          "schema": "public",
+          "relkind": "r"
+        },
+        {
+          "name": "ingest_jobs",
+          "schema": "public",
+          "relkind": "r"
+        },
+        {
+          "name": "schema_registry",
+          "schema": "public",
+          "relkind": "r"
+        }
+      ]
+    },
+    {
+      "name": "v_atlas_stream_runtime_summary_v1",
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        }
+      ],
+      "schema": "public",
+      "columns": [
+        "stream_id",
+        "source_id",
+        "jurisdiction_id",
+        "module_hint",
+        "throughput_profile",
+        "safety_profile",
+        "governance_contract_id",
+        "status",
+        "created_at",
+        "updated_at",
+        "event_count",
+        "identity_count",
+        "signal_type_count",
+        "first_event_at",
+        "latest_event_at",
+        "latest_ingested_at"
+      ],
+      "comment": null,
+      "relkind": "v",
+      "definition": " SELECT stream.stream_id,\n    stream.source_id,\n    stream.jurisdiction_id,\n    stream.module_hint,\n    stream.throughput_profile,\n    stream.safety_profile,\n    stream.governance_contract_id,\n    stream.status,\n    stream.created_at,\n    stream.updated_at,\n    event_summary.event_count,\n    event_summary.identity_count,\n    event_summary.signal_type_count,\n    event_summary.first_event_at,\n    event_summary.latest_event_at,\n    event_summary.latest_ingested_at\n   FROM streams stream\n     CROSS JOIN LATERAL ( SELECT count(*) AS event_count,\n            count(event.event_identity_hash) AS identity_count,\n            count(DISTINCT event.signal_type) AS signal_type_count,\n            min(event.\"timestamp\") AS first_event_at,\n            max(event.\"timestamp\") AS latest_event_at,\n            max(event.ingested_at) AS latest_ingested_at\n           FROM signal_events event\n          WHERE event.stream_id = stream.stream_id) event_summary;",
+      "reloptions": [
+        "security_invoker=true"
+      ],
+      "dependencies": [
+        {
+          "name": "signal_events",
+          "schema": "public",
+          "relkind": "r"
+        },
+        {
+          "name": "streams",
+          "schema": "public",
+          "relkind": "r"
+        }
+      ]
+    },
+    {
+      "name": "v_atlas_ui_overview_v2",
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        }
+      ],
+      "schema": "public",
+      "columns": [
+        "observed_at",
+        "streams",
+        "sources",
+        "substrate"
+      ],
+      "comment": null,
+      "relkind": "v",
+      "definition": " SELECT now() AS observed_at,\n    COALESCE(( SELECT jsonb_agg(to_jsonb(stream_row.*) ORDER BY stream_row.stream_id) AS jsonb_agg\n           FROM v_atlas_stream_runtime_summary_v1 stream_row), '[]'::jsonb) AS streams,\n    COALESCE(( SELECT jsonb_agg(to_jsonb(source_row.*) ORDER BY source_row.source_name) AS jsonb_agg\n           FROM v_atlas_source_operational_readiness_v1 source_row), '[]'::jsonb) AS sources,\n    ( SELECT to_jsonb(substrate_row.*) AS to_jsonb\n           FROM v_atlas_signal_substrate_summary_v1 substrate_row) AS substrate;",
+      "reloptions": [
+        "security_invoker=true"
+      ],
+      "dependencies": [
+        {
+          "name": "v_atlas_signal_substrate_summary_v1",
+          "schema": "public",
+          "relkind": "v"
+        },
+        {
+          "name": "v_atlas_source_operational_readiness_v1",
+          "schema": "public",
+          "relkind": "v"
+        },
+        {
+          "name": "v_atlas_stream_runtime_summary_v1",
+          "schema": "public",
+          "relkind": "v"
+        }
+      ]
+    },
+    {
+      "name": "v_atlas_ui_overview_v3",
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        }
+      ],
+      "schema": "public",
+      "columns": [
+        "observed_at",
+        "streams",
+        "sources",
+        "derivation"
+      ],
+      "comment": null,
+      "relkind": "v",
+      "definition": " SELECT now() AS observed_at,\n    COALESCE(( SELECT jsonb_agg(to_jsonb(stream_row.*) ORDER BY stream_row.stream_id) AS jsonb_agg\n           FROM v_atlas_stream_runtime_summary_v1 stream_row), '[]'::jsonb) AS streams,\n    COALESCE(( SELECT jsonb_agg(to_jsonb(source_row.*) ORDER BY source_row.source_name) AS jsonb_agg\n           FROM v_atlas_source_operational_readiness_v1 source_row), '[]'::jsonb) AS sources,\n    ( SELECT to_jsonb(summary_row.*) AS to_jsonb\n           FROM v_atlas_signal_derivation_summary_v1 summary_row) AS derivation;",
+      "reloptions": [
+        "security_invoker=true"
+      ],
+      "dependencies": [
+        {
+          "name": "v_atlas_signal_derivation_summary_v1",
+          "schema": "public",
+          "relkind": "v"
+        },
+        {
+          "name": "v_atlas_source_operational_readiness_v1",
+          "schema": "public",
+          "relkind": "v"
+        },
+        {
+          "name": "v_atlas_stream_runtime_summary_v1",
+          "schema": "public",
+          "relkind": "v"
+        }
+      ]
+    },
+    {
+      "name": "v_atlas_ui_signal_derivation_v3",
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        }
+      ],
+      "schema": "public",
+      "columns": [
+        "observed_at",
+        "summary",
+        "observation_classifications",
+        "canonical_signal_types",
+        "candidate_rules",
+        "convergence_runs"
+      ],
+      "comment": "Compact Atlas UI read model preserving the source -> observation -> signal -> convergence ontology.",
+      "relkind": "v",
+      "definition": " SELECT now() AS observed_at,\n    ( SELECT to_jsonb(summary_row.*) AS to_jsonb\n           FROM v_atlas_signal_derivation_summary_v1 summary_row) AS summary,\n    COALESCE(( SELECT jsonb_agg(to_jsonb(type_row.*) ORDER BY type_row.observation_count DESC, type_row.stream_id, type_row.observation_classification) AS jsonb_agg\n           FROM ( SELECT v_atlas_observation_type_summary_v1.stream_id,\n                    v_atlas_observation_type_summary_v1.observation_classification,\n                    v_atlas_observation_type_summary_v1.module_hint,\n                    v_atlas_observation_type_summary_v1.jurisdiction_id,\n                    v_atlas_observation_type_summary_v1.observation_count,\n                    v_atlas_observation_type_summary_v1.identity_bound_observation_count,\n                    v_atlas_observation_type_summary_v1.first_observed_at,\n                    v_atlas_observation_type_summary_v1.latest_observed_at,\n                    v_atlas_observation_type_summary_v1.latest_ingested_at\n                   FROM v_atlas_observation_type_summary_v1\n                  ORDER BY v_atlas_observation_type_summary_v1.observation_count DESC, v_atlas_observation_type_summary_v1.stream_id, v_atlas_observation_type_summary_v1.observation_classification\n                 LIMIT 250) type_row), '[]'::jsonb) AS observation_classifications,\n    COALESCE(( SELECT jsonb_agg(to_jsonb(signal_row.*) ORDER BY signal_row.signal_count DESC, signal_row.signal_type_code, signal_row.source_table) AS jsonb_agg\n           FROM v_atlas_canonical_signal_type_summary_v1 signal_row), '[]'::jsonb) AS canonical_signal_types,\n    COALESCE(( SELECT jsonb_agg(to_jsonb(rule_row.*) ORDER BY rule_row.rule_id, rule_row.rule_version) AS jsonb_agg\n           FROM v_atlas_signal_candidate_rule_summary_v1 rule_row), '[]'::jsonb) AS candidate_rules,\n    COALESCE(( SELECT jsonb_agg(to_jsonb(run_row.*) ORDER BY run_row.persisted_at DESC, run_row.run_key) AS jsonb_agg\n           FROM ( SELECT v_atlas_convergence_run_summary_v1.run_key,\n                    v_atlas_convergence_run_summary_v1.engine_version,\n                    v_atlas_convergence_run_summary_v1.as_of,\n                    v_atlas_convergence_run_summary_v1.time_window_ms,\n                    v_atlas_convergence_run_summary_v1.temporal_bucket_ms,\n                    v_atlas_convergence_run_summary_v1.geography_registry_version,\n                    v_atlas_convergence_run_summary_v1.analysis_registry_hash,\n                    v_atlas_convergence_run_summary_v1.analysis_level,\n                    v_atlas_convergence_run_summary_v1.rule_manifest_hash,\n                    v_atlas_convergence_run_summary_v1.configuration_hash,\n                    v_atlas_convergence_run_summary_v1.source_population_hash,\n                    v_atlas_convergence_run_summary_v1.transformed_population_hash,\n                    v_atlas_convergence_run_summary_v1.deduplicated_population_hash,\n                    v_atlas_convergence_run_summary_v1.total_source_rows,\n                    v_atlas_convergence_run_summary_v1.transformed_signal_count,\n                    v_atlas_convergence_run_summary_v1.deduplicated_signal_count,\n                    v_atlas_convergence_run_summary_v1.total_geographies,\n                    v_atlas_convergence_run_summary_v1.receipt_count,\n                    v_atlas_convergence_run_summary_v1.detected_convergence_count,\n                    v_atlas_convergence_run_summary_v1.resolved_receipt_count,\n                    v_atlas_convergence_run_summary_v1.unresolved_receipt_count,\n                    v_atlas_convergence_run_summary_v1.output_hash,\n                    v_atlas_convergence_run_summary_v1.persisted_at\n                   FROM v_atlas_convergence_run_summary_v1\n                  ORDER BY v_atlas_convergence_run_summary_v1.persisted_at DESC, v_atlas_convergence_run_summary_v1.run_key\n                 LIMIT 25) run_row), '[]'::jsonb) AS convergence_runs;",
+      "reloptions": [
+        "security_invoker=true"
+      ],
+      "dependencies": [
+        {
+          "name": "v_atlas_canonical_signal_type_summary_v1",
+          "schema": "public",
+          "relkind": "v"
+        },
+        {
+          "name": "v_atlas_convergence_run_summary_v1",
+          "schema": "public",
+          "relkind": "v"
+        },
+        {
+          "name": "v_atlas_observation_type_summary_v1",
+          "schema": "public",
+          "relkind": "v"
+        },
+        {
+          "name": "v_atlas_signal_candidate_rule_summary_v1",
+          "schema": "public",
+          "relkind": "v"
+        },
+        {
+          "name": "v_atlas_signal_derivation_summary_v1",
+          "schema": "public",
+          "relkind": "v"
+        }
+      ]
+    },
+    {
+      "name": "v_atlas_ui_signal_substrate_v2",
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        }
+      ],
+      "schema": "public",
+      "columns": [
+        "observed_at",
+        "summary",
+        "signal_types"
+      ],
+      "comment": null,
+      "relkind": "v",
+      "definition": " SELECT now() AS observed_at,\n    ( SELECT to_jsonb(substrate_row.*) AS to_jsonb\n           FROM v_atlas_signal_substrate_summary_v1 substrate_row) AS summary,\n    COALESCE(( SELECT jsonb_agg(to_jsonb(type_row.*) ORDER BY type_row.event_count DESC, type_row.stream_id, type_row.signal_type) AS jsonb_agg\n           FROM ( SELECT v_atlas_signal_type_summary_v1.stream_id,\n                    v_atlas_signal_type_summary_v1.signal_type,\n                    v_atlas_signal_type_summary_v1.module_hint,\n                    v_atlas_signal_type_summary_v1.jurisdiction_id,\n                    v_atlas_signal_type_summary_v1.event_count,\n                    v_atlas_signal_type_summary_v1.identity_count,\n                    v_atlas_signal_type_summary_v1.first_event_at,\n                    v_atlas_signal_type_summary_v1.latest_event_at,\n                    v_atlas_signal_type_summary_v1.latest_ingested_at\n                   FROM v_atlas_signal_type_summary_v1\n                  ORDER BY v_atlas_signal_type_summary_v1.event_count DESC, v_atlas_signal_type_summary_v1.stream_id, v_atlas_signal_type_summary_v1.signal_type\n                 LIMIT 250) type_row), '[]'::jsonb) AS signal_types;",
+      "reloptions": [
+        "security_invoker=true"
+      ],
+      "dependencies": [
+        {
+          "name": "v_atlas_signal_substrate_summary_v1",
+          "schema": "public",
+          "relkind": "v"
+        },
+        {
+          "name": "v_atlas_signal_type_summary_v1",
+          "schema": "public",
+          "relkind": "v"
+        }
+      ]
+    },
+    {
+      "name": "v_blockers",
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        }
+      ],
+      "schema": "public",
+      "columns": [
+        "id",
+        "name",
+        "record_type",
+        "blocker_1",
+        "blocker_2",
+        "blocker_3",
+        "blocker_4"
+      ],
+      "comment": null,
+      "relkind": "v",
+      "definition": " SELECT food_banks.pantry_id AS id,\n    food_banks.pantry_name AS name,\n    'food_bank'::text AS record_type,\n        CASE\n            WHEN food_banks.hours IS NULL OR food_banks.hours::text = ''::text THEN 'Missing hours'::text\n            ELSE NULL::text\n        END AS blocker_1,\n        CASE\n            WHEN food_banks.phone IS NULL OR food_banks.phone::text = ''::text THEN 'Missing phone'::text\n            ELSE NULL::text\n        END AS blocker_2,\n        CASE\n            WHEN food_banks.address_raw IS NULL OR food_banks.address_raw::text = ''::text THEN 'Missing address'::text\n            ELSE NULL::text\n        END AS blocker_3,\n        CASE\n            WHEN food_banks.latitude IS NULL OR food_banks.longitude IS NULL THEN 'Missing coordinates'::text\n            ELSE NULL::text\n        END AS blocker_4\n   FROM atlas.food_banks\nUNION ALL\n SELECT benefits_offices.office_id AS id,\n    COALESCE(benefits_offices.office_name, benefits_offices.program_type) AS name,\n    'benefits'::text AS record_type,\n    NULL::text AS blocker_1,\n        CASE\n            WHEN benefits_offices.phone IS NULL OR benefits_offices.phone::text = ''::text THEN 'Missing phone'::text\n            ELSE NULL::text\n        END AS blocker_2,\n        CASE\n            WHEN benefits_offices.address_raw IS NULL OR benefits_offices.address_raw::text = ''::text THEN 'Missing address'::text\n            ELSE NULL::text\n        END AS blocker_3,\n        CASE\n            WHEN benefits_offices.latitude IS NULL OR benefits_offices.longitude IS NULL THEN 'Missing coordinates'::text\n            ELSE NULL::text\n        END AS blocker_4\n   FROM atlas.benefits_offices\nUNION ALL\n SELECT nonprofit_registry.ein AS id,\n    nonprofit_registry.organization_name AS name,\n    'nonprofit'::text AS record_type,\n    NULL::text AS blocker_1,\n        CASE\n            WHEN nonprofit_registry.phone IS NULL OR nonprofit_registry.phone::text = ''::text THEN 'Missing phone'::text\n            ELSE NULL::text\n        END AS blocker_2,\n        CASE\n            WHEN nonprofit_registry.address_raw IS NULL OR nonprofit_registry.address_raw::text = ''::text THEN 'Missing address'::text\n            ELSE NULL::text\n        END AS blocker_3,\n    'Missing coordinates'::text AS blocker_4\n   FROM atlas.nonprofit_registry;",
+      "reloptions": [
+        "security_invoker=true"
+      ],
+      "dependencies": [
+        {
+          "name": "benefits_offices",
+          "schema": "atlas",
+          "relkind": "r"
+        },
+        {
+          "name": "food_banks",
+          "schema": "atlas",
+          "relkind": "r"
+        },
+        {
+          "name": "nonprofit_registry",
+          "schema": "atlas",
+          "relkind": "r"
+        }
+      ]
+    },
+    {
+      "name": "v_bridge_operational_status",
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        }
+      ],
+      "schema": "public",
+      "columns": [
+        "total_queue_rows",
+        "pending_count",
+        "processing_count",
+        "retrying_count",
+        "completed_count",
+        "failed_count",
+        "oldest_pending_or_retrying_at",
+        "last_completed_at",
+        "last_processed_at"
+      ],
+      "comment": null,
+      "relkind": "v",
+      "definition": " SELECT total_queue_rows,\n    pending_count,\n    processing_count,\n    retrying_count,\n    completed_count,\n    failed_count,\n    oldest_pending_or_retrying_at,\n    last_completed_at,\n    last_processed_at\n   FROM atlas.v_bridge_operational_status;",
+      "reloptions": [
+        "security_invoker=true"
+      ],
+      "dependencies": [
+        {
+          "name": "v_bridge_operational_status",
+          "schema": "atlas",
+          "relkind": "v"
+        }
+      ]
+    },
+    {
+      "name": "v_canonical_record_quality",
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        }
+      ],
+      "schema": "public",
+      "columns": [
+        "id",
+        "external_record_id",
+        "record_name",
+        "record_kind",
+        "entity_type",
+        "jurisdiction",
+        "category",
+        "registry_layer",
+        "signal_families",
+        "usefulness_status",
+        "verification_status",
+        "source_file",
+        "source_anchor",
+        "source_url",
+        "phone_count",
+        "email_count",
+        "url_count",
+        "address_count",
+        "statute_count",
+        "deadline_count",
+        "verbatim_length",
+        "created_at",
+        "updated_at"
+      ],
+      "comment": null,
+      "relkind": "v",
+      "definition": " SELECT id,\n    external_record_id,\n    record_name,\n    record_kind,\n    entity_type,\n    jurisdiction,\n    category,\n    registry_layer,\n    signal_families,\n    usefulness_status,\n    verification_status,\n    source_file,\n    source_anchor,\n    source_url,\n    jsonb_array_count(contacts -> 'phones'::text) AS phone_count,\n    jsonb_array_count(contacts -> 'emails'::text) AS email_count,\n    jsonb_array_count(contacts -> 'urls'::text) AS url_count,\n    jsonb_array_count(contacts -> 'addresses'::text) AS address_count,\n    jsonb_array_count(legal_basis -> 'statutes'::text) AS statute_count,\n    jsonb_array_count(legal_basis -> 'deadlines'::text) AS deadline_count,\n    length(verbatim_text) AS verbatim_length,\n    created_at,\n    updated_at\n   FROM canonical_extracted_records;",
+      "reloptions": [
+        "security_invoker=true"
+      ],
+      "dependencies": [
+        {
+          "name": "canonical_extracted_records",
+          "schema": "public",
+          "relkind": "r"
+        }
+      ]
+    },
+    {
+      "name": "v_case_detail",
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        }
+      ],
+      "schema": "public",
+      "columns": [
+        "case_id",
+        "signal_count",
+        "avg_score",
+        "max_severity",
+        "first_detected",
+        "last_detected",
+        "locations"
+      ],
+      "comment": null,
+      "relkind": "v",
+      "definition": " SELECT source_table AS case_id,\n    count(*) AS signal_count,\n    avg(severity_score) AS avg_score,\n    max(\n        CASE\n            WHEN severity_score >= 0.8 THEN 'High'::text\n            WHEN severity_score >= 0.5 THEN 'Medium'::text\n            ELSE 'Low'::text\n        END) AS max_severity,\n    min(created_at) AS first_detected,\n    max(created_at) AS last_detected,\n    array_agg(DISTINCT COALESCE(metadata_json ->> 'city'::text, 'Unknown'::text)) AS locations\n   FROM atlas.civic_map_signals\n  GROUP BY source_table;",
+      "reloptions": [
+        "security_invoker=true"
+      ],
+      "dependencies": [
+        {
+          "name": "civic_map_signals",
+          "schema": "atlas",
+          "relkind": "r"
+        }
+      ]
+    }
+  ]
+}

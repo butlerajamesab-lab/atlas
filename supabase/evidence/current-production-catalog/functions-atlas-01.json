@@ -1,0 +1,469 @@
+{
+  "schemaVersion": 1,
+  "evidenceKind": "Atlas current production function catalog",
+  "capturedAt": "2026-08-30T20:40:00Z",
+  "projectRef": "bjdjjgnkhxblnpdrjqtw",
+  "schema": "atlas",
+  "offset": 0,
+  "functions": [
+    {
+      "kind": "f",
+      "name": "bridge_emit_signal_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public, atlas"
+      ],
+      "grants": [
+        {
+          "grantee": "PUBLIC",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "trigger",
+      "schema": "atlas",
+      "strict": false,
+      "comment": null,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION atlas.bridge_emit_signal_v1()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public', 'atlas'\nAS $function$\nDECLARE\n    v_bridge_hash TEXT;\n    v_source_connector_id UUID;\n    v_raw_record_id UUID;\n    v_statute_id UUID;\n    v_rule_id TEXT;\n    v_generation_method TEXT;\n    v_record_origin TEXT;\n    v_verification_status TEXT;\n    v_confidence NUMERIC(5,4);\n    v_severity TEXT;\nBEGIN\n    -- Build deterministic bridge hash from signal lineage\n    v_bridge_hash := md5(\n        COALESCE(NEW.signal_id::TEXT, '') || '|' ||\n        COALESCE(NEW.detected_at::TEXT, '') || '|' ||\n        COALESCE(NEW.jurisdiction_raw_value, '') || '|' ||\n        COALESCE(NEW.severity, '') || '|' ||\n        COALESCE(NEW.signal_type, '')\n    );\n\n    -- Skip if already emitted (idempotency check via audit table)\n    IF EXISTS (\n        SELECT 1 FROM atlas.bridge_operational_audit\n        WHERE bridge_hash = v_bridge_hash\n    ) THEN\n        RETURN NEW;\n    END IF;\n\n    -- Resolve deterministic UUIDs\n    v_source_connector_id := COALESCE(\n        NEW.source_connector_id,\n        uuid_generate_v5('c4d3870c-ed9e-581d-a09f-1a49d907f95e'::uuid,\n            COALESCE(NEW.source_table, 'atlas') || ':' || COALESCE(NEW.source_record_id, NEW.signal_id::TEXT))\n    );\n\n    v_raw_record_id := COALESCE(\n        NEW.raw_record_id,\n        uuid_generate_v5('9b244453-7c1b-5ec9-ba16-19a1241feb91'::uuid,\n            COALESCE(NEW.source_record_id, NEW.signal_id::TEXT))\n    );\n\n    v_statute_id := COALESCE(\n        NEW.statute_id,\n        uuid_generate_v5('049037fa-6682-5046-9020-39bc55ff37e9'::uuid,\n            COALESCE(NEW.signal_type, 'unknown'))\n    );\n\n    v_rule_id := COALESCE(NEW.rule_id, NEW.signal_type || '_v1');\n    v_generation_method := COALESCE(NEW.generation_method, 'deterministic_rule');\n    v_record_origin := COALESCE(NEW.record_origin, 'streaming_investigation');\n    v_verification_status := COALESCE(NEW.verification_status, 'verified');\n    v_confidence := COALESCE(NEW.confidence_score, NEW.severity_score, 0.5);\n    v_severity := COALESCE(NEW.severity,\n        CASE\n            WHEN v_confidence >= 0.9 THEN 'critical'\n            WHEN v_confidence >= 0.8 THEN 'high'\n            WHEN v_confidence >= 0.7 THEN 'medium'\n            WHEN v_confidence >= 0.5 THEN 'low'\n            ELSE 'info'\n        END\n    );\n\n    -- Emit to canonical bridge table (idempotent on atlas_signal_id)\n    INSERT INTO public.atlas_lighthouse_signal_bridge_v1 (\n        atlas_signal_id,\n        signal_type,\n        source_system,\n        bridge_version,\n        source_connector_id,\n        raw_record_id,\n        statute_id,\n        entity_ids,\n        jurisdiction_raw_value,\n        jurisdiction_id,\n        source_url,\n        detected_at,\n        confidence_score,\n        severity,\n        signal_status,\n        rule_id,\n        rule_version,\n        generation_method,\n        record_origin,\n        verification_status,\n        evidence_payload,\n        provenance_metadata,\n        atlas_metadata_json,\n        atlas_signal_dedup_key,\n        source_view,\n        bridge_metadata\n    ) VALUES (\n        NEW.signal_id,\n        NEW.signal_type,\n        'atlas',\n        'atlas_lighthouse_bridge_v1',\n        v_source_connector_id,\n        v_raw_record_id,\n        v_statute_id,\n        COALESCE(NEW.entity_ids, ARRAY[]::TEXT[]),\n        NEW.jurisdiction_raw_value,\n        NEW.jurisdiction_id::TEXT,\n        COALESCE(NEW.source_url, ''),\n        COALESCE(NEW.detected_at, NOW()),\n        v_confidence,\n        v_severity,\n        COALESCE(NEW.signal_status, 'active'),\n        v_rule_id,\n        COALESCE(NEW.rule_version, 'v1'),\n        v_generation_method,\n        v_record_origin,\n        v_verification_status,\n        COALESCE(NEW.evidence_payload, '{}'::jsonb),\n        COALESCE(NEW.provenance_metadata, '{}'::jsonb),\n        COALESCE(NEW.metadata_json, '{}'::jsonb),\n        COALESCE(NEW.signal_dedup_key, 'atlas|' || NEW.signal_id::TEXT),\n        'public.v_civic_map_signals_production',\n        jsonb_build_object(\n            'hook', 'bridge_emit_signal_v1',\n            'bridge_id', 'atlas-to-lighthouse',\n            'bridge_hash', v_bridge_hash,\n            'source_table', 'atlas.civic_map_signals',\n            'emitted_at', NOW()\n        )\n    )\n    ON CONFLICT (atlas_signal_id) DO NOTHING;\n\n    -- Log to operational audit (use DO NOTHING to avoid partial index issue)\n    INSERT INTO atlas.bridge_operational_audit (\n        signal_id, signal_type, bridge_hash, emitted_at,\n        jurisdiction, confidence_score, severity, processing_status, metadata\n    ) VALUES (\n        NEW.signal_id, NEW.signal_type, v_bridge_hash, NOW(),\n        NEW.jurisdiction_raw_value, v_confidence, v_severity, 'emitted',\n        jsonb_build_object('source_table', NEW.source_table, 'rule_id', v_rule_id)\n    )\n    ON CONFLICT (bridge_hash) DO NOTHING;\n\n    RETURN NEW;\n\nEXCEPTION WHEN OTHERS THEN\n    -- Log failure without ON CONFLICT to avoid constraint issues\n    BEGIN\n        INSERT INTO atlas.bridge_operational_audit (\n            signal_id, signal_type, bridge_hash, emitted_at, processing_status, failure_reason\n        ) VALUES (\n            NEW.signal_id, NEW.signal_type, v_bridge_hash, NOW(), 'failed', SQLERRM\n        );\n    EXCEPTION WHEN OTHERS THEN\n        -- Silently ignore audit failure — do not block the original INSERT\n        NULL;\n    END;\n    RETURN NEW;\nEND;\n$function$\n",
+      "volatility": "v",
+      "security_definer": true,
+      "identity_arguments": ""
+    },
+    {
+      "kind": "f",
+      "name": "bridge_escalate_convergence",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public, atlas"
+      ],
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "jsonb",
+      "schema": "atlas",
+      "strict": false,
+      "comment": null,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION atlas.bridge_escalate_convergence(p_convergence_event_id uuid)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public', 'atlas'\nAS $function$\n        DECLARE\n            v_event RECORD;\n            v_result JSONB;\n            v_jurisdiction TEXT;\n        BEGIN\n            -- Look up the convergence event\n            SELECT * INTO v_event FROM atlas.convergence_events WHERE id = p_convergence_event_id;\n            \n            IF v_event IS NULL THEN\n                RETURN jsonb_build_object('error', 'Convergence event not found: ' || p_convergence_event_id);\n            END IF;\n\n            -- Already linked to Prism?\n            IF v_event.prism_case_id IS NOT NULL THEN\n                RETURN jsonb_build_object('error', 'Already linked to Prism case: ' || v_event.prism_case_id);\n            END IF;\n\n            -- Determine jurisdiction\n            v_jurisdiction := COALESCE(v_event.affected_jurisdictions[1], 'United States');\n\n            -- Push to Prism\n            v_result := atlas.bridge_push_to_prism(\n                p_title := 'Convergent Failure: ' || v_event.event_name,\n                p_description := 'Atlas convergence engine detected a multi-signal convergent failure event. Convergence score: ' || v_event.convergence_score || ', Confidence: ' || v_event.confidence || '. Affected entities: ' || array_to_string(v_event.affected_entities, ', ') || '. Corruption indicator: ' || v_event.is_corruption_indicator,\n                p_jurisdiction := v_jurisdiction,\n                p_finding_summary := 'Convergent failure detected: ' || v_event.event_name || '. ' || array_length(v_event.signal_ids, 1) || ' signals converged with score ' || v_event.convergence_score,\n                p_finding_confidence := CASE \n                    WHEN v_event.confidence >= 0.8 THEN 'high'\n                    WHEN v_event.confidence >= 0.5 THEN 'medium'\n                    ELSE 'low'\n                END,\n                p_finding_metadata := jsonb_build_object(\n                    'convergence_event_id', v_event.id,\n                    'convergence_score', v_event.convergence_score,\n                    'confidence', v_event.confidence,\n                    'signal_ids', v_event.signal_ids,\n                    'is_corruption_indicator', v_event.is_corruption_indicator,\n                    'is_reparative_opportunity', v_event.is_reparative_opportunity,\n                    'affected_entities', v_event.affected_entities,\n                    'affected_jurisdictions', v_event.affected_jurisdictions\n                ),\n                p_recommendation_action := CASE \n                    WHEN v_event.is_corruption_indicator THEN 'ESCALATE_CORRUPTION'\n                    WHEN v_event.is_reparative_opportunity THEN 'ASSESS_REPARATIVE'\n                    ELSE 'INVESTIGATE_CONVERGENCE'\n                END,\n                p_recommendation_summary := CASE \n                    WHEN v_event.is_corruption_indicator THEN 'URGENT: Corruption indicator detected. Escalate to oversight body for immediate review.'\n                    WHEN v_event.is_reparative_opportunity THEN 'Reparative opportunity identified. Assess for community benefit action.'\n                    ELSE 'Multi-signal convergence detected. Investigate underlying patterns.'\n                END,\n                p_source_table := 'convergence_events',\n                p_source_record_id := v_event.id::text\n            );\n\n            -- Update the convergence event with the Prism case ID\n            IF (v_result->>'success')::boolean = true THEN\n                UPDATE atlas.convergence_events SET \n                    prism_case_id = (v_result->>'case_id')::uuid,\n                    status = 'escalated'\n                WHERE id = p_convergence_event_id;\n            END IF;\n\n            RETURN v_result;\n        END;\n        $function$\n",
+      "volatility": "v",
+      "security_definer": true,
+      "identity_arguments": "p_convergence_event_id uuid"
+    },
+    {
+      "kind": "f",
+      "name": "bridge_escalate_detection_rule",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public, atlas"
+      ],
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "jsonb",
+      "schema": "atlas",
+      "strict": false,
+      "comment": null,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION atlas.bridge_escalate_detection_rule(p_rule_id character varying, p_matched_record_ids text[] DEFAULT NULL::text[], p_additional_context jsonb DEFAULT NULL::jsonb)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public', 'atlas'\nAS $function$\n        DECLARE\n            v_rule RECORD;\n            v_jurisdiction TEXT;\n            v_result JSONB;\n        BEGIN\n            -- Look up the detection rule\n            SELECT * INTO v_rule FROM atlas.detection_rules WHERE rule_id = p_rule_id AND enabled = true;\n            \n            IF v_rule IS NULL THEN\n                RETURN jsonb_build_object('error', 'Detection rule not found or disabled: ' || p_rule_id);\n            END IF;\n\n            -- Determine jurisdiction from domain\n            SELECT COALESCE(\n                (SELECT geography_name FROM atlas.geography_registry WHERE geography_key = 'US' LIMIT 1),\n                'United States'\n            ) INTO v_jurisdiction;\n\n            -- Push to Prism\n            v_result := atlas.bridge_push_to_prism(\n                p_title := 'Detection Alert: ' || v_rule.rule_name,\n                p_description := 'Atlas detection rule ' || v_rule.rule_id || ' (' || v_rule.rule_name || ') fired on table ' || v_rule.target_table || '. Domain: ' || COALESCE(v_rule.domain_code, 'UNKNOWN') || '. Signal type: ' || v_rule.signal_type,\n                p_jurisdiction := v_jurisdiction,\n                p_finding_summary := 'Automated detection: ' || v_rule.rule_name || ' triggered. Threshold parameters: ' || v_rule.threshold_parameters::text,\n                p_finding_confidence := CASE \n                    WHEN v_rule.precedence_weight >= 8 THEN 'high'\n                    WHEN v_rule.precedence_weight >= 5 THEN 'medium'\n                    ELSE 'low'\n                END,\n                p_finding_metadata := jsonb_build_object(\n                    'rule_id', v_rule.rule_id,\n                    'domain_code', v_rule.domain_code,\n                    'signal_type', v_rule.signal_type,\n                    'target_table', v_rule.target_table,\n                    'matched_record_ids', COALESCE(p_matched_record_ids, ARRAY[]::text[]),\n                    'additional_context', COALESCE(p_additional_context, '{}'::jsonb)\n                ),\n                p_recommendation_action := 'INVESTIGATE_' || COALESCE(v_rule.domain_code, 'UNKNOWN'),\n                p_recommendation_summary := 'Investigate detection alert from rule ' || v_rule.rule_id || ' on domain ' || COALESCE(v_rule.domain_code, 'UNKNOWN') || '. Review matched records and assess for escalation.',\n                p_source_table := 'detection_rules',\n                p_source_record_id := v_rule.rule_id\n            );\n\n            RETURN v_result;\n        END;\n        $function$\n",
+      "volatility": "v",
+      "security_definer": true,
+      "identity_arguments": "p_rule_id character varying, p_matched_record_ids text[], p_additional_context jsonb"
+    },
+    {
+      "kind": "f",
+      "name": "bridge_process_queue_v3",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, atlas"
+      ],
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "jsonb",
+      "schema": "atlas",
+      "strict": false,
+      "comment": null,
+      "language": "sql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION atlas.bridge_process_queue_v3(p_batch_size integer DEFAULT 10)\n RETURNS jsonb\n LANGUAGE sql\n SET search_path TO 'pg_catalog', 'atlas'\nAS $function$\n  select jsonb_build_object(\n    'processed', 0,\n    'results', '[]'::jsonb,\n    'processed_at', clock_timestamp(),\n    'quarantined', true,\n    'reason', 'legacy_lighthouse_queue_contract_disabled'\n  );\n$function$\n",
+      "volatility": "v",
+      "security_definer": false,
+      "identity_arguments": "p_batch_size integer"
+    },
+    {
+      "kind": "f",
+      "name": "bridge_push_action_to_lighthouse",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public, atlas"
+      ],
+      "grants": [
+        {
+          "grantee": "PUBLIC",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "trigger",
+      "schema": "atlas",
+      "strict": false,
+      "comment": null,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION atlas.bridge_push_action_to_lighthouse()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO 'pg_catalog', 'public', 'atlas'\nAS $function$\nBEGIN\n    -- Only push actionable items (not system/maintenance actions)\n    IF NEW.action_type IN ('corruption_investigation', 'displacement_alert', 'facility_closure_risk',\n                           'water_crisis_alert', 'benefit_access_gap', 'legal_aid_escalation',\n                           'regulatory_capture_detected', 'judicial_anomaly_flagged') THEN\n\n        INSERT INTO lighthouse_cases (\n            atlas_action_id,\n            case_type,\n            case_title,\n            case_description,\n            severity_score,\n            priority_score,\n            geography_key,\n            jurisdiction,\n            source_domain,\n            source_reference_id,\n            source_reference_table,\n            atlas_created_at\n        )\n        SELECT\n            NEW.action_id,\n            NEW.action_type,\n            COALESCE(NEW.action_details->>'title', NEW.action_type),\n            COALESCE(NEW.action_details->>'description', 'Auto-generated from Atlas detection'),\n            COALESCE((NEW.priority_score::DECIMAL / 1000), 0.50),\n            NEW.priority_score,\n            NEW.action_details->>'geography_key',\n            NEW.action_details->>'jurisdiction',\n            NEW.source_domain,\n            NEW.source_reference_id,\n            NEW.source_reference_table,\n            NEW.created_at\n        ON CONFLICT (atlas_action_id) DO UPDATE SET\n            severity_score = EXCLUDED.severity_score,\n            priority_score = EXCLUDED.priority_score,\n            case_description = EXCLUDED.case_description,\n            last_activity_at = NOW();\n    END IF;\n\n    RETURN NEW;\nEND;\n$function$\n",
+      "volatility": "v",
+      "security_definer": false,
+      "identity_arguments": ""
+    },
+    {
+      "kind": "f",
+      "name": "bridge_push_resources_to_lighthouse",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public, atlas"
+      ],
+      "grants": [
+        {
+          "grantee": "PUBLIC",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "integer",
+      "schema": "atlas",
+      "strict": false,
+      "comment": "Pushes HUMS resources (food banks, benefits offices, legal aid) into Lighthouse civic map as green resource pins. Call after HUMS ingestion.",
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION atlas.bridge_push_resources_to_lighthouse()\n RETURNS integer\n LANGUAGE plpgsql\n SET search_path TO 'pg_catalog', 'public', 'atlas'\nAS $function$\nDECLARE\n    v_count INT := 0;\nBEGIN\n    -- Food banks as resource pins\n    INSERT INTO lighthouse_map_pins (\n        geography_key, pin_type, pin_subtype, title, description,\n        latitude, longitude, color_hex, atlas_updated_at, expires_at\n    )\n    SELECT\n        COALESCE(lr.geography_key, 'us-wa-king-county'),\n        'resource',\n        'food_bank',\n        fb.pantry_name,\n        'Serves: ' || COALESCE(fb.languages, 'English') ||\n        CASE WHEN fb.serves_children THEN ', Children' ELSE '' END ||\n        CASE WHEN fb.serves_seniors THEN ', Seniors' ELSE '' END ||\n        CASE WHEN fb.serves_homeless THEN ', Homeless' ELSE '' END ||\n        '. Hours: ' || COALESCE(fb.hours, 'Call for hours'),\n        fb.latitude,\n        fb.longitude,\n        '#10b981',\n        fb.updated_at,\n        NOW() + INTERVAL '7 days'\n    FROM food_banks fb\n    LEFT JOIN location_registry lr ON fb.pantry_name = lr.address_raw  -- simplified join\n    WHERE fb.latitude IS NOT NULL AND fb.longitude IS NOT NULL\n    ON CONFLICT (geography_key, pin_type, entity_id, signal_id) DO UPDATE SET\n        title = EXCLUDED.title,\n        description = EXCLUDED.description,\n        atlas_updated_at = EXCLUDED.atlas_updated_at,\n        expires_at = EXCLUDED.expires_at;\n\n    GET DIAGNOSTICS v_count = ROW_COUNT;\n\n    -- Benefits offices as resource pins\n    INSERT INTO lighthouse_map_pins (\n        geography_key, pin_type, pin_subtype, title, description,\n        latitude, longitude, color_hex, atlas_updated_at, expires_at\n    )\n    SELECT\n        COALESCE(lr.geography_key, 'us-wa'),\n        'resource',\n        'benefits_office',\n        bo.office_name,\n        'Program: ' || bo.program_type ||\n        '. Walk-in: ' || COALESCE(bo.walk_in::TEXT, 'Unknown') ||\n        '. Appointment: ' || COALESCE(bo.appointment_required::TEXT, 'Unknown') ||\n        '. Phone: ' || COALESCE(bo.phone, 'N/A'),\n        bo.latitude,\n        bo.longitude,\n        '#3b82f6',\n        bo.updated_at,\n        NOW() + INTERVAL '7 days'\n    FROM benefits_offices bo\n    LEFT JOIN location_registry lr ON bo.office_name = lr.address_raw\n    WHERE bo.latitude IS NOT NULL AND bo.longitude IS NOT NULL\n    ON CONFLICT (geography_key, pin_type, entity_id, signal_id) DO UPDATE SET\n        title = EXCLUDED.title,\n        description = EXCLUDED.description,\n        atlas_updated_at = EXCLUDED.atlas_updated_at;\n\n    -- Legal aid as resource pins\n    INSERT INTO lighthouse_map_pins (\n        geography_key, pin_type, pin_subtype, title, description,\n        latitude, longitude, color_hex, atlas_updated_at, expires_at\n    )\n    SELECT\n        COALESCE(lr.geography_key, 'us-wa'),\n        'resource',\n        'legal_aid',\n        lap.provider_name,\n        'Service: ' || lap.service_type ||\n        '. Same-day: ' || COALESCE(lap.same_day_intake::TEXT, 'Unknown') ||\n        '. FPL threshold: ' || COALESCE(lap.income_threshold_fpl::TEXT, 'Unknown') ||\n        '. Phone: ' || COALESCE(lap.phone, 'N/A'),\n        NULL,  -- legal aid may not have lat/lon yet\n        NULL,\n        '#8b5cf6',\n        lap.updated_at,\n        NOW() + INTERVAL '7 days'\n    FROM legal_aid_providers lap\n    LEFT JOIN location_registry lr ON lap.provider_name = lr.address_raw\n    ON CONFLICT (geography_key, pin_type, entity_id, signal_id) DO UPDATE SET\n        title = EXCLUDED.title,\n        description = EXCLUDED.description,\n        atlas_updated_at = EXCLUDED.atlas_updated_at;\n\n    RETURN v_count;\nEND;\n$function$\n",
+      "volatility": "v",
+      "security_definer": false,
+      "identity_arguments": ""
+    },
+    {
+      "kind": "f",
+      "name": "bridge_push_signal_to_lighthouse",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public, atlas"
+      ],
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "trigger",
+      "schema": "atlas",
+      "strict": false,
+      "comment": "DEPRECATED compatibility alias. Canonical bridge emission is now bridge_emit_signal_v1(). Do not re-activate this trigger.",
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION atlas.bridge_push_signal_to_lighthouse()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public', 'atlas'\nAS $function$\nBEGIN\n    -- DEPRECATED: Canonical bridge emission is now handled by bridge_emit_signal_v1().\n    -- This function is intentionally a no-op to prevent double-emission.\n    RETURN NEW;\nEND;\n$function$\n",
+      "volatility": "v",
+      "security_definer": true,
+      "identity_arguments": ""
+    },
+    {
+      "kind": "f",
+      "name": "bridge_push_signal_to_lighthouse",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public, atlas"
+      ],
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "jsonb",
+      "schema": "atlas",
+      "strict": false,
+      "comment": null,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION atlas.bridge_push_signal_to_lighthouse(p_queue_id bigint)\n RETURNS jsonb\n LANGUAGE plpgsql\n SET search_path TO 'pg_catalog', 'public', 'atlas'\nAS $function$\nDECLARE\n    v_queue RECORD;\n    v_payload JSONB;\n    v_case_id UUID;\n    v_snapshot_id UUID;\n    v_pipeline_run_id UUID;\n    v_claim_id UUID;\n    v_finding_id UUID;\n    v_severity_enum TEXT;\n    v_result JSONB;\n    v_meta JSONB;\n    v_city TEXT;\n    v_office_count TEXT;\n    v_signal_type TEXT;\n    v_confidence NUMERIC;\nBEGIN\n    SELECT * INTO v_queue\n    FROM atlas.lighthouse_bridge_queue\n    WHERE queue_id = p_queue_id\n      AND status IN ('pending','retrying')\n      AND (next_retry_at IS NULL OR next_retry_at <= NOW())\n    FOR UPDATE SKIP LOCKED;\n\n    IF NOT FOUND THEN\n        RETURN jsonb_build_object(\n            'success', FALSE,\n            'error', 'Queue item not found or not ready',\n            'queue_id', p_queue_id\n        );\n    END IF;\n\n    v_payload := v_queue.payload_json;\n    v_meta := COALESCE(v_payload->'metadata_json', '{}'::jsonb);\n    v_city := COALESCE(v_meta->>'city', v_payload->>'location', 'Unknown');\n    v_office_count := COALESCE(v_meta->>'office_count', '?');\n    v_signal_type := COALESCE(v_payload->>'signal_type', 'atlas_signal');\n    v_confidence := COALESCE((v_payload->>'confidence_score')::NUMERIC, 0.70);\n    v_severity_enum := atlas.map_severity_to_enum(COALESCE((v_payload->>'severity_score')::NUMERIC, 0.50));\n\n    UPDATE atlas.lighthouse_bridge_queue\n    SET status = 'processing',\n        attempt_count = attempt_count + 1,\n        processed_at = NOW()\n    WHERE queue_id = p_queue_id;\n\n    BEGIN\n        -- STEP 1: Create Lighthouse case.\n        INSERT INTO public.cases (\n            case_number,\n            title,\n            description,\n            case_type,\n            jurisdiction,\n            domain,\n            status,\n            priority_level,\n            owner_ref,\n            created_at,\n            updated_at\n        ) VALUES (\n            'ATLAS-' || v_queue.queue_id::TEXT,\n            COALESCE(v_meta->>'title', v_signal_type),\n            COALESCE(v_meta->>'description', 'Atlas-generated signal'),\n            v_signal_type,\n            COALESCE(v_payload->>'geography_key', v_meta->>'geography_key', 'unknown'),\n            COALESCE(v_payload->>'source_domain', v_queue.domain_code, 'atlas'),\n            'active',\n            v_severity_enum,\n            'system',\n            COALESCE((v_payload->>'detected_at')::TIMESTAMPTZ, NOW()),\n            NOW()\n        )\n        RETURNING id INTO v_case_id;\n\n        -- STEP 2: Create snapshot. Live schema requires snapshot_hash + status.\n        INSERT INTO public.snapshots (\n            case_id,\n            snapshot_hash,\n            status,\n            created_at\n        ) VALUES (\n            v_case_id,\n            encode(digest(v_case_id::TEXT || ':' || clock_timestamp()::TEXT, 'sha256'), 'hex'),\n            'open',\n            NOW()\n        )\n        RETURNING id INTO v_snapshot_id;\n\n        -- STEP 3: Create pipeline run. Live schema uses `status`, not `run_status`.\n        INSERT INTO public.pipeline_runs (\n            case_id,\n            snapshot_id,\n            status,\n            started_at\n        ) VALUES (\n            v_case_id,\n            v_snapshot_id,\n            'running',\n            NOW()\n        )\n        RETURNING id INTO v_pipeline_run_id;\n\n        -- STEP 4: Create claim.\n        INSERT INTO public.claims (\n            case_id,\n            snapshot_id,\n            pipeline_run_id,\n            claim_text,\n            claim_type\n        ) VALUES (\n            v_case_id,\n            v_snapshot_id,\n            v_pipeline_run_id,\n            'Atlas automated detection: ' || v_signal_type || ' in ' || v_city,\n            'systemic'\n        )\n        RETURNING id INTO v_claim_id;\n\n        -- STEP 5: Create finding.\n        INSERT INTO public.findings (\n            case_id,\n            claim_id,\n            snapshot_id,\n            pipeline_run_id,\n            finding_text,\n            confidence_score\n        ) VALUES (\n            v_case_id,\n            v_claim_id,\n            v_snapshot_id,\n            v_pipeline_run_id,\n            COALESCE(\n                v_meta->>'finding_text',\n                'Atlas detected signal: ' || v_signal_type || ' in ' || v_city ||\n                CASE WHEN v_office_count <> '?' THEN ' - ' || v_office_count || ' office/resource count' ELSE '' END\n            ),\n            v_confidence\n        )\n        RETURNING id INTO v_finding_id;\n\n        -- STEP 6: Create detected signal.\n        INSERT INTO public.detected_signals (\n            case_id,\n            finding_id,\n            snapshot_id,\n            pipeline_run_id,\n            signal_type,\n            signal_description,\n            severity,\n            confidence_score\n        ) VALUES (\n            v_case_id,\n            v_finding_id,\n            v_snapshot_id,\n            v_pipeline_run_id,\n            v_signal_type,\n            COALESCE(v_meta->>'description', 'Atlas-generated signal: ' || v_signal_type || ' in ' || v_city),\n            v_severity_enum::public.signal_severity_enum,\n            v_confidence\n        );\n\n        -- STEP 7: Complete pipeline run. Live schema uses `status`.\n        UPDATE public.pipeline_runs\n        SET status = 'completed',\n            completed_at = NOW()\n        WHERE id = v_pipeline_run_id;\n\n        -- STEP 8: Seal snapshot.\n        UPDATE public.snapshots\n        SET status = 'sealed',\n            sealed_at = NOW()\n        WHERE id = v_snapshot_id;\n\n        -- STEP 9: Mark bridge queue complete.\n        UPDATE atlas.lighthouse_bridge_queue\n        SET status = 'completed',\n            lighthouse_case_id = v_case_id,\n            completed_at = NOW(),\n            last_error = NULL\n        WHERE queue_id = p_queue_id;\n\n        v_result := jsonb_build_object(\n            'success', TRUE,\n            'queue_id', p_queue_id,\n            'case_id', v_case_id,\n            'snapshot_id', v_snapshot_id,\n            'pipeline_run_id', v_pipeline_run_id,\n            'claim_id', v_claim_id,\n            'finding_id', v_finding_id,\n            'severity', v_severity_enum\n        );\n\n    EXCEPTION WHEN OTHERS THEN\n        IF (SELECT attempt_count FROM atlas.lighthouse_bridge_queue WHERE queue_id = p_queue_id) >=\n           COALESCE((SELECT max_attempts FROM atlas.lighthouse_bridge_queue WHERE queue_id = p_queue_id), 3)\n        THEN\n            UPDATE atlas.lighthouse_bridge_queue\n            SET status = 'failed',\n                last_error = SQLERRM,\n                processed_at = NOW()\n            WHERE queue_id = p_queue_id;\n        ELSE\n            UPDATE atlas.lighthouse_bridge_queue\n            SET status = 'retrying',\n                last_error = SQLERRM,\n                next_retry_at = NOW() + INTERVAL '5 minutes',\n                processed_at = NOW()\n            WHERE queue_id = p_queue_id;\n        END IF;\n\n        v_result := jsonb_build_object(\n            'success', FALSE,\n            'queue_id', p_queue_id,\n            'error', SQLERRM\n        );\n    END;\n\n    RETURN v_result;\nEND;\n$function$\n",
+      "volatility": "v",
+      "security_definer": false,
+      "identity_arguments": "p_queue_id bigint"
+    },
+    {
+      "kind": "f",
+      "name": "bridge_push_to_prism",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public, atlas"
+      ],
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "jsonb",
+      "schema": "atlas",
+      "strict": false,
+      "comment": null,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION atlas.bridge_push_to_prism(p_title text, p_description text, p_jurisdiction text, p_finding_summary text DEFAULT NULL::text, p_finding_confidence text DEFAULT 'medium'::text, p_finding_metadata jsonb DEFAULT NULL::jsonb, p_recommendation_action text DEFAULT NULL::text, p_recommendation_summary text DEFAULT NULL::text, p_source_table text DEFAULT NULL::text, p_source_record_id text DEFAULT NULL::text)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public', 'atlas'\nAS $function$\n        DECLARE\n            v_bridge RECORD;\n            v_case_id UUID;\n            v_finding_id UUID;\n            v_rec_id UUID;\n            v_start_ts TIMESTAMPTZ := clock_timestamp();\n            v_response JSONB := '{}'::jsonb;\n            v_log_id BIGINT;\n            v_request_id BIGINT;\n        BEGIN\n            -- Get bridge config\n            SELECT * INTO v_bridge FROM atlas.bridge_config \n            WHERE bridge_id = 'atlas-to-prism' AND enabled = true;\n            \n            IF v_bridge IS NULL THEN\n                RETURN jsonb_build_object('error', 'Bridge atlas-to-prism not found or disabled');\n            END IF;\n\n            -- Generate UUIDs locally\n            v_case_id := gen_random_uuid();\n            v_finding_id := gen_random_uuid();\n            v_rec_id := gen_random_uuid();\n\n            -- Step 1: Create case in Prism via REST API\n            SELECT net.http_post(\n                url := v_bridge.target_url || '/rest/v1/cases',\n                headers := jsonb_build_object(\n                    'apikey', v_bridge.target_service_key,\n                    'Authorization', 'Bearer ' || v_bridge.target_service_key,\n                    'Content-Type', 'application/json',\n                    'Prefer', 'return=representation'\n                ),\n                body := jsonb_build_object(\n                    'id', v_case_id,\n                    'title', p_title,\n                    'description', p_description,\n                    'jurisdiction', p_jurisdiction\n                )\n            ) INTO v_request_id;\n\n            -- Log the case creation\n            INSERT INTO atlas.bridge_sync_log (bridge_id, sync_type, source_table, source_record_id, target_table, target_record_id, status, request_payload, duration_ms)\n            VALUES ('atlas-to-prism', 'create_case', p_source_table, p_source_record_id, 'cases', v_case_id::text, 'sent',\n                jsonb_build_object('title', p_title, 'jurisdiction', p_jurisdiction),\n                EXTRACT(MILLISECONDS FROM clock_timestamp() - v_start_ts)::integer\n            ) RETURNING log_id INTO v_log_id;\n\n            -- Step 2: Create finding if provided\n            IF p_finding_summary IS NOT NULL THEN\n                PERFORM net.http_post(\n                    url := v_bridge.target_url || '/rest/v1/findings',\n                    headers := jsonb_build_object(\n                        'apikey', v_bridge.target_service_key,\n                        'Authorization', 'Bearer ' || v_bridge.target_service_key,\n                        'Content-Type', 'application/json',\n                        'Prefer', 'return=representation'\n                    ),\n                    body := jsonb_build_object(\n                        'id', v_finding_id,\n                        'case_id', v_case_id,\n                        'summary', p_finding_summary,\n                        'confidence', p_finding_confidence,\n                        'metadata', COALESCE(p_finding_metadata, '{}'::jsonb)\n                    )\n                );\n\n                INSERT INTO atlas.bridge_sync_log (bridge_id, sync_type, source_table, source_record_id, target_table, target_record_id, status, request_payload)\n                VALUES ('atlas-to-prism', 'create_finding', p_source_table, p_source_record_id, 'findings', v_finding_id::text, 'sent',\n                    jsonb_build_object('case_id', v_case_id, 'summary', p_finding_summary));\n            END IF;\n\n            -- Step 3: Create recommendation if provided\n            IF p_recommendation_summary IS NOT NULL THEN\n                PERFORM net.http_post(\n                    url := v_bridge.target_url || '/rest/v1/recommendations',\n                    headers := jsonb_build_object(\n                        'apikey', v_bridge.target_service_key,\n                        'Authorization', 'Bearer ' || v_bridge.target_service_key,\n                        'Content-Type', 'application/json',\n                        'Prefer', 'return=representation'\n                    ),\n                    body := jsonb_build_object(\n                        'id', v_rec_id,\n                        'case_id', v_case_id,\n                        'action_code', COALESCE(p_recommendation_action, 'REVIEW'),\n                        'summary', p_recommendation_summary\n                    )\n                );\n\n                INSERT INTO atlas.bridge_sync_log (bridge_id, sync_type, source_table, source_record_id, target_table, target_record_id, status, request_payload)\n                VALUES ('atlas-to-prism', 'create_recommendation', p_source_table, p_source_record_id, 'recommendations', v_rec_id::text, 'sent',\n                    jsonb_build_object('case_id', v_case_id, 'action_code', p_recommendation_action));\n            END IF;\n\n            -- Update bridge last sync\n            UPDATE atlas.bridge_config SET \n                last_sync_at = now(), \n                last_sync_status = 'success',\n                last_sync_error = NULL,\n                updated_at = now()\n            WHERE bridge_id = 'atlas-to-prism';\n\n            v_response := jsonb_build_object(\n                'success', true,\n                'case_id', v_case_id,\n                'finding_id', v_finding_id,\n                'recommendation_id', v_rec_id,\n                'log_id', v_log_id\n            );\n\n            RETURN v_response;\n        EXCEPTION WHEN OTHERS THEN\n            -- Log failure\n            INSERT INTO atlas.bridge_sync_log (bridge_id, sync_type, source_table, source_record_id, status, error_message)\n            VALUES ('atlas-to-prism', 'create_case', p_source_table, p_source_record_id, 'error', SQLERRM);\n            \n            UPDATE atlas.bridge_config SET \n                last_sync_at = now(), \n                last_sync_status = 'error',\n                last_sync_error = SQLERRM,\n                updated_at = now()\n            WHERE bridge_id = 'atlas-to-prism';\n\n            RETURN jsonb_build_object('error', SQLERRM);\n        END;\n        $function$\n",
+      "volatility": "v",
+      "security_definer": true,
+      "identity_arguments": "p_title text, p_description text, p_jurisdiction text, p_finding_summary text, p_finding_confidence text, p_finding_metadata jsonb, p_recommendation_action text, p_recommendation_summary text, p_source_table text, p_source_record_id text"
+    },
+    {
+      "kind": "f",
+      "name": "bridge_rebuild_map_pins",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public, atlas"
+      ],
+      "grants": [
+        {
+          "grantee": "PUBLIC",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "integer",
+      "schema": "atlas",
+      "strict": false,
+      "comment": "Rebuilds all civic map pins from current Atlas state. Call after bulk ingestion or nightly via cron.",
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION atlas.bridge_rebuild_map_pins()\n RETURNS integer\n LANGUAGE plpgsql\n SET search_path TO 'pg_catalog', 'public', 'atlas'\nAS $function$\nDECLARE\n    v_count INT := 0;\nBEGIN\n    -- Clear expired pins\n    DELETE FROM lighthouse_map_pins WHERE expires_at < NOW();\n\n    -- Insert signal pins\n    INSERT INTO lighthouse_map_pins (\n        geography_key, pin_type, pin_subtype, title, description,\n        severity, signal_id, latitude, longitude, color_hex, atlas_updated_at, expires_at\n    )\n    SELECT\n        s.geography_key,\n        'signal',\n        s.signal_type,\n        s.signal_type || ' in ' || COALESCE(g.geography_name, s.geography_key),\n        COALESCE(s.metadata_json->>'narrative_summary', s.signal_type),\n        s.severity_score,\n        s.signal_id,\n        lr.latitude,\n        lr.longitude,\n        CASE\n            WHEN s.severity_score >= 0.90 THEN '#7f1d1d'\n            WHEN s.severity_score >= 0.75 THEN '#dc2626'\n            WHEN s.severity_score >= 0.60 THEN '#f59e0b'\n            ELSE '#10b981'\n        END,\n        s.detected_at,\n        s.detected_at + INTERVAL '90 days'\n    FROM civic_map_signals s\n    LEFT JOIN geography_registry g ON s.geography_key = g.geography_key\n    LEFT JOIN location_registry lr ON g.geography_key = lr.geography_key\n    WHERE s.active = TRUE\n      AND s.detected_at >= CURRENT_DATE - 30\n    ON CONFLICT (geography_key, pin_type, entity_id, signal_id) DO UPDATE SET\n        severity = EXCLUDED.severity,\n        description = EXCLUDED.description,\n        atlas_updated_at = EXCLUDED.atlas_updated_at,\n        expires_at = EXCLUDED.expires_at;\n\n    GET DIAGNOSTICS v_count = ROW_COUNT;\n\n    -- Insert entity pins (high-risk only)\n    INSERT INTO lighthouse_map_pins (\n        geography_key, pin_type, pin_subtype, title, description,\n        severity, entity_id, latitude, longitude, color_hex, atlas_updated_at, expires_at\n    )\n    SELECT\n        lr.geography_key,\n        'entity',\n        er.entity_type,\n        er.primary_name,\n        'Entity active in ' || er.jurisdiction_count || ' jurisdictions',\n        COALESCE(le.risk_score, 0.00),\n        er.entity_id,\n        lr.latitude,\n        lr.longitude,\n        CASE\n            WHEN le.risk_score >= 0.90 THEN '#7f1d1d'\n            WHEN le.risk_score >= 0.75 THEN '#dc2626'\n            WHEN le.risk_score >= 0.60 THEN '#f59e0b'\n            ELSE '#3b82f6'\n        END,\n        er.updated_at,\n        NOW() + INTERVAL '30 days'\n    FROM entity_registry er\n    JOIN location_registry lr ON er.entity_id = lr.entity_id\n    LEFT JOIN lighthouse_entities le ON er.entity_id = le.entity_id\n    WHERE le.risk_tier IN ('high', 'critical')\n      OR er.jurisdiction_count >= 3\n    ON CONFLICT (geography_key, pin_type, entity_id, signal_id) DO UPDATE SET\n        severity = EXCLUDED.severity,\n        atlas_updated_at = EXCLUDED.atlas_updated_at;\n\n    -- Insert case pins\n    INSERT INTO lighthouse_map_pins (\n        geography_key, pin_type, pin_subtype, title, description,\n        severity, case_id, latitude, longitude, color_hex, atlas_updated_at, expires_at\n    )\n    SELECT\n        lc.geography_key,\n        'case',\n        lc.case_type,\n        lc.case_title,\n        lc.case_description,\n        lc.severity_score,\n        lc.case_id,\n        lr.latitude,\n        lr.longitude,\n        '#8b5cf6',\n        lc.atlas_created_at,\n        NOW() + INTERVAL '60 days'\n    FROM lighthouse_cases lc\n    LEFT JOIN location_registry lr ON lc.primary_entity_id = lr.entity_id\n    WHERE lc.case_status IN ('open', 'investigating', 'escalated')\n    ON CONFLICT (geography_key, pin_type, entity_id, signal_id) DO UPDATE SET\n        severity = EXCLUDED.severity,\n        atlas_updated_at = EXCLUDED.atlas_updated_at;\n\n    RETURN v_count;\nEND;\n$function$\n",
+      "volatility": "v",
+      "security_definer": false,
+      "identity_arguments": ""
+    },
+    {
+      "kind": "f",
+      "name": "bridge_sync_all_to_lighthouse",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public, atlas"
+      ],
+      "grants": [
+        {
+          "grantee": "PUBLIC",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "jsonb",
+      "schema": "atlas",
+      "strict": false,
+      "comment": "Master sync function. Call after bulk ingestion or schedule via cron every 6 hours. Returns JSONB summary of what was synced.",
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION atlas.bridge_sync_all_to_lighthouse()\n RETURNS jsonb\n LANGUAGE plpgsql\n SET search_path TO 'pg_catalog', 'public', 'atlas'\nAS $function$\nDECLARE\n    v_signals INT;\n    v_entities INT;\n    v_cases INT;\n    v_pins INT;\n    v_resources INT;\nBEGIN\n    -- Signals are auto-synced via trigger, but we can force a rebuild\n    SELECT COUNT(*) INTO v_signals FROM lighthouse_signals WHERE lighthouse_status = 'new';\n\n    -- Entities are auto-synced via trigger\n    SELECT COUNT(*) INTO v_entities FROM lighthouse_entities WHERE risk_tier IN ('high', 'critical');\n\n    -- Cases are auto-synced via trigger\n    SELECT COUNT(*) INTO v_cases FROM lighthouse_cases WHERE case_status IN ('open', 'investigating');\n\n    -- Rebuild map pins\n    SELECT bridge_rebuild_map_pins() INTO v_pins;\n\n    -- Push resources\n    SELECT bridge_push_resources_to_lighthouse() INTO v_resources;\n\n    RETURN jsonb_build_object(\n        'signals_synced', v_signals,\n        'high_risk_entities', v_entities,\n        'active_cases', v_cases,\n        'map_pins_rebuilt', v_pins,\n        'resource_pins', v_resources,\n        'synced_at', NOW()\n    );\nEND;\n$function$\n",
+      "volatility": "v",
+      "security_definer": false,
+      "identity_arguments": ""
+    },
+    {
+      "kind": "f",
+      "name": "bridge_sync_all_to_lighthouse_v3",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public, atlas"
+      ],
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "jsonb",
+      "schema": "atlas",
+      "strict": false,
+      "comment": null,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION atlas.bridge_sync_all_to_lighthouse_v3()\n RETURNS jsonb\n LANGUAGE plpgsql\n SET search_path TO 'pg_catalog', 'public', 'atlas'\nAS $function$\nDECLARE\n    v_result JSONB;\nBEGIN\n    v_result := atlas.bridge_process_queue_v3(50);\n    RETURN jsonb_build_object(\n        'queue_processed', v_result,\n        'synced_at', NOW()\n    );\nEND;\n$function$\n",
+      "volatility": "v",
+      "security_definer": false,
+      "identity_arguments": ""
+    },
+    {
+      "kind": "f",
+      "name": "bridge_sync_entity_to_lighthouse",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public, atlas"
+      ],
+      "grants": [
+        {
+          "grantee": "PUBLIC",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "trigger",
+      "schema": "atlas",
+      "strict": false,
+      "comment": null,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION atlas.bridge_sync_entity_to_lighthouse()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO 'pg_catalog', 'public', 'atlas'\nAS $function$\nDECLARE\n    v_risk_score DECIMAL(3,2);\n    v_risk_tier VARCHAR(16);\nBEGIN\n    -- Compute risk from signal history\n    SELECT COALESCE(MAX(severity_score), 0.00)\n    INTO v_risk_score\n    FROM civic_map_signals\n    WHERE metadata_json->>'entity_id' = NEW.entity_id\n;\n\n    v_risk_tier := compute_entity_risk_tier(NEW.entity_id);\n\n    INSERT INTO lighthouse_entities (\n        entity_id, entity_type, primary_name, canonical_address,\n        canonical_email, canonical_phone, jurisdiction_count,\n        source_systems, first_seen_jurisdiction, last_verified,\n        is_active, atlas_updated_at, risk_score, risk_tier\n    )\n    VALUES (\n        NEW.entity_id, NEW.entity_type, NEW.primary_name, NEW.canonical_address,\n        NEW.canonical_email, NEW.canonical_phone, NEW.jurisdiction_count,\n        NEW.source_systems, NEW.first_seen_jurisdiction, NEW.last_verified,\n        NEW.is_active, NEW.updated_at, v_risk_score, v_risk_tier\n    )\n    ON CONFLICT (entity_id) DO UPDATE SET\n        primary_name = EXCLUDED.primary_name,\n        canonical_address = EXCLUDED.canonical_address,\n        canonical_email = EXCLUDED.canonical_email,\n        canonical_phone = EXCLUDED.canonical_phone,\n        jurisdiction_count = EXCLUDED.jurisdiction_count,\n        source_systems = EXCLUDED.source_systems,\n        last_verified = EXCLUDED.last_verified,\n        is_active = EXCLUDED.is_active,\n        atlas_updated_at = EXCLUDED.atlas_updated_at,\n        risk_score = EXCLUDED.risk_score,\n        risk_tier = EXCLUDED.risk_tier,\n        lighthouse_ingested_at = NOW();\n\n    RETURN NEW;\nEND;\n$function$\n",
+      "volatility": "v",
+      "security_definer": false,
+      "identity_arguments": ""
+    },
+    {
+      "kind": "f",
+      "name": "bridge_sync_to_lighthouse",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public, atlas"
+      ],
+      "grants": [
+        {
+          "grantee": "PUBLIC",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "jsonb",
+      "schema": "atlas",
+      "strict": false,
+      "comment": null,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION atlas.bridge_sync_to_lighthouse(p_signal_id bigint DEFAULT NULL::bigint, p_batch_size integer DEFAULT 100)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public', 'atlas'\nAS $function$\n        DECLARE\n            v_bridge RECORD;\n            v_signal RECORD;\n            v_synced INTEGER := 0;\n            v_errors INTEGER := 0;\n            v_start_ts TIMESTAMPTZ := clock_timestamp();\n            v_case_id UUID;\n            v_snapshot_id UUID;\n            v_pipeline_run_id UUID;\n            v_finding_id UUID;\n            v_signal_uuid UUID;\n            v_severity TEXT;\n        BEGIN\n            -- Get bridge config\n            SELECT * INTO v_bridge FROM atlas.bridge_config \n            WHERE bridge_id = 'atlas-to-lighthouse' AND enabled = true;\n            \n            IF v_bridge IS NULL THEN\n                RETURN jsonb_build_object('error', 'Bridge atlas-to-lighthouse not found or disabled');\n            END IF;\n\n            -- Iterate over civic_map_signals not yet synced\n            FOR v_signal IN \n                SELECT cms.* \n                FROM atlas.civic_map_signals cms\n                LEFT JOIN atlas.bridge_sync_log bsl ON (\n                    bsl.bridge_id = 'atlas-to-lighthouse' \n                    AND bsl.source_table = 'civic_map_signals' \n                    AND bsl.source_record_id = cms.signal_id::text\n                    AND bsl.status = 'sent'\n                )\n                WHERE (p_signal_id IS NULL OR cms.signal_id = p_signal_id)\n                AND bsl.log_id IS NULL\n                LIMIT p_batch_size\n            LOOP\n                BEGIN\n                    -- Generate UUIDs for the Lighthouse chain\n                    v_case_id := gen_random_uuid();\n                    v_snapshot_id := gen_random_uuid();\n                    v_pipeline_run_id := gen_random_uuid();\n                    v_finding_id := gen_random_uuid();\n                    v_signal_uuid := gen_random_uuid();\n\n                    -- Map severity score to Lighthouse enum\n                    v_severity := CASE \n                        WHEN v_signal.severity_score >= 8.0 THEN 'critical'\n                        WHEN v_signal.severity_score >= 6.0 THEN 'high'\n                        WHEN v_signal.severity_score >= 4.0 THEN 'medium'\n                        ELSE 'low'\n                    END;\n\n                    -- Step 1: Create case in Lighthouse\n                    PERFORM net.http_post(\n                        url := v_bridge.target_url || '/rest/v1/cases',\n                        headers := jsonb_build_object(\n                            'apikey', v_bridge.target_service_key,\n                            'Authorization', 'Bearer ' || v_bridge.target_service_key,\n                            'Content-Type', 'application/json',\n                            'Prefer', 'return=representation'\n                        ),\n                        body := jsonb_build_object(\n                            'id', v_case_id,\n                            'case_number', 'ATLAS-CMS-' || v_signal.signal_id,\n                            'title', 'Civic Signal: ' || v_signal.signal_type || ' in ' || COALESCE(v_signal.geography_key, 'UNKNOWN'),\n                            'description', 'Atlas civic map signal detected. Type: ' || v_signal.signal_type || ', Severity: ' || COALESCE(v_signal.severity_score::text, 'N/A') || ', Source: ' || COALESCE(v_signal.source_table, 'N/A'),\n                            'case_type', 'atlas_civic_signal',\n                            'jurisdiction', COALESCE(v_signal.geography_key, 'US'),\n                            'domain', COALESCE((v_signal.metadata_json->>'domain_code')::text, 'CIVIC'),\n                            'status', 'open',\n                            'priority_level', v_severity,\n                            'owner_ref', 'atlas-bridge'\n                        )\n                    );\n\n                    -- Step 2: Create snapshot\n                    PERFORM net.http_post(\n                        url := v_bridge.target_url || '/rest/v1/snapshots',\n                        headers := jsonb_build_object(\n                            'apikey', v_bridge.target_service_key,\n                            'Authorization', 'Bearer ' || v_bridge.target_service_key,\n                            'Content-Type', 'application/json',\n                            'Prefer', 'return=representation'\n                        ),\n                        body := jsonb_build_object(\n                            'id', v_snapshot_id,\n                            'case_id', v_case_id,\n                            'snapshot_hash', md5(v_signal.signal_id::text || v_signal.signal_type || now()::text),\n                            'status', 'sealed'\n                        )\n                    );\n\n                    -- Step 3: Create pipeline_run\n                    PERFORM net.http_post(\n                        url := v_bridge.target_url || '/rest/v1/pipeline_runs',\n                        headers := jsonb_build_object(\n                            'apikey', v_bridge.target_service_key,\n                            'Authorization', 'Bearer ' || v_bridge.target_service_key,\n                            'Content-Type', 'application/json',\n                            'Prefer', 'return=representation'\n                        ),\n                        body := jsonb_build_object(\n                            'id', v_pipeline_run_id,\n                            'case_id', v_case_id,\n                            'snapshot_id', v_snapshot_id,\n                            'status', 'completed',\n                            'ruleset_version', 'atlas-bridge-v1'\n                        )\n                    );\n\n                    -- Step 4: Create finding\n                    PERFORM net.http_post(\n                        url := v_bridge.target_url || '/rest/v1/findings',\n                        headers := jsonb_build_object(\n                            'apikey', v_bridge.target_service_key,\n                            'Authorization', 'Bearer ' || v_bridge.target_service_key,\n                            'Content-Type', 'application/json',\n                            'Prefer', 'return=representation'\n                        ),\n                        body := jsonb_build_object(\n                            'id', v_finding_id,\n                            'case_id', v_case_id,\n                            'claim_id', gen_random_uuid(),\n                            'snapshot_id', v_snapshot_id,\n                            'pipeline_run_id', v_pipeline_run_id,\n                            'finding_text', 'Atlas civic map signal: ' || v_signal.signal_type || ' detected at severity ' || COALESCE(v_signal.severity_score::text, 'N/A') || ' from source ' || COALESCE(v_signal.source_table, 'unknown'),\n                            'confidence_score', COALESCE(v_signal.severity_score / 10.0, 0.5)\n                        )\n                    );\n\n                    -- Step 5: Create detected_signal\n                    PERFORM net.http_post(\n                        url := v_bridge.target_url || '/rest/v1/detected_signals',\n                        headers := jsonb_build_object(\n                            'apikey', v_bridge.target_service_key,\n                            'Authorization', 'Bearer ' || v_bridge.target_service_key,\n                            'Content-Type', 'application/json',\n                            'Prefer', 'return=representation'\n                        ),\n                        body := jsonb_build_object(\n                            'id', v_signal_uuid,\n                            'case_id', v_case_id,\n                            'finding_id', v_finding_id,\n                            'snapshot_id', v_snapshot_id,\n                            'pipeline_run_id', v_pipeline_run_id,\n                            'signal_type', v_signal.signal_type,\n                            'signal_description', 'Atlas civic map signal from ' || COALESCE(v_signal.source_table, 'unknown') || '. Geography: ' || COALESCE(v_signal.geography_key, 'N/A') || '. Source record: ' || COALESCE(v_signal.source_record_id, 'N/A'),\n                            'severity', v_severity,\n                            'confidence_score', COALESCE(v_signal.severity_score / 10.0, 0.5)\n                        )\n                    );\n\n                    -- Log success\n                    INSERT INTO atlas.bridge_sync_log (bridge_id, sync_type, source_table, source_record_id, target_table, target_record_id, status, request_payload)\n                    VALUES ('atlas-to-lighthouse', 'sync_civic_signal', 'civic_map_signals', v_signal.signal_id::text, 'detected_signals', v_signal_uuid::text, 'sent',\n                        jsonb_build_object(\n                            'signal_type', v_signal.signal_type,\n                            'geography_key', v_signal.geography_key,\n                            'severity', v_severity,\n                            'case_id', v_case_id,\n                            'finding_id', v_finding_id\n                        ));\n\n                    v_synced := v_synced + 1;\n                EXCEPTION WHEN OTHERS THEN\n                    INSERT INTO atlas.bridge_sync_log (bridge_id, sync_type, source_table, source_record_id, status, error_message)\n                    VALUES ('atlas-to-lighthouse', 'sync_civic_signal', 'civic_map_signals', v_signal.signal_id::text, 'error', SQLERRM);\n                    v_errors := v_errors + 1;\n                END;\n            END LOOP;\n\n            -- Update bridge status\n            UPDATE atlas.bridge_config SET \n                last_sync_at = now(), \n                last_sync_status = CASE WHEN v_errors = 0 THEN 'success' ELSE 'partial' END,\n                last_sync_error = CASE WHEN v_errors > 0 THEN v_errors || ' errors during sync' ELSE NULL END,\n                updated_at = now()\n            WHERE bridge_id = 'atlas-to-lighthouse';\n\n            RETURN jsonb_build_object(\n                'success', true,\n                'synced', v_synced,\n                'errors', v_errors,\n                'duration_ms', EXTRACT(MILLISECONDS FROM clock_timestamp() - v_start_ts)::integer\n            );\n        END;\n        $function$\n",
+      "volatility": "v",
+      "security_definer": true,
+      "identity_arguments": "p_signal_id bigint, p_batch_size integer"
+    },
+    {
+      "kind": "f",
+      "name": "bridge_sync_to_rosetta",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public, atlas"
+      ],
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "EXECUTE"
+        }
+      ],
+      "result": "jsonb",
+      "schema": "atlas",
+      "strict": false,
+      "comment": null,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "definition": "CREATE OR REPLACE FUNCTION atlas.bridge_sync_to_rosetta(p_provider_id character varying DEFAULT NULL::character varying, p_batch_size integer DEFAULT 50)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public', 'atlas'\nAS $function$\n        DECLARE\n            v_bridge RECORD;\n            v_provider RECORD;\n            v_synced INTEGER := 0;\n            v_errors INTEGER := 0;\n            v_start_ts TIMESTAMPTZ := clock_timestamp();\n            v_program_id TEXT;\n        BEGIN\n            -- Get bridge config\n            SELECT * INTO v_bridge FROM atlas.bridge_config \n            WHERE bridge_id = 'atlas-to-rosetta' AND enabled = true;\n            \n            IF v_bridge IS NULL THEN\n                RETURN jsonb_build_object('error', 'Bridge atlas-to-rosetta not found or disabled');\n            END IF;\n\n            -- Iterate over legal aid providers that haven't been synced yet\n            FOR v_provider IN \n                SELECT lap.* \n                FROM atlas.legal_aid_providers lap\n                LEFT JOIN atlas.bridge_sync_log bsl ON (\n                    bsl.bridge_id = 'atlas-to-rosetta' \n                    AND bsl.source_table = 'legal_aid_providers' \n                    AND bsl.source_record_id = lap.provider_id\n                    AND bsl.status = 'sent'\n                )\n                WHERE (p_provider_id IS NULL OR lap.provider_id = p_provider_id)\n                AND bsl.log_id IS NULL\n                LIMIT p_batch_size\n            LOOP\n                BEGIN\n                    -- Generate a deterministic program ID\n                    v_program_id := 'atlas-' || v_provider.provider_id;\n\n                    -- Push help_program to Rosetta\n                    PERFORM net.http_post(\n                        url := v_bridge.target_url || '/rest/v1/help_program',\n                        headers := jsonb_build_object(\n                            'apikey', v_bridge.target_service_key,\n                            'Authorization', 'Bearer ' || v_bridge.target_service_key,\n                            'Content-Type', 'application/json',\n                            'Prefer', 'resolution=merge-duplicates'\n                        ),\n                        body := jsonb_build_object(\n                            'id', v_program_id,\n                            'corpus_id', 1,\n                            'source_document_id', 1,\n                            'extraction_run_id', 1,\n                            'canon_version', 1,\n                            'program_name', v_provider.provider_name || COALESCE(' - ' || v_provider.program_name, ''),\n                            'program_type', COALESCE(v_provider.service_type, 'legal_aid'),\n                            'governing_section', 'Atlas Entity Extraction',\n                            'status', 'active',\n                            'signal_status', 'synced_from_atlas'\n                        )\n                    );\n\n                    -- Push help_program_contacts to Rosetta\n                    IF v_provider.phone IS NOT NULL OR v_provider.email IS NOT NULL THEN\n                        PERFORM net.http_post(\n                            url := v_bridge.target_url || '/rest/v1/help_program_contacts',\n                            headers := jsonb_build_object(\n                                'apikey', v_bridge.target_service_key,\n                                'Authorization', 'Bearer ' || v_bridge.target_service_key,\n                                'Content-Type', 'application/json',\n                                'Prefer', 'resolution=merge-duplicates'\n                            ),\n                            body := jsonb_build_object(\n                                'id', v_program_id || '-contact',\n                                'help_program_id', v_program_id,\n                                'contact_type', CASE WHEN v_provider.phone IS NOT NULL THEN 'phone' ELSE 'email' END,\n                                'entity_name', v_provider.provider_name,\n                                'governing_section', 'Atlas Entity Extraction'\n                            )\n                        );\n                    END IF;\n\n                    -- Push help_program_locations to Rosetta\n                    IF v_provider.jurisdiction IS NOT NULL THEN\n                        PERFORM net.http_post(\n                            url := v_bridge.target_url || '/rest/v1/help_program_locations',\n                            headers := jsonb_build_object(\n                                'apikey', v_bridge.target_service_key,\n                                'Authorization', 'Bearer ' || v_bridge.target_service_key,\n                                'Content-Type', 'application/json',\n                                'Prefer', 'resolution=merge-duplicates'\n                            ),\n                            body := jsonb_build_object(\n                                'id', v_program_id || '-loc',\n                                'help_program_id', v_program_id,\n                                'jurisdiction_level', 'state',\n                                'jurisdiction_name', v_provider.jurisdiction,\n                                'applicability_note', 'Synced from Atlas legal_aid_providers. City: ' || COALESCE(v_provider.city, 'N/A')\n                            )\n                        );\n                    END IF;\n\n                    -- Log success\n                    INSERT INTO atlas.bridge_sync_log (bridge_id, sync_type, source_table, source_record_id, target_table, target_record_id, status, request_payload)\n                    VALUES ('atlas-to-rosetta', 'sync_help_program', 'legal_aid_providers', v_provider.provider_id, 'help_program', v_program_id, 'sent',\n                        jsonb_build_object('provider_name', v_provider.provider_name, 'jurisdiction', v_provider.jurisdiction));\n\n                    v_synced := v_synced + 1;\n                EXCEPTION WHEN OTHERS THEN\n                    INSERT INTO atlas.bridge_sync_log (bridge_id, sync_type, source_table, source_record_id, status, error_message)\n                    VALUES ('atlas-to-rosetta', 'sync_help_program', 'legal_aid_providers', v_provider.provider_id, 'error', SQLERRM);\n                    v_errors := v_errors + 1;\n                END;\n            END LOOP;\n\n            -- Also sync contacts from v_rosetta_contacts view\n            -- This handles entities that are nonprofits/orgs/agencies with contacts\n            FOR v_provider IN\n                SELECT vrc.*\n                FROM atlas.v_rosetta_contacts vrc\n                LEFT JOIN atlas.bridge_sync_log bsl ON (\n                    bsl.bridge_id = 'atlas-to-rosetta'\n                    AND bsl.source_table = 'v_rosetta_contacts'\n                    AND bsl.source_record_id = vrc.contact_id::text\n                    AND bsl.status = 'sent'\n                )\n                WHERE bsl.log_id IS NULL\n                LIMIT p_batch_size\n            LOOP\n                BEGIN\n                    v_program_id := 'atlas-entity-' || v_provider.entity_id;\n\n                    -- Push as help_program_contacts\n                    PERFORM net.http_post(\n                        url := v_bridge.target_url || '/rest/v1/help_program_contacts',\n                        headers := jsonb_build_object(\n                            'apikey', v_bridge.target_service_key,\n                            'Authorization', 'Bearer ' || v_bridge.target_service_key,\n                            'Content-Type', 'application/json',\n                            'Prefer', 'resolution=merge-duplicates'\n                        ),\n                        body := jsonb_build_object(\n                            'id', 'atlas-contact-' || v_provider.contact_id,\n                            'help_program_id', v_program_id,\n                            'contact_type', v_provider.contact_type,\n                            'entity_name', v_provider.entity_name,\n                            'governing_section', 'Atlas Entity Extraction - ' || v_provider.source_schema_name\n                        )\n                    );\n\n                    INSERT INTO atlas.bridge_sync_log (bridge_id, sync_type, source_table, source_record_id, target_table, target_record_id, status)\n                    VALUES ('atlas-to-rosetta', 'sync_contact', 'v_rosetta_contacts', v_provider.contact_id::text, 'help_program_contacts', 'atlas-contact-' || v_provider.contact_id, 'sent');\n\n                    v_synced := v_synced + 1;\n                EXCEPTION WHEN OTHERS THEN\n                    INSERT INTO atlas.bridge_sync_log (bridge_id, sync_type, source_table, source_record_id, status, error_message)\n                    VALUES ('atlas-to-rosetta', 'sync_contact', 'v_rosetta_contacts', v_provider.contact_id::text, 'error', SQLERRM);\n                    v_errors := v_errors + 1;\n                END;\n            END LOOP;\n\n            -- Update bridge status\n            UPDATE atlas.bridge_config SET \n                last_sync_at = now(), \n                last_sync_status = CASE WHEN v_errors = 0 THEN 'success' ELSE 'partial' END,\n                last_sync_error = CASE WHEN v_errors > 0 THEN v_errors || ' errors during sync' ELSE NULL END,\n                updated_at = now()\n            WHERE bridge_id = 'atlas-to-rosetta';\n\n            RETURN jsonb_build_object(\n                'success', true,\n                'synced', v_synced,\n                'errors', v_errors,\n                'duration_ms', EXTRACT(MILLISECONDS FROM clock_timestamp() - v_start_ts)::integer\n            );\n        END;\n        $function$\n",
+      "volatility": "v",
+      "security_definer": true,
+      "identity_arguments": "p_provider_id character varying, p_batch_size integer"
+    }
+  ]
+}

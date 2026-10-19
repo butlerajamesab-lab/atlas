@@ -1,0 +1,888 @@
+{
+  "schemaVersion": 1,
+  "evidenceKind": "Atlas current production sequence catalog",
+  "capturedAt": "2026-08-30T20:40:00Z",
+  "projectRef": "bjdjjgnkhxblnpdrjqtw",
+  "sequences": [
+    {
+      "name": "action_queue_action_id_seq",
+      "cycle": false,
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "USAGE"
+        }
+      ],
+      "schema": "atlas",
+      "comment": null,
+      "owned_by": "atlas.action_queue.action_id",
+      "data_type": "bigint",
+      "max_value": 9223372036854776000,
+      "min_value": 1,
+      "cache_size": 1,
+      "start_value": 1,
+      "increment_by": 1
+    },
+    {
+      "name": "bridge_operational_audit_audit_id_seq",
+      "cycle": false,
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "USAGE"
+        }
+      ],
+      "schema": "atlas",
+      "comment": null,
+      "owned_by": "atlas.bridge_operational_audit.audit_id",
+      "data_type": "bigint",
+      "max_value": 9223372036854776000,
+      "min_value": 1,
+      "cache_size": 1,
+      "start_value": 1,
+      "increment_by": 1
+    },
+    {
+      "name": "bridge_sync_log_log_id_seq",
+      "cycle": false,
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "USAGE"
+        }
+      ],
+      "schema": "atlas",
+      "comment": null,
+      "owned_by": "atlas.bridge_sync_log.log_id",
+      "data_type": "bigint",
+      "max_value": 9223372036854776000,
+      "min_value": 1,
+      "cache_size": 1,
+      "start_value": 1,
+      "increment_by": 1
+    },
+    {
+      "name": "census_city_data_city_id_seq",
+      "cycle": false,
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "USAGE"
+        }
+      ],
+      "schema": "atlas",
+      "comment": null,
+      "owned_by": "atlas.census_city_data.city_id",
+      "data_type": "bigint",
+      "max_value": 9223372036854776000,
+      "min_value": 1,
+      "cache_size": 1,
+      "start_value": 1,
+      "increment_by": 1
+    },
+    {
+      "name": "census_tract_data_tract_id_seq",
+      "cycle": false,
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "USAGE"
+        }
+      ],
+      "schema": "atlas",
+      "comment": null,
+      "owned_by": "atlas.census_tract_data.tract_id",
+      "data_type": "bigint",
+      "max_value": 9223372036854776000,
+      "min_value": 1,
+      "cache_size": 1,
+      "start_value": 1,
+      "increment_by": 1
+    },
+    {
+      "name": "civic_map_signals_signal_id_seq",
+      "cycle": false,
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "USAGE"
+        }
+      ],
+      "schema": "atlas",
+      "comment": null,
+      "owned_by": "atlas.civic_map_signals.signal_id",
+      "data_type": "bigint",
+      "max_value": 9223372036854776000,
+      "min_value": 1,
+      "cache_size": 1,
+      "start_value": 1,
+      "increment_by": 1
+    },
+    {
+      "name": "contact_registry_contact_id_seq",
+      "cycle": false,
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "USAGE"
+        }
+      ],
+      "schema": "atlas",
+      "comment": null,
+      "owned_by": "atlas.contact_registry.contact_id",
+      "data_type": "bigint",
+      "max_value": 9223372036854776000,
+      "min_value": 1,
+      "cache_size": 1,
+      "start_value": 1,
+      "increment_by": 1
+    },
+    {
+      "name": "contract_clauses_clause_id_seq",
+      "cycle": false,
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "USAGE"
+        }
+      ],
+      "schema": "atlas",
+      "comment": null,
+      "owned_by": "atlas.contract_clauses.clause_id",
+      "data_type": "bigint",
+      "max_value": 9223372036854776000,
+      "min_value": 1,
+      "cache_size": 1,
+      "start_value": 1,
+      "increment_by": 1
+    },
+    {
+      "name": "court_cases_case_id_seq",
+      "cycle": false,
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "USAGE"
+        }
+      ],
+      "schema": "atlas",
+      "comment": null,
+      "owned_by": "atlas.court_cases.case_id",
+      "data_type": "bigint",
+      "max_value": 9223372036854776000,
+      "min_value": 1,
+      "cache_size": 1,
+      "start_value": 1,
+      "increment_by": 1
+    },
+    {
+      "name": "endpoint_probe_queue_queue_id_seq",
+      "cycle": false,
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "USAGE"
+        }
+      ],
+      "schema": "atlas",
+      "comment": null,
+      "owned_by": "atlas.endpoint_probe_queue.queue_id",
+      "data_type": "bigint",
+      "max_value": 9223372036854776000,
+      "min_value": 1,
+      "cache_size": 1,
+      "start_value": 1,
+      "increment_by": 1
+    },
+    {
+      "name": "entity_aliases_alias_id_seq",
+      "cycle": false,
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "USAGE"
+        }
+      ],
+      "schema": "atlas",
+      "comment": null,
+      "owned_by": "atlas.entity_aliases.alias_id",
+      "data_type": "bigint",
+      "max_value": 9223372036854776000,
+      "min_value": 1,
+      "cache_size": 1,
+      "start_value": 1,
+      "increment_by": 1
+    },
+    {
+      "name": "healthcare_facilities_facility_id_seq",
+      "cycle": false,
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "USAGE"
+        }
+      ],
+      "schema": "atlas",
+      "comment": null,
+      "owned_by": "atlas.healthcare_facilities.facility_id",
+      "data_type": "bigint",
+      "max_value": 9223372036854776000,
+      "min_value": 1,
+      "cache_size": 1,
+      "start_value": 1,
+      "increment_by": 1
+    },
+    {
+      "name": "immigration_courts_court_id_seq",
+      "cycle": false,
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "USAGE"
+        }
+      ],
+      "schema": "atlas",
+      "comment": null,
+      "owned_by": "atlas.immigration_courts.court_id",
+      "data_type": "bigint",
+      "max_value": 9223372036854776000,
+      "min_value": 1,
+      "cache_size": 1,
+      "start_value": 1,
+      "increment_by": 1
+    },
+    {
+      "name": "inferred_schema_draft_draft_id_seq",
+      "cycle": false,
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "USAGE"
+        }
+      ],
+      "schema": "atlas",
+      "comment": null,
+      "owned_by": "atlas.inferred_schema_draft.draft_id",
+      "data_type": "bigint",
+      "max_value": 9223372036854776000,
+      "min_value": 1,
+      "cache_size": 1,
+      "start_value": 1,
+      "increment_by": 1
+    },
+    {
+      "name": "ingest_job_job_id_seq",
+      "cycle": false,
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "USAGE"
+        }
+      ],
+      "schema": "atlas",
+      "comment": null,
+      "owned_by": "atlas.ingest_job.job_id",
+      "data_type": "bigint",
+      "max_value": 9223372036854776000,
+      "min_value": 1,
+      "cache_size": 1,
+      "start_value": 1,
+      "increment_by": 1
+    },
+    {
+      "name": "lighthouse_bridge_queue_queue_id_seq",
+      "cycle": false,
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "USAGE"
+        }
+      ],
+      "schema": "atlas",
+      "comment": null,
+      "owned_by": "atlas.lighthouse_bridge_queue.queue_id",
+      "data_type": "bigint",
+      "max_value": 9223372036854776000,
+      "min_value": 1,
+      "cache_size": 1,
+      "start_value": 1,
+      "increment_by": 1
+    },
+    {
+      "name": "lighthouse_cases_case_id_seq",
+      "cycle": false,
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "USAGE"
+        }
+      ],
+      "schema": "atlas",
+      "comment": null,
+      "owned_by": "atlas.lighthouse_cases.case_id",
+      "data_type": "bigint",
+      "max_value": 9223372036854776000,
+      "min_value": 1,
+      "cache_size": 1,
+      "start_value": 1,
+      "increment_by": 1
+    },
+    {
+      "name": "lighthouse_map_pins_pin_id_seq",
+      "cycle": false,
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "USAGE"
+        }
+      ],
+      "schema": "atlas",
+      "comment": null,
+      "owned_by": "atlas.lighthouse_map_pins.pin_id",
+      "data_type": "bigint",
+      "max_value": 9223372036854776000,
+      "min_value": 1,
+      "cache_size": 1,
+      "start_value": 1,
+      "increment_by": 1
+    },
+    {
+      "name": "lighthouse_signals_signal_id_seq",
+      "cycle": false,
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "USAGE"
+        }
+      ],
+      "schema": "atlas",
+      "comment": null,
+      "owned_by": "atlas.lighthouse_signals.signal_id",
+      "data_type": "bigint",
+      "max_value": 9223372036854776000,
+      "min_value": 1,
+      "cache_size": 1,
+      "start_value": 1,
+      "increment_by": 1
+    },
+    {
+      "name": "location_registry_location_id_seq",
+      "cycle": false,
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "USAGE"
+        }
+      ],
+      "schema": "atlas",
+      "comment": null,
+      "owned_by": "atlas.location_registry.location_id",
+      "data_type": "bigint",
+      "max_value": 9223372036854776000,
+      "min_value": 1,
+      "cache_size": 1,
+      "start_value": 1,
+      "increment_by": 1
+    },
+    {
+      "name": "municipal_bonds_bond_id_seq",
+      "cycle": false,
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "USAGE"
+        }
+      ],
+      "schema": "atlas",
+      "comment": null,
+      "owned_by": "atlas.municipal_bonds.bond_id",
+      "data_type": "bigint",
+      "max_value": 9223372036854776000,
+      "min_value": 1,
+      "cache_size": 1,
+      "start_value": 1,
+      "increment_by": 1
+    },
+    {
+      "name": "nonprofit_financials_filing_id_seq",
+      "cycle": false,
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "USAGE"
+        }
+      ],
+      "schema": "atlas",
+      "comment": null,
+      "owned_by": "atlas.nonprofit_financials.filing_id",
+      "data_type": "bigint",
+      "max_value": 9223372036854776000,
+      "min_value": 1,
+      "cache_size": 1,
+      "start_value": 1,
+      "increment_by": 1
+    },
+    {
+      "name": "pdf_extraction_queue_queue_id_seq",
+      "cycle": false,
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "USAGE"
+        }
+      ],
+      "schema": "atlas",
+      "comment": null,
+      "owned_by": "atlas.pdf_extraction_queue.queue_id",
+      "data_type": "bigint",
+      "max_value": 9223372036854776000,
+      "min_value": 1,
+      "cache_size": 1,
+      "start_value": 1,
+      "increment_by": 1
+    },
+    {
+      "name": "raw_benefits_wa_raw_id_seq",
+      "cycle": false,
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "USAGE"
+        }
+      ],
+      "schema": "atlas",
+      "comment": null,
+      "owned_by": "atlas.raw_benefits_wa.raw_id",
+      "data_type": "bigint",
+      "max_value": 9223372036854776000,
+      "min_value": 1,
+      "cache_size": 1,
+      "start_value": 1,
+      "increment_by": 1
+    },
+    {
+      "name": "raw_food_banks_king_county_raw_id_seq",
+      "cycle": false,
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "USAGE"
+        }
+      ],
+      "schema": "atlas",
+      "comment": null,
+      "owned_by": "atlas.raw_food_banks_king_county.raw_id",
+      "data_type": "bigint",
+      "max_value": 9223372036854776000,
+      "min_value": 1,
+      "cache_size": 1,
+      "start_value": 1,
+      "increment_by": 1
+    },
+    {
+      "name": "raw_nonprofits_wa_raw_id_seq",
+      "cycle": false,
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "USAGE"
+        }
+      ],
+      "schema": "atlas",
+      "comment": null,
+      "owned_by": "atlas.raw_nonprofits_wa.raw_id",
+      "data_type": "bigint",
+      "max_value": 9223372036854776000,
+      "min_value": 1,
+      "cache_size": 1,
+      "start_value": 1,
+      "increment_by": 1
+    },
+    {
+      "name": "raw_regulations_gov_raw_id_seq",
+      "cycle": false,
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "USAGE"
+        }
+      ],
+      "schema": "atlas",
+      "comment": null,
+      "owned_by": "atlas.raw_regulations_gov.raw_id",
+      "data_type": "bigint",
+      "max_value": 9223372036854776000,
+      "min_value": 1,
+      "cache_size": 1,
+      "start_value": 1,
+      "increment_by": 1
+    },
+    {
+      "name": "regulatory_comments_comment_id_seq",
+      "cycle": false,
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "USAGE"
+        }
+      ],
+      "schema": "atlas",
+      "comment": null,
+      "owned_by": "atlas.regulatory_comments.comment_id",
+      "data_type": "bigint",
+      "max_value": 9223372036854776000,
+      "min_value": 1,
+      "cache_size": 1,
+      "start_value": 1,
+      "increment_by": 1
+    },
+    {
+      "name": "regulatory_final_rules_rule_id_seq",
+      "cycle": false,
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "USAGE"
+        }
+      ],
+      "schema": "atlas",
+      "comment": null,
+      "owned_by": "atlas.regulatory_final_rules.rule_id",
+      "data_type": "bigint",
+      "max_value": 9223372036854776000,
+      "min_value": 1,
+      "cache_size": 1,
+      "start_value": 1,
+      "increment_by": 1
+    },
+    {
+      "name": "school_districts_district_id_seq",
+      "cycle": false,
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "USAGE"
+        }
+      ],
+      "schema": "atlas",
+      "comment": null,
+      "owned_by": "atlas.school_districts.district_id",
+      "data_type": "bigint",
+      "max_value": 9223372036854776000,
+      "min_value": 1,
+      "cache_size": 1,
+      "start_value": 1,
+      "increment_by": 1
+    },
+    {
+      "name": "utility_rate_cases_rate_id_seq",
+      "cycle": false,
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "USAGE"
+        }
+      ],
+      "schema": "atlas",
+      "comment": null,
+      "owned_by": "atlas.utility_rate_cases.rate_id",
+      "data_type": "bigint",
+      "max_value": 9223372036854776000,
+      "min_value": 1,
+      "cache_size": 1,
+      "start_value": 1,
+      "increment_by": 1
+    },
+    {
+      "name": "water_systems_system_id_seq",
+      "cycle": false,
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "USAGE"
+        }
+      ],
+      "schema": "atlas",
+      "comment": null,
+      "owned_by": "atlas.water_systems.system_id",
+      "data_type": "bigint",
+      "max_value": 9223372036854776000,
+      "min_value": 1,
+      "cache_size": 1,
+      "start_value": 1,
+      "increment_by": 1
+    },
+    {
+      "name": "civic_infrastructure_nodes_id_seq",
+      "cycle": false,
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "USAGE"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "USAGE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "USAGE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "USAGE"
+        }
+      ],
+      "schema": "public",
+      "comment": null,
+      "owned_by": "public.civic_infrastructure_nodes.id",
+      "data_type": "bigint",
+      "max_value": 9223372036854776000,
+      "min_value": 1,
+      "cache_size": 1,
+      "start_value": 1,
+      "increment_by": 1
+    },
+    {
+      "name": "registry_conflict_log_id_seq",
+      "cycle": false,
+      "owner": "postgres",
+      "grants": [
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "USAGE"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "anon",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "USAGE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "USAGE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantor": "postgres",
+          "grantable": false,
+          "privilege": "USAGE"
+        }
+      ],
+      "schema": "public",
+      "comment": null,
+      "owned_by": "public.registry_conflict_log.id",
+      "data_type": "bigint",
+      "max_value": 9223372036854776000,
+      "min_value": 1,
+      "cache_size": 1,
+      "start_value": 1,
+      "increment_by": 1
+    }
+  ]
+}

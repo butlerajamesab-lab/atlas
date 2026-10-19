@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "evidenceKind": "Atlas current production extension catalog",
+  "capturedAt": "2026-08-30T20:40:00Z",
+  "projectRef": "bjdjjgnkhxblnpdrjqtw",
+  "extensions": [
+    {
+      "name": "http",
+      "schema": "extensions",
+      "comment": "HTTP client for PostgreSQL, allows web page retrieval inside the database.",
+      "version": "1.6",
+      "relocatable": false
+    },
+    {
+      "name": "pg_net",
+      "schema": "extensions",
+      "comment": "Async HTTP",
+      "version": "0.20.0",
+      "relocatable": false
+    },
+    {
+      "name": "pg_stat_statements",
+      "schema": "extensions",
+      "comment": "track planning and execution statistics of all SQL statements executed",
+      "version": "1.11",
+      "relocatable": true
+    },
+    {
+      "name": "pgcrypto",
+      "schema": "extensions",
+      "comment": "cryptographic functions",
+      "version": "1.3",
+      "relocatable": true
+    },
+    {
+      "name": "plpgsql",
+      "schema": "pg_catalog",
+      "comment": "PL/pgSQL procedural language",
+      "version": "1.0",
+      "relocatable": false
+    },
+    {
+      "name": "supabase_vault",
+      "schema": "vault",
+      "comment": "Supabase Vault Extension",
+      "version": "0.3.1",
+      "relocatable": false
+    },
+    {
+      "name": "uuid-ossp",
+      "schema": "extensions",
+      "comment": "generate universally unique identifiers (UUIDs)",
+      "version": "1.1",
+      "relocatable": true
+    }
+  ]
+}
