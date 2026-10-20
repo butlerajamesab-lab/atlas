@@ -94,6 +94,12 @@ test('readiness view revokes public browser grants and enforces invoker security
 test('historical reconciliation command drains every page and exposes operator cursor', () => {
   assert.match(reconcileScript, /while \(after_id !== null\)/);
   assert.match(reconcileScript, /reconcileIngestJobSourceHealth\(\{ limit, after_id \}\)/);
-  assert.match(operatorSource, /reconcileIngestJobSourceHealth\(\{ limit, after_id: req\.body\?\.after_id \?\? null \}\)/);
+  assert.match(operatorSource, /const after_id = req\.body\?\.after_id \?\? null;/);
+  assert.match(operatorSource, /reconcileIngestJobSourceHealth\(\{ limit, after_id \}\)/);
   assert.match(operatorSource, /next_cursor: result\.next_cursor/);
+});
+
+test('operator source-health receipts preserve the resume cursor in hashed request evidence', () => {
+  assert.match(operatorSource, /request:\s*\{ limit, after_id \}/);
+  assert.match(operatorSource, /return apiError\(res, error\.status \|\| 500, 'Atlas source-health reconciliation failed'/);
 });
