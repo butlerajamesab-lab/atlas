@@ -166,7 +166,7 @@ async function renderOverview() {
       { label:'Stream Contracts', value:number(data.counts.active_streams), note:`${data.counts.runnable_streams} runnable · ${data.counts.streams_with_observations} observed` },
       { label:'Normalized Observations', value:number(data.counts.normalized_observations), note:`${percent(data.counts.identity_bound_observations, data.counts.normalized_observations)} identity-bound` },
       { label:'Canonical Signals', value:number(data.counts.canonical_signals), note:`${number(data.counts.canonical_signal_types)} governed types · ${number(data.counts.receipted_canonical_signals)} receipted` },
-      { label:'Signal Candidates', value:number(data.counts.verified_signal_candidates), note:`${number(data.counts.active_signal_rules)} active derivation rule` },
+      { label:'Signal Candidates', value:number(data.counts.signal_candidates), note:`${number(data.counts.verified_signal_candidates)} verified · ${number(data.counts.active_signal_rules)} active derivation rules` },
       { label:'Convergence Receipts', value:number(data.counts.convergence_receipts), note:`${number(data.counts.convergence_events)} persisted convergence events` },
       { label:'Ready / Degraded', value:`${readiness.ready} / ${readiness.degraded}`, note:`${readiness.unknown} unknown · ${readiness.not_active} inactive` },
     ])}
