@@ -46,7 +46,8 @@
     "adapter:osha": "node src/adapters/oshaInspectionsAdapter.js",
     "adapter:opensecrets": "node src/adapters/openSecretsAdapter.js",
     "adapter:fara": "node src/adapters/faraForeignAgentsAdapter.js",
-    "adapter:all": "node scripts/run-all-adapters.mjs"
+    "adapter:all": "node scripts/run-all-adapters.mjs",
+    "schema:apply:observation-read-performance": "node scripts/apply-sql-management-api.mjs src/schema/20261022_observation_read_model_covering_rollup.sql"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.86.0",
