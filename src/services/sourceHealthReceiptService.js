@@ -142,7 +142,7 @@ export async function reconcileIngestJobSourceHealth({ limit = 1000, after_id = 
   }
   if (after_id !== null && (typeof after_id !== 'string'
     || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(after_id))) {
-    throw new Error('source_health_reconcile_cursor_invalid');
+    throw Object.assign(new Error('source_health_reconcile_cursor_invalid'), { status: 400 });
   }
   const db = client ?? await defaultClient();
 

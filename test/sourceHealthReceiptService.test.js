@@ -239,3 +239,27 @@ test('reconcile can scan multiple small database batches within an operator limi
   assert.equal(result.next_cursor, null);
   assert.deepEqual(queryLimits, [1000]);
 });
+
+test('invalid source-health resume cursors produce HTTP 400 without contacting the database', async () => {
+  const db = { from() { throw new Error('database_must_not_be_read_for_invalid_cursor'); } };
+  const invalid = [
+    '',
+    'not-a-uuid',
+    '00000000-0000-4000-8000-00000000000G',
+    'AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA',
+    12,
+    [],
+    {},
+  ];
+  for (const after_id of invalid) {
+    await assert.rejects(
+      () => reconcileIngestJobSourceHealth({ limit: 2, after_id, client: db }),
+      (error) => {
+        assert.equal(error.message, 'source_health_reconcile_cursor_invalid');
+        assert.equal(error.status, 400);
+        return true;
+      },
+      `cursor ${JSON.stringify(after_id)} must be a client error`,
+    );
+  }
+});
