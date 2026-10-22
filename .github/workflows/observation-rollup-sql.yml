@@ -3,12 +3,14 @@ on:
   pull_request:
     paths:
       - 'src/schema/20261022_observation_read_model_covering_rollup.sql'
+      - 'src/schema/rollback/20261022_observation_read_model_covering_rollup.sql'
       - 'scripts/verify-observation-rollup-equivalence.py'
       - '.github/workflows/observation-rollup-sql.yml'
   push:
     branches: [main]
     paths:
       - 'src/schema/20261022_observation_read_model_covering_rollup.sql'
+      - 'src/schema/rollback/20261022_observation_read_model_covering_rollup.sql'
       - 'scripts/verify-observation-rollup-equivalence.py'
       - '.github/workflows/observation-rollup-sql.yml'
 permissions:

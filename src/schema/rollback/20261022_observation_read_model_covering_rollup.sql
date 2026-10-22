@@ -3,6 +3,15 @@ begin;
 set local lock_timeout='1s';
 set local statement_timeout='15s';
 
+do $preflight$
+begin
+  if md5(pg_get_viewdef('public.v_atlas_signal_derivation_summary_v1'::regclass,true)) <> '79d747295db7a2b9ec826e7155cc96e6'
+     or md5(pg_get_viewdef('public.v_atlas_stream_runtime_summary_v1'::regclass,true)) <> '3e043c3d66e8c1313c66d962a0a855dc' then
+    raise exception 'atlas_rollback_target_differs_from_verified_rollup_repair';
+  end if;
+end;
+$preflight$;
+
 create or replace view public.v_atlas_signal_derivation_summary_v1
 with (security_invoker = true)
 as
