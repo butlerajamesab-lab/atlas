@@ -1,0 +1,2041 @@
+{
+  "captured_at": "2026-09-10",
+  "source": "Atlas preserved ProPublica raw filing payloads; distinct legacy external ID and PDF URL; metadata fields only",
+  "rows": [
+    {
+      "filing": {
+        "ein": 510216586,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=01_2020_prefixes_47-51%2F510216586_201812_990_2020012317059388.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201812,
+        "updated": "2021-08-30T18:31:31.114Z"
+      },
+      "legacy_external_id": "510216586-unknown",
+      "organization": {
+        "ein": "510216586",
+        "name": "Providence Health & Services Washington"
+      },
+      "source_offset": 1778372879521288
+    },
+    {
+      "filing": {
+        "ein": 510216586,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=02_2019_prefixes_47-52%2F510216586_201712_990_2019022816134067.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201712,
+        "updated": "2019-10-15T18:33:12.398Z"
+      },
+      "legacy_external_id": "510216586-unknown",
+      "organization": {
+        "ein": "510216586",
+        "name": "Providence Health & Services Washington"
+      },
+      "source_offset": 1778372879521289
+    },
+    {
+      "filing": {
+        "ein": 510216586,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=02_2021_prefixes_47-52%2F510216586_201912_990_2021022417748860.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201912,
+        "updated": "2021-08-30T19:01:07.010Z"
+      },
+      "legacy_external_id": "510216586-unknown",
+      "organization": {
+        "ein": "510216586",
+        "name": "Providence Health & Services Washington"
+      },
+      "source_offset": 1778372879521287
+    },
+    {
+      "filing": {
+        "ein": 510216586,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=08_2018_prefixes_47-52%2F510216586_201612_990_2018081815597637.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201612,
+        "updated": "2019-10-15T18:33:12.398Z"
+      },
+      "legacy_external_id": "510216586-unknown",
+      "organization": {
+        "ein": "510216586",
+        "name": "Providence Health & Services Washington"
+      },
+      "source_offset": 1778372879521290
+    },
+    {
+      "filing": {
+        "ein": 510216586,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=2012_12_EO%2F51-0216586_990_201112.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201112,
+        "updated": "2017-06-29T23:36:01.783Z"
+      },
+      "legacy_external_id": "510216586-unknown",
+      "organization": {
+        "ein": "510216586",
+        "name": "Providence Health & Services Washington"
+      },
+      "source_offset": 1778372879521295
+    },
+    {
+      "filing": {
+        "ein": 510216586,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=2014_02_EO%2F51-0216586_990_201212.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201212,
+        "updated": "2017-06-30T00:05:29.614Z"
+      },
+      "legacy_external_id": "510216586-unknown",
+      "organization": {
+        "ein": "510216586",
+        "name": "Providence Health & Services Washington"
+      },
+      "source_offset": 1778372879521294
+    },
+    {
+      "filing": {
+        "ein": 510216586,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=2014_12_EO%2F51-0216586_990_201312.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201312,
+        "updated": "2017-06-30T00:08:20.882Z"
+      },
+      "legacy_external_id": "510216586-unknown",
+      "organization": {
+        "ein": "510216586",
+        "name": "Providence Health & Services Washington"
+      },
+      "source_offset": 1778372879521293
+    },
+    {
+      "filing": {
+        "ein": 510216586,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=2016_03_EO%2F51-0216586_990_201412.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201412,
+        "updated": "2017-06-30T00:38:02.850Z"
+      },
+      "legacy_external_id": "510216586-unknown",
+      "organization": {
+        "ein": "510216586",
+        "name": "Providence Health & Services Washington"
+      },
+      "source_offset": 1778372879521292
+    },
+    {
+      "filing": {
+        "ein": 510216586,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=download990pdf_01_2024_prefixes_47-52%2F510216586_202212_990_2024010422170465.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 202212,
+        "updated": "2024-08-28T20:13:39.245Z"
+      },
+      "legacy_external_id": "510216586-unknown",
+      "organization": {
+        "ein": "510216586",
+        "name": "Providence Health & Services Washington"
+      },
+      "source_offset": 1778372879521284
+    },
+    {
+      "filing": {
+        "ein": 510216586,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=download990pdf_05_2023_prefixes_48-53%2F510216586_202112_990_2023051121205816.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 202112,
+        "updated": "2023-08-07T19:42:25.914Z"
+      },
+      "legacy_external_id": "510216586-unknown",
+      "organization": {
+        "ein": "510216586",
+        "name": "Providence Health & Services Washington"
+      },
+      "source_offset": 1778372879521285
+    },
+    {
+      "filing": {
+        "ein": 510216586,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=IRS%2F510216586_202312_990_2025021923112887.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 202312,
+        "updated": "2025-08-05T16:09:40.264Z"
+      },
+      "legacy_external_id": "510216586-unknown",
+      "organization": {
+        "ein": "510216586",
+        "name": "Providence Health & Services Washington"
+      },
+      "source_offset": 1778372879521283
+    },
+    {
+      "filing": {
+        "ein": 510216586,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": null,
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201512,
+        "updated": "2018-12-10T23:12:09.885Z"
+      },
+      "legacy_external_id": "510216586-unknown",
+      "organization": {
+        "ein": "510216586",
+        "name": "Providence Health & Services Washington"
+      },
+      "source_offset": 1778372879521291
+    },
+    {
+      "filing": {
+        "ein": 510216587,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=02_2018_prefixes_51-58%2F510216587_201612_990_2018022815192465.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201612,
+        "updated": "2019-10-15T18:33:12.398Z"
+      },
+      "legacy_external_id": "510216587-unknown",
+      "organization": {
+        "ein": "510216587",
+        "name": "Providence Health & Services Oregon"
+      },
+      "source_offset": 1778372879521315
+    },
+    {
+      "filing": {
+        "ein": 510216587,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=02_2019_prefixes_47-52%2F510216587_201712_990_2019020116054417.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201712,
+        "updated": "2019-10-15T18:33:12.398Z"
+      },
+      "legacy_external_id": "510216587-unknown",
+      "organization": {
+        "ein": "510216587",
+        "name": "Providence Health & Services Oregon"
+      },
+      "source_offset": 1778372879521314
+    },
+    {
+      "filing": {
+        "ein": 510216587,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=02_2020_prefixes_47-52%2F510216587_201812_990_2020021817159875.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201812,
+        "updated": "2021-08-30T18:32:20.809Z"
+      },
+      "legacy_external_id": "510216587-unknown",
+      "organization": {
+        "ein": "510216587",
+        "name": "Providence Health & Services Oregon"
+      },
+      "source_offset": 1778372879521313
+    },
+    {
+      "filing": {
+        "ein": 510216587,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=02_2021_prefixes_47-52%2F510216587_201912_990_2021022217742678.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201912,
+        "updated": "2021-08-30T19:01:06.298Z"
+      },
+      "legacy_external_id": "510216587-unknown",
+      "organization": {
+        "ein": "510216587",
+        "name": "Providence Health & Services Oregon"
+      },
+      "source_offset": 1778372879521312
+    },
+    {
+      "filing": {
+        "ein": 510216587,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=2012_12_EO%2F51-0216587_990_201112.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201112,
+        "updated": "2017-06-29T23:36:01.783Z"
+      },
+      "legacy_external_id": "510216587-unknown",
+      "organization": {
+        "ein": "510216587",
+        "name": "Providence Health & Services Oregon"
+      },
+      "source_offset": 1778372879521320
+    },
+    {
+      "filing": {
+        "ein": 510216587,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=2014_01_EO%2F51-0216587_990_201212.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201212,
+        "updated": "2017-06-29T23:52:58.282Z"
+      },
+      "legacy_external_id": "510216587-unknown",
+      "organization": {
+        "ein": "510216587",
+        "name": "Providence Health & Services Oregon"
+      },
+      "source_offset": 1778372879521319
+    },
+    {
+      "filing": {
+        "ein": 510216587,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=2014_12_EO%2F51-0216587_990_201312.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201312,
+        "updated": "2017-06-30T00:08:15.203Z"
+      },
+      "legacy_external_id": "510216587-unknown",
+      "organization": {
+        "ein": "510216587",
+        "name": "Providence Health & Services Oregon"
+      },
+      "source_offset": 1778372879521318
+    },
+    {
+      "filing": {
+        "ein": 510216587,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=2016_02_EO%2F51-0216587_990_201412.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201412,
+        "updated": "2017-06-30T00:19:22.372Z"
+      },
+      "legacy_external_id": "510216587-unknown",
+      "organization": {
+        "ein": "510216587",
+        "name": "Providence Health & Services Oregon"
+      },
+      "source_offset": 1778372879521317
+    },
+    {
+      "filing": {
+        "ein": 510216587,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=2017_03_EO%2F51-0216587_990_201512.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201512,
+        "updated": "2017-06-30T00:34:55.202Z"
+      },
+      "legacy_external_id": "510216587-unknown",
+      "organization": {
+        "ein": "510216587",
+        "name": "Providence Health & Services Oregon"
+      },
+      "source_offset": 1778372879521316
+    },
+    {
+      "filing": {
+        "ein": 510216587,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=download990pdf_01_2024_prefixes_47-52%2F510216587_202212_990_2024010522187355.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 202212,
+        "updated": "2024-08-28T20:13:39.245Z"
+      },
+      "legacy_external_id": "510216587-unknown",
+      "organization": {
+        "ein": "510216587",
+        "name": "Providence Health & Services Oregon"
+      },
+      "source_offset": 1778372879521309
+    },
+    {
+      "filing": {
+        "ein": 510216587,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=download990pdf_10_2022_prefixes_47-51%2F510216587_202012_990_2022102520548671.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 202012,
+        "updated": "2022-07-01T20:34:21.009Z"
+      },
+      "legacy_external_id": "510216587-unknown",
+      "organization": {
+        "ein": "510216587",
+        "name": "Providence Health & Services Oregon"
+      },
+      "source_offset": 1778372879521311
+    },
+    {
+      "filing": {
+        "ein": 510216587,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=IRS%2F510216587_202112_990_2023051221225611.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 202112,
+        "updated": "2023-08-07T19:42:25.914Z"
+      },
+      "legacy_external_id": "510216587-unknown",
+      "organization": {
+        "ein": "510216587",
+        "name": "Providence Health & Services Oregon"
+      },
+      "source_offset": 1778372879521310
+    },
+    {
+      "filing": {
+        "ein": 510216587,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=IRS%2F510216587_202312_990_2025021423104086.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 202312,
+        "updated": "2025-08-05T16:09:40.264Z"
+      },
+      "legacy_external_id": "510216587-unknown",
+      "organization": {
+        "ein": "510216587",
+        "name": "Providence Health & Services Oregon"
+      },
+      "source_offset": 1778372879561328
+    },
+    {
+      "filing": {
+        "ein": 510216587,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": null,
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 202312,
+        "updated": "2025-08-05T16:09:40.264Z"
+      },
+      "legacy_external_id": "510216587-unknown",
+      "organization": {
+        "ein": "510216587",
+        "name": "Providence Health & Services Oregon"
+      },
+      "source_offset": 1778372879521308
+    },
+    {
+      "filing": {
+        "ein": 562618866,
+        "form_type": null,
+        "formtype": 2,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=06_2021_prefixes_54-58%2F562618866_201912_990PF_2021061418342101.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201912,
+        "updated": "2021-09-13T16:32:34.786Z"
+      },
+      "legacy_external_id": "562618866-unknown",
+      "organization": {
+        "ein": "562618866",
+        "name": "Gates Foundation"
+      },
+      "source_offset": 1778372879521300
+    },
+    {
+      "filing": {
+        "ein": 562618866,
+        "form_type": null,
+        "formtype": 2,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=2012_12_PF%2F56-2618866_990PF_201112.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201112,
+        "updated": "2017-06-29T23:44:06.772Z"
+      },
+      "legacy_external_id": "562618866-unknown",
+      "organization": {
+        "ein": "562618866",
+        "name": "Gates Foundation"
+      },
+      "source_offset": 1778372879521305
+    },
+    {
+      "filing": {
+        "ein": 562618866,
+        "form_type": null,
+        "formtype": 2,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=2013_12_PF%2F56-2618866_990PF_201212.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201212,
+        "updated": "2017-06-29T23:59:13.634Z"
+      },
+      "legacy_external_id": "562618866-unknown",
+      "organization": {
+        "ein": "562618866",
+        "name": "Gates Foundation"
+      },
+      "source_offset": 1778372879521304
+    },
+    {
+      "filing": {
+        "ein": 562618866,
+        "form_type": null,
+        "formtype": 2,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=2014_12_PF%2F56-2618866_990PF_201312.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201312,
+        "updated": "2017-06-30T00:14:47.167Z"
+      },
+      "legacy_external_id": "562618866-unknown",
+      "organization": {
+        "ein": "562618866",
+        "name": "Gates Foundation"
+      },
+      "source_offset": 1778372879521303
+    },
+    {
+      "filing": {
+        "ein": 562618866,
+        "form_type": null,
+        "formtype": 2,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=2016_01_PF%2F56-2618866_990PF_201412.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201412,
+        "updated": "2017-06-30T00:29:59.156Z"
+      },
+      "legacy_external_id": "562618866-unknown",
+      "organization": {
+        "ein": "562618866",
+        "name": "Gates Foundation"
+      },
+      "source_offset": 1778372879521302
+    },
+    {
+      "filing": {
+        "ein": 562618866,
+        "form_type": null,
+        "formtype": 2,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=2017_03_PF%2F56-2618866_990PF_201512.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201512,
+        "updated": "2018-05-05T23:04:46.722Z"
+      },
+      "legacy_external_id": "562618866-unknown",
+      "organization": {
+        "ein": "562618866",
+        "name": "Gates Foundation"
+      },
+      "source_offset": 1778372879521301
+    },
+    {
+      "filing": {
+        "ein": 562618866,
+        "form_type": null,
+        "formtype": 2,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=download990pdf_12_2023_prefixes_56-58%2F562618866_202212_990PF_2023121922137209.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 202212,
+        "updated": "2024-08-28T20:28:17.017Z"
+      },
+      "legacy_external_id": "562618866-unknown",
+      "organization": {
+        "ein": "562618866",
+        "name": "Gates Foundation"
+      },
+      "source_offset": 1778372879521297
+    },
+    {
+      "filing": {
+        "ein": 562618866,
+        "form_type": null,
+        "formtype": 2,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=IRS%2F562618866_202012_990PF_2022042119922106.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 202012,
+        "updated": "2022-07-01T20:48:52.904Z"
+      },
+      "legacy_external_id": "562618866-unknown",
+      "organization": {
+        "ein": "562618866",
+        "name": "Gates Foundation"
+      },
+      "source_offset": 1778372879521299
+    },
+    {
+      "filing": {
+        "ein": 562618866,
+        "form_type": null,
+        "formtype": 2,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=IRS%2F562618866_202112_990PF_2023050521159578.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 202112,
+        "updated": "2024-08-28T20:02:10.904Z"
+      },
+      "legacy_external_id": "562618866-unknown",
+      "organization": {
+        "ein": "562618866",
+        "name": "Gates Foundation"
+      },
+      "source_offset": 1778372879521298
+    },
+    {
+      "filing": {
+        "ein": 562618866,
+        "form_type": null,
+        "formtype": 2,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=IRS%2F562618866_202312_990PF_2025010222973816.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 202312,
+        "updated": "2025-08-05T16:14:36.690Z"
+      },
+      "legacy_external_id": "562618866-unknown",
+      "organization": {
+        "ein": "562618866",
+        "name": "Gates Foundation"
+      },
+      "source_offset": 1778372879561316
+    },
+    {
+      "filing": {
+        "ein": 562618866,
+        "form_type": null,
+        "formtype": 2,
+        "pdf_url": null,
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 202312,
+        "updated": "2025-08-05T16:14:36.690Z"
+      },
+      "legacy_external_id": "562618866-unknown",
+      "organization": {
+        "ein": "562618866",
+        "name": "Gates Foundation"
+      },
+      "source_offset": 1778372879521296
+    },
+    {
+      "filing": {
+        "ein": 882918646,
+        "form_type": null,
+        "formtype": 2,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=download990pdf_12_2023_prefixes_87-88%2F882918646_202212_990PF_2023121922135819.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 202212,
+        "updated": "2024-08-28T20:29:56.269Z"
+      },
+      "legacy_external_id": "882918646-unknown",
+      "organization": {
+        "ein": "882918646",
+        "name": "Pivotal Philanthropies Foundation"
+      },
+      "source_offset": 1778372879521307
+    },
+    {
+      "filing": {
+        "ein": 882918646,
+        "form_type": null,
+        "formtype": 2,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=IRS%2F882918646_202312_990PF_2025010222978123.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 202312,
+        "updated": "2025-08-05T16:15:03.635Z"
+      },
+      "legacy_external_id": "882918646-unknown",
+      "organization": {
+        "ein": "882918646",
+        "name": "Pivotal Philanthropies Foundation"
+      },
+      "source_offset": 1778372879561326
+    },
+    {
+      "filing": {
+        "ein": 882918646,
+        "form_type": null,
+        "formtype": 2,
+        "pdf_url": null,
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 202312,
+        "updated": "2025-08-05T16:15:03.635Z"
+      },
+      "legacy_external_id": "882918646-unknown",
+      "organization": {
+        "ein": "882918646",
+        "name": "Pivotal Philanthropies Foundation"
+      },
+      "source_offset": 1778372879521306
+    },
+    {
+      "filing": {
+        "ein": 910433740,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=01_2018_prefixes_88-91%2F910433740_201612_990_2018011215119168.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201612,
+        "updated": "2018-12-10T23:07:13.159Z"
+      },
+      "legacy_external_id": "910433740-unknown",
+      "organization": {
+        "ein": "910433740",
+        "name": "Swedish Health Services"
+      },
+      "source_offset": 1778372879521367
+    },
+    {
+      "filing": {
+        "ein": 910433740,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=01_2019_prefixes_81-99%2F910433740_201712_990_2019012816036841.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201712,
+        "updated": "2019-10-15T18:33:12.398Z"
+      },
+      "legacy_external_id": "910433740-unknown",
+      "organization": {
+        "ein": "910433740",
+        "name": "Swedish Health Services"
+      },
+      "source_offset": 1778372879521366
+    },
+    {
+      "filing": {
+        "ein": 910433740,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=02_2020_prefixes_84-91%2F910433740_201812_990_2020020417105093.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201812,
+        "updated": "2021-08-30T18:31:32.995Z"
+      },
+      "legacy_external_id": "910433740-unknown",
+      "organization": {
+        "ein": "910433740",
+        "name": "Swedish Health Services"
+      },
+      "source_offset": 1778372879521365
+    },
+    {
+      "filing": {
+        "ein": 910433740,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=02_2021_prefixes_86-92%2F910433740_201912_990_2021022417753561.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201912,
+        "updated": "2021-08-30T19:01:34.904Z"
+      },
+      "legacy_external_id": "910433740-unknown",
+      "organization": {
+        "ein": "910433740",
+        "name": "Swedish Health Services"
+      },
+      "source_offset": 1778372879521364
+    },
+    {
+      "filing": {
+        "ein": 910433740,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=2012_12_EO%2F91-0433740_990_201112.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201112,
+        "updated": "2017-06-29T23:36:01.783Z"
+      },
+      "legacy_external_id": "910433740-unknown",
+      "organization": {
+        "ein": "910433740",
+        "name": "Swedish Health Services"
+      },
+      "source_offset": 1778372879521372
+    },
+    {
+      "filing": {
+        "ein": 910433740,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=2014_04_EO%2F91-0433740_990_201212.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201212,
+        "updated": "2017-06-30T00:05:56.875Z"
+      },
+      "legacy_external_id": "910433740-unknown",
+      "organization": {
+        "ein": "910433740",
+        "name": "Swedish Health Services"
+      },
+      "source_offset": 1778372879521371
+    },
+    {
+      "filing": {
+        "ein": 910433740,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=2014_12_EO%2F91-0433740_990_201312.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201312,
+        "updated": "2017-06-30T00:08:15.425Z"
+      },
+      "legacy_external_id": "910433740-unknown",
+      "organization": {
+        "ein": "910433740",
+        "name": "Swedish Health Services"
+      },
+      "source_offset": 1778372879521370
+    },
+    {
+      "filing": {
+        "ein": 910433740,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=2016_02_EO%2F91-0433740_990_201412.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201412,
+        "updated": "2017-06-30T00:19:22.372Z"
+      },
+      "legacy_external_id": "910433740-unknown",
+      "organization": {
+        "ein": "910433740",
+        "name": "Swedish Health Services"
+      },
+      "source_offset": 1778372879521369
+    },
+    {
+      "filing": {
+        "ein": 910433740,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=2017_04_EO%2F91-0433740_990_201512.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201512,
+        "updated": "2017-06-30T00:34:56.935Z"
+      },
+      "legacy_external_id": "910433740-unknown",
+      "organization": {
+        "ein": "910433740",
+        "name": "Swedish Health Services"
+      },
+      "source_offset": 1778372879521368
+    },
+    {
+      "filing": {
+        "ein": 910433740,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=download990pdf_01_2024_prefixes_88-91%2F910433740_202212_990_2024010322161088.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 202212,
+        "updated": "2024-08-28T20:20:13.039Z"
+      },
+      "legacy_external_id": "910433740-unknown",
+      "organization": {
+        "ein": "910433740",
+        "name": "Swedish Health Services"
+      },
+      "source_offset": 1778372879521361
+    },
+    {
+      "filing": {
+        "ein": 910433740,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=download990pdf_10_2022_prefixes_84-91%2F910433740_202012_990_2022102420533650.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 202012,
+        "updated": "2022-07-01T20:39:39.234Z"
+      },
+      "legacy_external_id": "910433740-unknown",
+      "organization": {
+        "ein": "910433740",
+        "name": "Swedish Health Services"
+      },
+      "source_offset": 1778372879521363
+    },
+    {
+      "filing": {
+        "ein": 910433740,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=IRS%2F910433740_202112_990_2023031521119487.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 202112,
+        "updated": "2023-08-07T19:48:11.728Z"
+      },
+      "legacy_external_id": "910433740-unknown",
+      "organization": {
+        "ein": "910433740",
+        "name": "Swedish Health Services"
+      },
+      "source_offset": 1778372879521362
+    },
+    {
+      "filing": {
+        "ein": 910433740,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=IRS%2F910433740_202312_990_2025022623131193.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 202312,
+        "updated": "2025-08-05T16:11:02.664Z"
+      },
+      "legacy_external_id": "910433740-unknown",
+      "organization": {
+        "ein": "910433740",
+        "name": "Swedish Health Services"
+      },
+      "source_offset": 1778372879521360
+    },
+    {
+      "filing": {
+        "ein": 910511770,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=01_2018_prefixes_88-91%2F910511770_201612_990_2018010315074540.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201612,
+        "updated": "2018-12-10T23:08:10.587Z"
+      },
+      "legacy_external_id": "910511770-unknown",
+      "organization": {
+        "ein": "910511770",
+        "name": "Kaiser Foundation Health Plan Of Washington"
+      },
+      "source_offset": 1778372879521341
+    },
+    {
+      "filing": {
+        "ein": 910511770,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=02_2020_prefixes_84-91%2F910511770_201812_990_2020021417147456.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201812,
+        "updated": "2021-08-30T18:33:16.727Z"
+      },
+      "legacy_external_id": "910511770-unknown",
+      "organization": {
+        "ein": "910511770",
+        "name": "Kaiser Foundation Health Plan Of Washington"
+      },
+      "source_offset": 1778372879521339
+    },
+    {
+      "filing": {
+        "ein": 910511770,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=03_2021_prefixes_85-94%2F910511770_201712_990_2021030217777736.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201712,
+        "updated": "2019-10-15T18:33:12.398Z"
+      },
+      "legacy_external_id": "910511770-unknown",
+      "organization": {
+        "ein": "910511770",
+        "name": "Kaiser Foundation Health Plan Of Washington"
+      },
+      "source_offset": 1778372879521340
+    },
+    {
+      "filing": {
+        "ein": 910511770,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=03_2021_prefixes_85-94%2F910511770_201912_990_2021030217781136.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201912,
+        "updated": "2021-08-30T19:02:30.502Z"
+      },
+      "legacy_external_id": "910511770-unknown",
+      "organization": {
+        "ein": "910511770",
+        "name": "Kaiser Foundation Health Plan Of Washington"
+      },
+      "source_offset": 1778372879521338
+    },
+    {
+      "filing": {
+        "ein": 910511770,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=2012_12_EO%2F91-0511770_990_201112.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201112,
+        "updated": "2017-06-29T23:36:01.783Z"
+      },
+      "legacy_external_id": "910511770-unknown",
+      "organization": {
+        "ein": "910511770",
+        "name": "Kaiser Foundation Health Plan Of Washington"
+      },
+      "source_offset": 1778372879521346
+    },
+    {
+      "filing": {
+        "ein": 910511770,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=2013_12_EO%2F91-0511770_990_201212.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201212,
+        "updated": "2017-06-29T23:52:42.296Z"
+      },
+      "legacy_external_id": "910511770-unknown",
+      "organization": {
+        "ein": "910511770",
+        "name": "Kaiser Foundation Health Plan Of Washington"
+      },
+      "source_offset": 1778372879521345
+    },
+    {
+      "filing": {
+        "ein": 910511770,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=2014_12_EO%2F91-0511770_990_201312.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201312,
+        "updated": "2017-06-30T00:07:59.360Z"
+      },
+      "legacy_external_id": "910511770-unknown",
+      "organization": {
+        "ein": "910511770",
+        "name": "Kaiser Foundation Health Plan Of Washington"
+      },
+      "source_offset": 1778372879521344
+    },
+    {
+      "filing": {
+        "ein": 910511770,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=2016_02_EO%2F91-0511770_990_201412.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201412,
+        "updated": "2017-06-30T00:19:22.633Z"
+      },
+      "legacy_external_id": "910511770-unknown",
+      "organization": {
+        "ein": "910511770",
+        "name": "Kaiser Foundation Health Plan Of Washington"
+      },
+      "source_offset": 1778372879521343
+    },
+    {
+      "filing": {
+        "ein": 910511770,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=2017_04_EO%2F91-0511770_990_201512.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201512,
+        "updated": "2017-06-30T00:34:52.496Z"
+      },
+      "legacy_external_id": "910511770-unknown",
+      "organization": {
+        "ein": "910511770",
+        "name": "Kaiser Foundation Health Plan Of Washington"
+      },
+      "source_offset": 1778372879521342
+    },
+    {
+      "filing": {
+        "ein": 910511770,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=download990pdf_01_2024_prefixes_88-91%2F910511770_202212_990_2024010322155378.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 202212,
+        "updated": "2024-08-28T20:20:13.039Z"
+      },
+      "legacy_external_id": "910511770-unknown",
+      "organization": {
+        "ein": "910511770",
+        "name": "Kaiser Foundation Health Plan Of Washington"
+      },
+      "source_offset": 1778372879521335
+    },
+    {
+      "filing": {
+        "ein": 910511770,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=IRS%2F910511770_202112_990_2023051121208027.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 202112,
+        "updated": "2023-08-07T19:48:12.414Z"
+      },
+      "legacy_external_id": "910511770-unknown",
+      "organization": {
+        "ein": "910511770",
+        "name": "Kaiser Foundation Health Plan Of Washington"
+      },
+      "source_offset": 1778372879521336
+    },
+    {
+      "filing": {
+        "ein": 910511770,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=IRS%2F910511770_202312_990_2025030323142749.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 202312,
+        "updated": "2025-08-05T16:11:02.664Z"
+      },
+      "legacy_external_id": "910511770-unknown",
+      "organization": {
+        "ein": "910511770",
+        "name": "Kaiser Foundation Health Plan Of Washington"
+      },
+      "source_offset": 1778372879521334
+    },
+    {
+      "filing": {
+        "ein": 910511770,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": null,
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 202012,
+        "updated": "2022-07-01T20:39:39.234Z"
+      },
+      "legacy_external_id": "910511770-unknown",
+      "organization": {
+        "ein": "910511770",
+        "name": "Kaiser Foundation Health Plan Of Washington"
+      },
+      "source_offset": 1778372879521337
+    },
+    {
+      "filing": {
+        "ein": 910564748,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=09_2018_prefixes_87-93%2F910564748_201709_990_2018092715737019.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201709,
+        "updated": "2019-10-15T18:36:18.369Z"
+      },
+      "legacy_external_id": "910564748-unknown",
+      "organization": {
+        "ein": "910564748",
+        "name": "Seattle Childrens Hospital"
+      },
+      "source_offset": 1778372879521379
+    },
+    {
+      "filing": {
+        "ein": 910564748,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=09_2020_prefixes_84-91%2F910564748_201909_990_2020092317322090.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201909,
+        "updated": "2022-07-01T20:39:39.234Z"
+      },
+      "legacy_external_id": "910564748-unknown",
+      "organization": {
+        "ein": "910564748",
+        "name": "Seattle Childrens Hospital"
+      },
+      "source_offset": 1778372879521377
+    },
+    {
+      "filing": {
+        "ein": 910564748,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=10_2019_prefixes_86-92%2F910564748_201809_990_2019101516743897.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201809,
+        "updated": "2021-08-30T18:35:51.555Z"
+      },
+      "legacy_external_id": "910564748-unknown",
+      "organization": {
+        "ein": "910564748",
+        "name": "Seattle Childrens Hospital"
+      },
+      "source_offset": 1778372879521378
+    },
+    {
+      "filing": {
+        "ein": 910564748,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=2012_08_EO%2F91-0564748_990_201109.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201109,
+        "updated": "2017-06-29T23:36:01.387Z"
+      },
+      "legacy_external_id": "910564748-unknown",
+      "organization": {
+        "ein": "910564748",
+        "name": "Seattle Childrens Hospital"
+      },
+      "source_offset": 1778372879521385
+    },
+    {
+      "filing": {
+        "ein": 910564748,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=2013_12_EO%2F91-0564748_990_201209.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201209,
+        "updated": "2017-06-29T23:51:51.359Z"
+      },
+      "legacy_external_id": "910564748-unknown",
+      "organization": {
+        "ein": "910564748",
+        "name": "Seattle Childrens Hospital"
+      },
+      "source_offset": 1778372879521384
+    },
+    {
+      "filing": {
+        "ein": 910564748,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=2014_10_EO%2F91-0564748_990_201309.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201309,
+        "updated": "2017-06-30T00:07:01.091Z"
+      },
+      "legacy_external_id": "910564748-unknown",
+      "organization": {
+        "ein": "910564748",
+        "name": "Seattle Childrens Hospital"
+      },
+      "source_offset": 1778372879521383
+    },
+    {
+      "filing": {
+        "ein": 910564748,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=2015_09_EO%2F91-0564748_990_201409.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201409,
+        "updated": "2017-06-30T00:19:22.633Z"
+      },
+      "legacy_external_id": "910564748-unknown",
+      "organization": {
+        "ein": "910564748",
+        "name": "Seattle Childrens Hospital"
+      },
+      "source_offset": 1778372879521382
+    },
+    {
+      "filing": {
+        "ein": 910564748,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=2016_10_EO%2F91-0564748_990_201509.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201509,
+        "updated": "2017-06-30T00:36:02.780Z"
+      },
+      "legacy_external_id": "910564748-unknown",
+      "organization": {
+        "ein": "910564748",
+        "name": "Seattle Childrens Hospital"
+      },
+      "source_offset": 1778372879521381
+    },
+    {
+      "filing": {
+        "ein": 910564748,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=download990pdf_11_2023_prefixes_87-91%2F910564748_202209_990_2023110321858902.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 202209,
+        "updated": "2024-08-28T20:20:13.039Z"
+      },
+      "legacy_external_id": "910564748-unknown",
+      "organization": {
+        "ein": "910564748",
+        "name": "Seattle Childrens Hospital"
+      },
+      "source_offset": 1778372879521374
+    },
+    {
+      "filing": {
+        "ein": 910564748,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=IRS%2F910564748_201609_990_2017101814854947.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201609,
+        "updated": "2018-12-10T23:09:23.996Z"
+      },
+      "legacy_external_id": "910564748-unknown",
+      "organization": {
+        "ein": "910564748",
+        "name": "Seattle Childrens Hospital"
+      },
+      "source_offset": 1778372879521380
+    },
+    {
+      "filing": {
+        "ein": 910564748,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=IRS%2F910564748_202109_990_2023020220886519.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 202109,
+        "updated": "2024-08-28T20:20:13.039Z"
+      },
+      "legacy_external_id": "910564748-unknown",
+      "organization": {
+        "ein": "910564748",
+        "name": "Seattle Childrens Hospital"
+      },
+      "source_offset": 1778372879521375
+    },
+    {
+      "filing": {
+        "ein": 910564748,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=IRS%2F910564748_202309_990_2024120622933010.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 202309,
+        "updated": "2025-08-05T16:11:02.664Z"
+      },
+      "legacy_external_id": "910564748-unknown",
+      "organization": {
+        "ein": "910564748",
+        "name": "Seattle Childrens Hospital"
+      },
+      "source_offset": 1778372879521373
+    },
+    {
+      "filing": {
+        "ein": 910564748,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": null,
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 202009,
+        "updated": "2022-07-01T20:39:39.234Z"
+      },
+      "legacy_external_id": "910564748-unknown",
+      "organization": {
+        "ein": "910564748",
+        "name": "Seattle Childrens Hospital"
+      },
+      "source_offset": 1778372879521376
+    },
+    {
+      "filing": {
+        "ein": 910939479,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=02_2021_prefixes_86-92%2F910939479_201906_990_2021020917698770.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201906,
+        "updated": "2021-08-30T18:57:19.797Z"
+      },
+      "legacy_external_id": "910939479-unknown",
+      "organization": {
+        "ein": "910939479",
+        "name": "Peacehealth"
+      },
+      "source_offset": 1778372879521351
+    },
+    {
+      "filing": {
+        "ein": 910939479,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=05_2018_prefixes_82-94%2F910939479_201706_990_2018052115325634.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201706,
+        "updated": "2019-10-15T18:33:12.398Z"
+      },
+      "legacy_external_id": "910939479-unknown",
+      "organization": {
+        "ein": "910939479",
+        "name": "Peacehealth"
+      },
+      "source_offset": 1778372879521353
+    },
+    {
+      "filing": {
+        "ein": 910939479,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=05_2019_prefixes_86-91%2F910939479_201806_990_2019053016360445.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201806,
+        "updated": "2021-08-30T18:39:17.553Z"
+      },
+      "legacy_external_id": "910939479-unknown",
+      "organization": {
+        "ein": "910939479",
+        "name": "Peacehealth"
+      },
+      "source_offset": 1778372879521352
+    },
+    {
+      "filing": {
+        "ein": 910939479,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=2012_06_EO%2F91-0939479_990_201106.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201106,
+        "updated": "2017-06-29T23:36:01.168Z"
+      },
+      "legacy_external_id": "910939479-unknown",
+      "organization": {
+        "ein": "910939479",
+        "name": "Peacehealth"
+      },
+      "source_offset": 1778372879521359
+    },
+    {
+      "filing": {
+        "ein": 910939479,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=2013_08_EO%2F91-0939479_990_201206.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201206,
+        "updated": "2017-06-29T23:51:17.907Z"
+      },
+      "legacy_external_id": "910939479-unknown",
+      "organization": {
+        "ein": "910939479",
+        "name": "Peacehealth"
+      },
+      "source_offset": 1778372879521358
+    },
+    {
+      "filing": {
+        "ein": 910939479,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=2014_07_EO%2F91-0939479_990_201306.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201306,
+        "updated": "2017-06-30T00:06:32.670Z"
+      },
+      "legacy_external_id": "910939479-unknown",
+      "organization": {
+        "ein": "910939479",
+        "name": "Peacehealth"
+      },
+      "source_offset": 1778372879521357
+    },
+    {
+      "filing": {
+        "ein": 910939479,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=2015_07_EO%2F91-0939479_990_201406.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201406,
+        "updated": "2017-06-30T00:19:22.372Z"
+      },
+      "legacy_external_id": "910939479-unknown",
+      "organization": {
+        "ein": "910939479",
+        "name": "Peacehealth"
+      },
+      "source_offset": 1778372879521356
+    },
+    {
+      "filing": {
+        "ein": 910939479,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=2016_07_EO%2F91-0939479_990_201506.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201506,
+        "updated": "2017-06-30T00:37:23.324Z"
+      },
+      "legacy_external_id": "910939479-unknown",
+      "organization": {
+        "ein": "910939479",
+        "name": "Peacehealth"
+      },
+      "source_offset": 1778372879521355
+    },
+    {
+      "filing": {
+        "ein": 910939479,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=IRS%2F910939479_201606_990_2017083114691234.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201606,
+        "updated": "2018-12-10T23:11:08.920Z"
+      },
+      "legacy_external_id": "910939479-unknown",
+      "organization": {
+        "ein": "910939479",
+        "name": "Peacehealth"
+      },
+      "source_offset": 1778372879521354
+    },
+    {
+      "filing": {
+        "ein": 910939479,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=IRS%2F910939479_202206_990_2023060921422132.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 202206,
+        "updated": "2024-08-28T20:20:16.018Z"
+      },
+      "legacy_external_id": "910939479-unknown",
+      "organization": {
+        "ein": "910939479",
+        "name": "Peacehealth"
+      },
+      "source_offset": 1778372879521348
+    },
+    {
+      "filing": {
+        "ein": 910939479,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": null,
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 202006,
+        "updated": "2022-07-01T20:39:41.859Z"
+      },
+      "legacy_external_id": "910939479-unknown",
+      "organization": {
+        "ein": "910939479",
+        "name": "Peacehealth"
+      },
+      "source_offset": 1778372879521350
+    },
+    {
+      "filing": {
+        "ein": 911352172,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=02_2019_prefixes_90-93%2F911352172_201712_990_2019020616068590.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201712,
+        "updated": "2019-10-15T18:33:12.398Z"
+      },
+      "legacy_external_id": "911352172-unknown",
+      "organization": {
+        "ein": "911352172",
+        "name": "Multicare Health System"
+      },
+      "source_offset": 1778372879521327
+    },
+    {
+      "filing": {
+        "ein": 911352172,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=02_2021_prefixes_86-92%2F911352172_201912_990_2021022417749910.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201912,
+        "updated": "2021-08-30T19:00:59.289Z"
+      },
+      "legacy_external_id": "911352172-unknown",
+      "organization": {
+        "ein": "911352172",
+        "name": "Multicare Health System"
+      },
+      "source_offset": 1778372879521325
+    },
+    {
+      "filing": {
+        "ein": 911352172,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=12_2017_prefixes_84-91%2F911352172_201612_990_2017122715052359.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201612,
+        "updated": "2018-12-10T23:08:14.720Z"
+      },
+      "legacy_external_id": "911352172-unknown",
+      "organization": {
+        "ein": "911352172",
+        "name": "Multicare Health System"
+      },
+      "source_offset": 1778372879521328
+    },
+    {
+      "filing": {
+        "ein": 911352172,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=12_2019_prefixes_86-94%2F911352172_201812_990_2019120616931234.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201812,
+        "updated": "2021-08-30T18:33:48.114Z"
+      },
+      "legacy_external_id": "911352172-unknown",
+      "organization": {
+        "ein": "911352172",
+        "name": "Multicare Health System"
+      },
+      "source_offset": 1778372879521326
+    },
+    {
+      "filing": {
+        "ein": 911352172,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=2012_12_EO%2F91-1352172_990_201112.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201112,
+        "updated": "2017-06-29T23:36:01.589Z"
+      },
+      "legacy_external_id": "911352172-unknown",
+      "organization": {
+        "ein": "911352172",
+        "name": "Multicare Health System"
+      },
+      "source_offset": 1778372879521333
+    },
+    {
+      "filing": {
+        "ein": 911352172,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=2013_12_EO%2F91-1352172_990_201212.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201212,
+        "updated": "2017-06-29T23:52:46.667Z"
+      },
+      "legacy_external_id": "911352172-unknown",
+      "organization": {
+        "ein": "911352172",
+        "name": "Multicare Health System"
+      },
+      "source_offset": 1778372879521332
+    },
+    {
+      "filing": {
+        "ein": 911352172,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=2014_12_EO%2F91-1352172_990_201312.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201312,
+        "updated": "2017-06-30T00:07:48.156Z"
+      },
+      "legacy_external_id": "911352172-unknown",
+      "organization": {
+        "ein": "911352172",
+        "name": "Multicare Health System"
+      },
+      "source_offset": 1778372879521331
+    },
+    {
+      "filing": {
+        "ein": 911352172,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=2016_02_EO%2F91-1352172_990_201412.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201412,
+        "updated": "2017-06-30T00:19:22.372Z"
+      },
+      "legacy_external_id": "911352172-unknown",
+      "organization": {
+        "ein": "911352172",
+        "name": "Multicare Health System"
+      },
+      "source_offset": 1778372879521330
+    },
+    {
+      "filing": {
+        "ein": 911352172,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=2017_03_EO%2F91-1352172_990_201512.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201512,
+        "updated": "2017-06-30T00:35:12.997Z"
+      },
+      "legacy_external_id": "911352172-unknown",
+      "organization": {
+        "ein": "911352172",
+        "name": "Multicare Health System"
+      },
+      "source_offset": 1778372879521329
+    },
+    {
+      "filing": {
+        "ein": 911352172,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=download990pdf_03_2023_prefixes_83-91%2F911352172_202112_990_2023031021070295.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 202112,
+        "updated": "2023-08-07T19:48:17.310Z"
+      },
+      "legacy_external_id": "911352172-unknown",
+      "organization": {
+        "ein": "911352172",
+        "name": "Multicare Health System"
+      },
+      "source_offset": 1778372879521323
+    },
+    {
+      "filing": {
+        "ein": 911352172,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=download990pdf_11_2023_prefixes_87-91%2F911352172_202212_990_2023112922027176.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 202212,
+        "updated": "2024-08-28T20:20:19.326Z"
+      },
+      "legacy_external_id": "911352172-unknown",
+      "organization": {
+        "ein": "911352172",
+        "name": "Multicare Health System"
+      },
+      "source_offset": 1778372879521322
+    },
+    {
+      "filing": {
+        "ein": 911352172,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=IRS%2F911352172_202312_990_2025021423103543.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 202312,
+        "updated": "2025-08-05T16:11:03.756Z"
+      },
+      "legacy_external_id": "911352172-unknown",
+      "organization": {
+        "ein": "911352172",
+        "name": "Multicare Health System"
+      },
+      "source_offset": 1778372879561341
+    },
+    {
+      "filing": {
+        "ein": 911352172,
+        "form_type": null,
+        "formtype": 0,
+        "pdf_url": null,
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 202012,
+        "updated": "2022-07-01T20:39:45.117Z"
+      },
+      "legacy_external_id": "911352172-unknown",
+      "organization": {
+        "ein": "911352172",
+        "name": "Multicare Health System"
+      },
+      "source_offset": 1778372879521324
+    },
+    {
+      "filing": {
+        "ein": 911663695,
+        "form_type": null,
+        "formtype": 2,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=02_2021_prefixes_86-92%2F911663695_201912_990PF_2021021717709925.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201912,
+        "updated": "2022-07-01T20:50:32.151Z"
+      },
+      "legacy_external_id": "911663695-unknown",
+      "organization": {
+        "ein": "911663695",
+        "name": "Gates Foundation Trust"
+      },
+      "source_offset": 1778372879521277
+    },
+    {
+      "filing": {
+        "ein": 911663695,
+        "form_type": null,
+        "formtype": 2,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=2012_11_PF%2F91-1663695_990PF_201112.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201112,
+        "updated": "2017-06-29T23:44:36.722Z"
+      },
+      "legacy_external_id": "911663695-unknown",
+      "organization": {
+        "ein": "911663695",
+        "name": "Gates Foundation Trust"
+      },
+      "source_offset": 1778372879521282
+    },
+    {
+      "filing": {
+        "ein": 911663695,
+        "form_type": null,
+        "formtype": 2,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=2013_11_PF%2F91-1663695_990PF_201212.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201212,
+        "updated": "2017-06-29T23:59:43.208Z"
+      },
+      "legacy_external_id": "911663695-unknown",
+      "organization": {
+        "ein": "911663695",
+        "name": "Gates Foundation Trust"
+      },
+      "source_offset": 1778372879521281
+    },
+    {
+      "filing": {
+        "ein": 911663695,
+        "form_type": null,
+        "formtype": 2,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=2014_11_PF%2F91-1663695_990PF_201312.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201312,
+        "updated": "2017-06-30T00:15:15.967Z"
+      },
+      "legacy_external_id": "911663695-unknown",
+      "organization": {
+        "ein": "911663695",
+        "name": "Gates Foundation Trust"
+      },
+      "source_offset": 1778372879521280
+    },
+    {
+      "filing": {
+        "ein": 911663695,
+        "form_type": null,
+        "formtype": 2,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=2015_11_PF%2F91-1663695_990PF_201412.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201412,
+        "updated": "2017-06-30T00:30:27.713Z"
+      },
+      "legacy_external_id": "911663695-unknown",
+      "organization": {
+        "ein": "911663695",
+        "name": "Gates Foundation Trust"
+      },
+      "source_offset": 1778372879521279
+    },
+    {
+      "filing": {
+        "ein": 911663695,
+        "form_type": null,
+        "formtype": 2,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=2016_11_PF%2F91-1663695_990PF_201512.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 201512,
+        "updated": "2018-05-05T23:05:48.224Z"
+      },
+      "legacy_external_id": "911663695-unknown",
+      "organization": {
+        "ein": "911663695",
+        "name": "Gates Foundation Trust"
+      },
+      "source_offset": 1778372879521278
+    },
+    {
+      "filing": {
+        "ein": 911663695,
+        "form_type": null,
+        "formtype": 2,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=download990pdf_05_2023_prefixes_87-94%2F911663695_202112_990PF_2023050521159579.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 202112,
+        "updated": "2024-08-28T20:03:47.327Z"
+      },
+      "legacy_external_id": "911663695-unknown",
+      "organization": {
+        "ein": "911663695",
+        "name": "Gates Foundation Trust"
+      },
+      "source_offset": 1778372879521275
+    },
+    {
+      "filing": {
+        "ein": 911663695,
+        "form_type": null,
+        "formtype": 2,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=download990pdf_12_2023_prefixes_88-92%2F911663695_202212_990PF_2023121922141350.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 202212,
+        "updated": "2024-08-28T20:29:59.988Z"
+      },
+      "legacy_external_id": "911663695-unknown",
+      "organization": {
+        "ein": "911663695",
+        "name": "Gates Foundation Trust"
+      },
+      "source_offset": 1778372879521274
+    },
+    {
+      "filing": {
+        "ein": 911663695,
+        "form_type": null,
+        "formtype": 2,
+        "pdf_url": "https://projects.propublica.org/nonprofits/download-filing?path=IRS%2F911663695_202312_990PF_2025010222975887.pdf",
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 202312,
+        "updated": "2025-08-05T16:15:04.854Z"
+      },
+      "legacy_external_id": "911663695-unknown",
+      "organization": {
+        "ein": "911663695",
+        "name": "Gates Foundation Trust"
+      },
+      "source_offset": 1778372879561293
+    },
+    {
+      "filing": {
+        "ein": 911663695,
+        "form_type": null,
+        "formtype": 2,
+        "pdf_url": null,
+        "sub_id": null,
+        "tax_period": null,
+        "tax_prd": 202012,
+        "updated": "2022-07-01T20:50:32.151Z"
+      },
+      "legacy_external_id": "911663695-unknown",
+      "organization": {
+        "ein": "911663695",
+        "name": "Gates Foundation Trust"
+      },
+      "source_offset": 1778372879521276
+    }
+  ]
+}
+
