@@ -5,10 +5,39 @@ import { postSignalsToAtlas, sourceUrlFrom, toIsoTimestamp } from './ingestClien
 dotenv.config();
 
 const COURTLISTENER_API_BASE_URL = process.env.COURTLISTENER_API_BASE_URL || 'https://www.courtlistener.com/api/rest/v3';
-const COURTLISTENER_API_KEY = process.env.COURTLISTENER_API_KEY || process.env.COURT_LISTENER_TOKEN;
+// Name history matters here: the legacy (pre-2026-05-09) adapter
+// documented COURT_LISTENER_TOKEN, and the production environment
+// carries the value under COURTLISTENER_API_TOKEN — a name this
+// adapter did not read, so the stream ran with no Authorization
+// header at all and CourtListener answered "Authentication
+// credentials were not provided" (screenshot-verified 2026-10-31).
+// Read the canonical name first, then the names that actually
+// exist in the wild, so a misnamed variable degrades loudly in
+// review instead of silently killing the stream.
+const COURTLISTENER_API_KEY = process.env.COURTLISTENER_API_KEY || process.env.COURTLISTENER_API_TOKEN || process.env.COURT_LISTENER_TOKEN;
 
 function authHeaders(token = COURTLISTENER_API_KEY) {
   return token ? { Authorization: `Token ${token}`, Accept: 'application/json' } : { Accept: 'application/json' };
+}
+
+// CourtListener answers auth failures with distinct bodies that decide
+// the fix: "Authentication credentials were not provided" (no usable
+// Authorization header reached it), "Invalid token." (a token arrived
+// and was rejected), and "Invalid token header..." (malformed value).
+// Axios's default error message discards that body, leaving only
+// "Request failed with status code 401" — which hid which failure this
+// was throughout the 2026-10-31 repair session. Surface it.
+function courtListenerError(error, endpoint) {
+  const status = error?.response?.status ?? null;
+  const body = error?.response?.data;
+  const detail = typeof body === 'string' ? body : body?.detail || body?.error || null;
+  const wrapped = new Error(
+    `courtlistener_request_failed endpoint=${endpoint}` +
+    `${status ? ` status=${status}` : ''}` +
+    `${detail ? ` detail=${String(detail).slice(0, 240)}` : ''}`
+  );
+  wrapped.cause = error;
+  return wrapped;
 }
 
 function opinionSourceUrl(opinion) {
@@ -69,14 +98,28 @@ export function normalizeToCase(opinion, jurisdiction = 'us_federal') {
 }
 
 export async function fetchOpinions(jurisdiction = 'us_federal', token = COURTLISTENER_API_KEY, page = 1, pageSize = 20) {
-  const params = { format: 'json', page, page_size: pageSize, ordering: '-date_created' };
+  // CourtListener's ordering parameter is `order_by`, not DRF's
+  // default `ordering` (FLP REST API v3 docs: "you can order
+  // using any of these fields in conjunction with the order_by
+  // parameter"). This adapter sent `ordering` from its 2026-05-09
+  // rewrite onward; the pre-rewrite adapter sent no ordering
+  // parameter and fetched successfully in April 2026. With the
+  // credential fault repaired on 2026-10-31, the authenticated
+  // request failed HTTP 400 — this parameter is the one delta
+  // from the last request shape known to have worked.
+  const params = { format: 'json', page, page_size: pageSize, order_by: '-date_created' };
   if (jurisdiction && jurisdiction !== 'us_federal') params.cluster__docket__court__jurisdiction = jurisdiction;
 
-  const response = await axios.get(`${COURTLISTENER_API_BASE_URL}/opinions/`, {
-    params,
-    headers: authHeaders(token),
-    timeout: 20000,
-  });
+  let response;
+  try {
+    response = await axios.get(`${COURTLISTENER_API_BASE_URL}/opinions/`, {
+      params,
+      headers: authHeaders(token),
+      timeout: 20000,
+    });
+  } catch (e) {
+    throw courtListenerError(e, 'opinions');
+  }
 
   return {
     results: response.data?.results || [],
@@ -88,11 +131,16 @@ export async function fetchClusters(jurisdiction = 'us_federal', token = COURTLI
   const params = { format: 'json', page, page_size: pageSize };
   if (jurisdiction && jurisdiction !== 'us_federal') params.docket__court__jurisdiction = jurisdiction;
 
-  const response = await axios.get(`${COURTLISTENER_API_BASE_URL}/clusters/`, {
-    params,
-    headers: authHeaders(token),
-    timeout: 20000,
-  });
+  let response;
+  try {
+    response = await axios.get(`${COURTLISTENER_API_BASE_URL}/clusters/`, {
+      params,
+      headers: authHeaders(token),
+      timeout: 20000,
+    });
+  } catch (e) {
+    throw courtListenerError(e, 'clusters');
+  }
 
   return {
     results: response.data?.results || [],

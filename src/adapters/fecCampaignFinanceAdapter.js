@@ -146,7 +146,12 @@ export async function fetchSuperPacs(state = null, cycle = 2024) {
   const params = fecParams({
     committee_type: ['O', 'U'], // Super PACs (independent expenditure only)
     cycle,
-    sort: '-total_receipts',
+    // The /committees/ endpoint rejects sort=-total_receipts with HTTP 422
+    // ("Cannot sort on value ... choose one of: ... receipts"). Its
+    // 'receipts' sort is itself only allowed when a name keyword 'q' is
+    // given, so largest-first ordering is not available for a full pull.
+    // Most recently filed first is a valid ordering for this endpoint.
+    sort: '-last_file_date',
   });
   if (state) params.state = state;
 

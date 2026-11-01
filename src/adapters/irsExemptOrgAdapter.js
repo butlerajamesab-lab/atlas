@@ -3,12 +3,20 @@ import dotenv from 'dotenv';
 import { postSignalsToAtlas, toIsoTimestamp } from './ingestClient.js';
 dotenv.config();
 
-// IRS Exempt Organizations data - 527 political orgs and 501(c)(4) dark money groups
-const IRS_527_SEARCH = 'https://forms.irs.gov/app/PoliticalOrgsSearch/search/results';
-const IRS_EXEMPT_ORG_API = 'https://apps.irs.gov/app/eos/api';
-
-// ProPublica's 527 data (more accessible)
-const PROPUBLICA_527_BASE = 'https://projects.propublica.org/527s/api/v1';
+// Exempt Organizations data - 527 political orgs and 501(c)(4) groups
+// SOURCE STATUS (verified live 2026-10-31):
+// - IRS EOS API (apps.irs.gov/app/eos/api): answers 403 Access Denied to
+//   programmatic access. NOT used as a fetch path anymore.
+// - ProPublica 527 Explorer API (projects.propublica.org/527s): retired,
+//   answers 404.
+// - ProPublica Nonprofit Explorer does not index 527 organizations
+//   (search with c_code 27 returns 404 / zero results), so no verified
+//   public API source for the 527 leg currently exists; see
+//   fetch527Orgs.
+// - 501(c)(4) data comes from the ProPublica Nonprofit Explorer API v2,
+//   which is live, keyless, and returns the record shape the
+//   normalizers below were written for.
+const PROPUBLICA_NONPROFIT_API = 'https://projects.propublica.org/nonprofits/api/v2';
 
 export function normalize527Org(org) {
   const name = org.name || org.org_name || org.organization_name || 'Unknown';
@@ -58,7 +66,7 @@ export function normalize501c4(org) {
   const revenue = parseFloat(org.revenue_amount || org.total_revenue || 0);
   const assets = parseFloat(org.asset_amount || org.total_assets || 0);
   const nteeCode = org.ntee_code || org.NTEE || '';
-  const subsection = org.subsection_code || org.subsection || '';
+  const subsection = org.subsection_code ?? org.subsection ?? org.subseccd ?? '';
 
   // 501(c)(4) "social welfare" orgs are the other dark money vehicle
   const isLarge = revenue > 1000000;
@@ -75,7 +83,9 @@ export function normalize501c4(org) {
       channel: 'irs_exempt_org',
       source_system: 'irs_exempt_organizations',
       confidence: 1.0,
-      source_url: `https://apps.irs.gov/app/eos/detailsPage?ein=${ein}`,
+      // The record actually served by the ProPublica Nonprofit
+      // Explorer (the live source for this leg since 2026-10-31).
+      source_url: ein ? `https://projects.propublica.org/nonprofits/organizations/${ein}` : null,
     },
     payload: {
       external_id: `irs501c4_${ein}`,
@@ -93,40 +103,47 @@ export function normalize501c4(org) {
 }
 
 export async function fetch527Orgs(state = 'WA', limit = 100) {
-  // Try ProPublica's 527 explorer
-  try {
-    const response = await axios.get(`${PROPUBLICA_527_BASE}/orgs.json`, {
-      params: { state, order: 'total_receipts', per_page: limit },
-      timeout: 30000,
-    });
-    return (response.data?.results || response.data || []).map(normalize527Org);
-  } catch (e) {
-    // Fallback: IRS direct search
-    try {
-      const response = await axios.get('https://apps.irs.gov/app/eos/api/records', {
-        params: {
-          stateAbbr: state,
-          subsectionCodes: '27', // 527 orgs
-          resultsPerPage: limit,
-        },
-        timeout: 30000,
-      });
-      return (response.data?.results || []).map(normalize527Org);
-    } catch (e2) {
-      console.warn(`527 fetch failed: ${e2.message}`);
-      return [];
-    }
-  }
+  // No verified live source (see header): ProPublica's 527 API is
+  // retired (404), the IRS EOS API blocks automation (403), and the
+  // Nonprofit Explorer does not index 527 organizations. Both dead
+  // routes were removed rather than left to fail silently; restore
+  // this leg here when a working 527 source is verified.
+  console.warn('527 orgs: no live source — ProPublica 527 API retired (404), IRS EOS blocks automation (403), Nonprofit Explorer does not index 527s. Skipping 527 leg.');
+  return [];
 }
 
 export async function fetch501c4Orgs(state = 'WA', limit = 100) {
   try {
-    // ProPublica nonprofit explorer for 501(c)(4)s
-    const response = await axios.get(`https://projects.propublica.org/nonprofits/api/v2/search.json`, {
-      params: { 'state[id]': state, c_code: 4, page: 0 },
-      timeout: 30000,
-    });
-    return (response.data?.organizations || []).map(normalize501c4);
+    // ProPublica Nonprofit Explorer for 501(c)(4)s. The subsection
+    // filter must be sent as c_code[id]; the plain c_code parameter
+    // makes the API answer HTTP 500 (verified 2026-10-31).
+    const hits = [];
+    let page = 0;
+    while (hits.length < limit) {
+      const response = await axios.get(`${PROPUBLICA_NONPROFIT_API}/search.json`, {
+        params: { 'state[id]': state, 'c_code[id]': 4, page },
+        timeout: 30000,
+      });
+      const orgs = response.data?.organizations || [];
+      hits.push(...orgs);
+      if (!orgs.length || page >= (response.data?.num_pages ?? 1) - 1) break;
+      page += 1;
+    }
+
+    // The search endpoint returns no financials; the organization
+    // detail endpoint returns the full record (revenue_amount,
+    // asset_amount, ruling_date, subsection_code) the normalizer
+    // expects. Fall back to the search-level record if a detail
+    // fetch fails.
+    const records = await Promise.all(hits.slice(0, limit).map(async (hit) => {
+      try {
+        const detail = await axios.get(`${PROPUBLICA_NONPROFIT_API}/organizations/${hit.ein}.json`, { timeout: 30000 });
+        return detail.data?.organization || hit;
+      } catch (e) {
+        return hit;
+      }
+    }));
+    return records.map(normalize501c4);
   } catch (e) {
     console.warn(`501c4 fetch failed: ${e.message}`);
     return [];

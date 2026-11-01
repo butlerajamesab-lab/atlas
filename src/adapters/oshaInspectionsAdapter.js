@@ -4,6 +4,19 @@ import { postSignalsToAtlas, toIsoTimestamp } from './ingestClient.js';
 dotenv.config();
 
 // OSHA enforcement data via DOL API
+// ROUTE STATUS (verified 2026-10-31):
+// - The enforcedata.dol.gov API below was decommissioned (DOL retired the
+//   enforcement data page on 2026-02-23); every path now answers
+//   301 -> https://data.dol.gov/ (the portal homepage, HTML).
+// - The Socrata fallback host data.dol.gov no longer serves the Socrata
+//   API either: /resource/8emu-7hor.json returns the same portal HTML,
+//   and the domain is gone from the Socrata catalog.
+// - The successor is the DOL Open Data Portal API at api.dol.gov, which
+//   requires a free registered API key (registration via data.dol.gov).
+//   Once a key exists it belongs in Atlas's env as DOL_API_KEY and the
+//   keyed route can be wired here. Until then this stream is
+//   credential-blocked upstream, and fetchInspections fails loudly in
+//   the logs instead of silently reporting zero.
 const OSHA_API_BASE = 'https://enforcedata.dol.gov/api/v2/safety_and_health';
 
 export function normalizeInspection(inspection) {
@@ -59,9 +72,19 @@ export function normalizeInspection(inspection) {
   };
 }
 
+// Extract a record array from an API payload. Returns null when the
+// payload is not inspection data at all (e.g. the HTML portal page the
+// decommissioned endpoints now redirect to), so a dead route is treated
+// as a failure instead of being silently mapped to zero records.
+function asInspectionRecords(payload) {
+  const rows = payload?.results || payload;
+  return Array.isArray(rows) ? rows : null;
+}
+
 export async function fetchInspections({ state = 'WA', limit = 100 } = {}) {
   try {
-    // DOL enforcement data API
+    // DOL enforcement data API (decommissioned — see route status above;
+    // kept so a restored route needs no code change)
     const response = await axios.get(`${OSHA_API_BASE}/inspections`, {
       params: {
         site_state: state,
@@ -72,25 +95,32 @@ export async function fetchInspections({ state = 'WA', limit = 100 } = {}) {
       timeout: 30000,
       headers: { Accept: 'application/json' },
     });
-    const results = response.data?.results || response.data || [];
-    return (Array.isArray(results) ? results : []).map(normalizeInspection);
+    const results = asInspectionRecords(response.data);
+    if (results === null) throw new Error('primary route returned a non-data payload');
+    if (results.length) return results.map(normalizeInspection);
   } catch (e) {
-    // Fallback: try the Socrata-based OSHA dataset
-    try {
-      const socrataUrl = 'https://data.dol.gov/resource/8emu-7hor.json';
-      const response = await axios.get(socrataUrl, {
-        params: {
-          $where: `site_state = '${state}'`,
-          $order: 'open_date DESC',
-          $limit: limit,
-        },
-        timeout: 30000,
-      });
-      return (response.data || []).map(normalizeInspection);
-    } catch (e2) {
-      console.warn(`OSHA fetch failed: ${e2.message}`);
-      return [];
-    }
+    // Fall through to the fallback on errors AND on empty/non-data
+    // primary results. Previously the fallback only ran when the
+    // primary threw, so a moved endpoint answering 200-with-HTML
+    // produced a silent zero.
+  }
+  try {
+    // Fallback: Socrata-based OSHA dataset (host retired — see above)
+    const socrataUrl = 'https://data.dol.gov/resource/8emu-7hor.json';
+    const response = await axios.get(socrataUrl, {
+      params: {
+        $where: `site_state = '${state}'`,
+        $order: 'open_date DESC',
+        $limit: limit,
+      },
+      timeout: 30000,
+    });
+    const results = asInspectionRecords(response.data);
+    if (results === null) throw new Error('fallback route returned a non-data payload');
+    return results.map(normalizeInspection);
+  } catch (e2) {
+    console.warn(`OSHA fetch failed: both DOL routes are unavailable (enforcedata API decommissioned 2026-02-23; successor api.dol.gov requires a registered DOL_API_KEY). ${e2.message}`);
+    return [];
   }
 }
 
