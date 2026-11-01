@@ -46,26 +46,55 @@ export function normalizeHudFmr(record, year = '2024') {
   };
 }
 
+// The HUD FMR API addresses states by postal abbreviation
+// (statedata/WA). The scheduler hands this adapter the FIPS code
+// (STATE_FIPS, '53' for Washington), and statedata/53 answers
+// HTTP 400 "Missing or invalid value in the query parameter(s)"
+// even with a valid token — the pinned cause of the hud_housing
+// failures verified live on 2026-10-31 (same token: /53 -> 400,
+// /WA -> 200 with all 39 counties). Translate before requesting.
+const STATE_ABBR_BY_FIPS = { '53': 'WA' };
+
+export function resolveStateAbbr(stateCode) {
+  const raw = String(stateCode || '').trim();
+  if (/^[A-Za-z]{2}$/.test(raw)) return raw.toUpperCase();
+  return STATE_ABBR_BY_FIPS[raw] || raw;
+}
+
 export async function fetchHudFmr(stateCode = '53', year = '2024') {
-  // HUD API requires a token. If no key, use the bulk CSV endpoint
+  // TOKEN REQUIREMENT (verified live 2026-10-31): the HUD User FMR API
+  // rejects every unauthenticated request with HTTP 401
+  // {"error":"Unauthenticated"}. There is no anonymous route. A token
+  // is issued by registering an application on huduser.gov
+  // (HUD User API / FMR API documentation) and belongs in Atlas's env
+  // as HUD_API_KEY. Without it this stream is credential-blocked;
+  // say so loudly instead of issuing doomed requests. (Atlas's
+  // runtime recorded this failure as HTTP 400; from a clean probe the
+  // API's own answer to a missing/invalid token is 401.)
   if (!HUD_API_KEY) {
-    // Fallback: use the FMR summary endpoint (no auth needed for state-level)
-    const url = `https://www.huduser.gov/hudapi/public/fmr/statedata/${stateCode}`;
-    try {
-      const response = await axios.get(url, { timeout: 30000, headers: hudHeaders() });
-      const data = response.data?.data || response.data || {};
-      const counties = data.counties || data.metroareas || [];
-      if (Array.isArray(counties)) {
-        return counties.map((c) => normalizeHudFmr(c, year));
-      }
-    } catch (e) {
-      // If HUD API fails without key, generate from known WA county data
-    }
+    console.warn('HUD FMR: HUD_API_KEY is not set. The HUD User FMR API requires a registered Bearer token (register an app at huduser.gov); unauthenticated requests are rejected with 401. Skipping fetch.');
+    return [];
   }
 
-  // If we have a key, use the proper endpoint
-  const url = `${HUD_API_BASE}/fmr/statedata/${stateCode}`;
-  const response = await axios.get(url, { timeout: 30000, headers: hudHeaders() });
+  const url = `${HUD_API_BASE}/fmr/statedata/${resolveStateAbbr(stateCode)}`;
+  let response;
+  try {
+    response = await axios.get(url, { timeout: 30000, headers: hudHeaders() });
+  } catch (e) {
+    // Surface HUD's own error body: axios's generic message ("Request
+    // failed with status code 400") hid the parameter cause of this
+    // stream's failures throughout the 2026-10-31 repair session.
+    const status = e?.response?.status ?? null;
+    const body = e?.response?.data;
+    const detail = typeof body === 'string' ? body : body?.error || body?.detail || null;
+    const wrapped = new Error(
+      `hud_request_failed url=${url}` +
+      `${status ? ` status=${status}` : ''}` +
+      `${detail ? ` detail=${String(detail).slice(0, 240)}` : ''}`
+    );
+    wrapped.cause = e;
+    throw wrapped;
+  }
   const data = response.data?.data || response.data || {};
   const counties = data.counties || data.basicdata || [];
   return (Array.isArray(counties) ? counties : []).map((c) => normalizeHudFmr(c, year));
@@ -79,7 +108,7 @@ export async function ingestHudSignals({ stateCode = '53', year = '2024', apiBas
   }
   return postSignalsToAtlas({
     sourceId: 'hud_fmr',
-    jurisdictionId: `us_state_${stateCode}`,
+    jurisdictionId: `us_state_${resolveStateAbbr(stateCode)}`,
     moduleHint: 'housing',
     signals,
     apiBaseUrl,
