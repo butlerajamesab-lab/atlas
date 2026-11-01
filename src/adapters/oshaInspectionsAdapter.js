@@ -3,21 +3,42 @@ import dotenv from 'dotenv';
 import { postSignalsToAtlas, toIsoTimestamp } from './ingestClient.js';
 dotenv.config();
 
-// OSHA enforcement data via DOL API
-// ROUTE STATUS (verified 2026-10-31):
-// - The enforcedata.dol.gov API below was decommissioned (DOL retired the
-//   enforcement data page on 2026-02-23); every path now answers
+// OSHA enforcement data via the DOL Open Data API (v4)
+// ROUTE STATUS (verified 2026-11-01):
+// - The old enforcedata.dol.gov API was decommissioned (DOL retired the
+//   enforcement data service on 2026-02-23); every path now answers
 //   301 -> https://data.dol.gov/ (the portal homepage, HTML).
 // - The Socrata fallback host data.dol.gov no longer serves the Socrata
 //   API either: /resource/8emu-7hor.json returns the same portal HTML,
-//   and the domain is gone from the Socrata catalog.
-// - The successor is the DOL Open Data Portal API at api.dol.gov, which
-//   requires a free registered API key (registration via data.dol.gov).
-//   Once a key exists it belongs in Atlas's env as DOL_API_KEY and the
-//   keyed route can be wired here. Until then this stream is
-//   credential-blocked upstream, and fetchInspections fails loudly in
-//   the logs instead of silently reporting zero.
-const OSHA_API_BASE = 'https://enforcedata.dol.gov/api/v2/safety_and_health';
+//   and the domain is gone from the Socrata catalog. Both dead routes
+//   were removed in this rewrite; nothing here falls back to them.
+// - The successor is the DOL Open Data API v4 at apiprod.dol.gov
+//   (DOL API User Guide, data.dol.gov, last updated 2024-08-05):
+//     GET https://apiprod.dol.gov/v4/get/<agency>/<endpoint>/json
+//   with the dataset's api_url from the Datasets catalog
+//   (https://apiprod.dol.gov/v4/datasets, no key required there).
+//   For OSHA inspections the catalog entry (verified live 2026-11-01)
+//   is tablename OSHA_inspection, agency abbreviation OSHA,
+//   api_url "inspection", so the data URL is
+//     https://apiprod.dol.gov/v4/get/OSHA/inspection/json
+// - Auth: a registered API key is a REQUIRED query parameter on every
+//   metadata and data request, sent as X-API-KEY (guide, "Parameters").
+//   Register at https://dataportal.dol.gov/registration; the key
+//   belongs in Atlas's env as DOL_API_KEY. A missing or incorrect key
+//   is answered HTTP 401 with a plain-text explanation (verified live
+//   2026-11-01 against the exact URL above).
+// - Query parameters (guide, "Parameters" / "Conditional Filtering"):
+//   limit (default 10, max 10,000 records or 5 MB per request),
+//   offset (default 0), fields (comma-separated), sort ("asc"/"desc"),
+//   sort_by (field name), and filter_object, a JSON string of
+//   {field, operator, value} conditions (operators: eq, neq, gt, lt,
+//   in, not_in, like), combinable under {"and": [...]} / {"or": [...]}.
+// - The key is read from the environment at call time, never at module
+//   load and never hardcoded, so a rotated key needs no code change
+//   and tests can stub the environment. It is never written into
+//   error messages or logs: errors name the dataset URL (which carries
+//   no query string) plus the HTTP status and the API's own detail.
+const DOL_OSHA_INSPECTION_URL = 'https://apiprod.dol.gov/v4/get/OSHA/inspection/json';
 
 export function normalizeInspection(inspection) {
   const id = inspection.activity_nr || inspection.inspection_id || '';
@@ -26,7 +47,7 @@ export function normalizeInspection(inspection) {
   const city = inspection.site_city || inspection.city || '';
   const zip = inspection.site_zip || '';
   const openDate = inspection.open_date || inspection.inspection_date || '';
-  const closeDate = inspection.close_date || '';
+  const closeDate = inspection.close_date || inspection.close_conf_date || '';
   const violationType = inspection.viol_type || inspection.violation_type || '';
   const penalty = parseFloat(inspection.total_current_penalty || inspection.penalty || 0);
   const gravity = inspection.gravity || '';
@@ -72,60 +93,122 @@ export function normalizeInspection(inspection) {
   };
 }
 
-// Extract a record array from an API payload. Returns null when the
-// payload is not inspection data at all (e.g. the HTML portal page the
-// decommissioned endpoints now redirect to), so a dead route is treated
-// as a failure instead of being silently mapped to zero records.
-function asInspectionRecords(payload) {
-  const rows = payload?.results || payload;
-  return Array.isArray(rows) ? rows : null;
+// Build the v4 query parameters for one page of OSHA inspections in a
+// state. The state filter uses the guide's filter_object form against
+// site_state, the same field both dead routes filtered on.
+export function buildInspectionParams({ state = 'WA', limit = 100, offset = 0, apiKey } = {}) {
+  return {
+    limit,
+    offset,
+    sort: 'desc',
+    sort_by: 'open_date',
+    filter_object: JSON.stringify({ field: 'site_state', operator: 'eq', value: state }),
+    'X-API-KEY': apiKey,
+  };
 }
 
-export async function fetchInspections({ state = 'WA', limit = 100 } = {}) {
+// Default transport: one axios GET, resolving to the parsed JSON body.
+// Tests inject a stub httpGet with this same shape
+// (url, { params }) -> Promise<payload>; a stub that throws an
+// axios-shaped error ({ response: { status, data } }) exercises the
+// failure path exactly as a real HTTP error would.
+async function defaultHttpGet(url, { params } = {}) {
+  const response = await axios.get(url, {
+    params,
+    timeout: 30000,
+    headers: { Accept: 'application/json' },
+  });
+  return response.data;
+}
+
+// Extract the record array from a v4 payload. Returns null when the
+// payload is not inspection data at all (e.g. an HTML error page, or an
+// envelope whose shape this adapter does not recognise), so an
+// unexpected response is treated as a failure instead of being
+// silently mapped to zero records. The recognised object envelopes
+// are a tolerance, NOT a verified fact: the datasets catalog endpoint
+// answers under a named key ({"datasets": [...], "meta": {...}}), but
+// the data endpoint's exact envelope could not be verified without a
+// key (the metadata endpoint requires one). First live run with data
+// settles it; an unrecognised shape fails loudly below and names the
+// keys it actually saw.
+const RECORD_ARRAY_KEYS = ['OSHA_inspection', 'data', 'records', 'results', 'inspection'];
+
+export function extractInspectionRecords(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (payload && typeof payload === 'object') {
+    for (const key of RECORD_ARRAY_KEYS) {
+      if (Array.isArray(payload[key])) return payload[key];
+    }
+  }
+  return null;
+}
+
+function payloadShape(payload) {
+  if (Array.isArray(payload)) return 'array';
+  if (payload && typeof payload === 'object') return `object keys=[${Object.keys(payload).join(',')}]`;
+  return typeof payload;
+}
+
+// Surface the API's own error detail, as the CourtListener repair did:
+// axios's generic message ("Request failed with status code 401")
+// hides the cause DOL states in its response body. The dataset URL
+// printed here carries no query string, so the API key (a query
+// parameter) can never leak into an error or a log line.
+function dolRequestError(error) {
+  const status = error?.response?.status ?? null;
+  const body = error?.response?.data;
+  const detail = typeof body === 'string'
+    ? body
+    : body?.error || body?.detail || body?.message || error?.message || String(error);
+  const wrapped = new Error(
+    `osha_dol_request_failed url=${DOL_OSHA_INSPECTION_URL}` +
+    `${status ? ` status=${status}` : ''}` +
+    ` detail=${String(detail).slice(0, 300)}`
+  );
+  wrapped.status = status;
+  wrapped.cause = error;
+  return wrapped;
+}
+
+export async function fetchInspections({ state = 'WA', limit = 100, offset = 0, httpGet = defaultHttpGet } = {}) {
+  // Fail before any request when the key is absent: the API answers
+  // unauthenticated calls with a guaranteed 401, and a credential
+  // block must read as a failure in the run receipts (the scheduler
+  // records a thrown adapter error as outcome "failed"), never as a
+  // silent zero.
+  const apiKey = process.env.DOL_API_KEY;
+  if (!apiKey) {
+    throw new Error(
+      'osha_dol_request_failed: DOL_API_KEY is not set. The DOL Open Data API requires a ' +
+      'registered API key as the X-API-KEY query parameter (register at ' +
+      'https://dataportal.dol.gov/registration); refusing to issue a request that would ' +
+      'fail with HTTP 401.'
+    );
+  }
+
+  let payload;
   try {
-    // DOL enforcement data API (decommissioned — see route status above;
-    // kept so a restored route needs no code change)
-    const response = await axios.get(`${OSHA_API_BASE}/inspections`, {
-      params: {
-        site_state: state,
-        limit,
-        offset: 0,
-        sort: '-open_date',
-      },
-      timeout: 30000,
-      headers: { Accept: 'application/json' },
+    payload = await httpGet(DOL_OSHA_INSPECTION_URL, {
+      params: buildInspectionParams({ state, limit, offset, apiKey }),
     });
-    const results = asInspectionRecords(response.data);
-    if (results === null) throw new Error('primary route returned a non-data payload');
-    if (results.length) return results.map(normalizeInspection);
   } catch (e) {
-    // Fall through to the fallback on errors AND on empty/non-data
-    // primary results. Previously the fallback only ran when the
-    // primary threw, so a moved endpoint answering 200-with-HTML
-    // produced a silent zero.
+    throw dolRequestError(e);
   }
-  try {
-    // Fallback: Socrata-based OSHA dataset (host retired — see above)
-    const socrataUrl = 'https://data.dol.gov/resource/8emu-7hor.json';
-    const response = await axios.get(socrataUrl, {
-      params: {
-        $where: `site_state = '${state}'`,
-        $order: 'open_date DESC',
-        $limit: limit,
-      },
-      timeout: 30000,
-    });
-    const results = asInspectionRecords(response.data);
-    if (results === null) throw new Error('fallback route returned a non-data payload');
-    return results.map(normalizeInspection);
-  } catch (e2) {
-    console.warn(`OSHA fetch failed: both DOL routes are unavailable (enforcedata API decommissioned 2026-02-23; successor api.dol.gov requires a registered DOL_API_KEY). ${e2.message}`);
-    return [];
+
+  const results = extractInspectionRecords(payload);
+  if (results === null) {
+    throw new Error(
+      `osha_dol_unexpected_payload: response from ${DOL_OSHA_INSPECTION_URL} was not ` +
+      `inspection data (payload shape: ${payloadShape(payload)}). Refusing to map an ` +
+      'unrecognised payload to zero records.'
+    );
   }
+  return results.map(normalizeInspection);
 }
 
-export async function ingestOshaSignals({ state = 'WA', apiBaseUrl } = {}) {
-  const signals = await fetchInspections({ state });
+export async function ingestOshaSignals({ state = 'WA', apiBaseUrl, httpGet } = {}) {
+  const signals = await fetchInspections({ state, httpGet });
   if (!signals.length) {
     return { accepted: true, ingested_count: 0, note: 'No OSHA inspections returned' };
   }
