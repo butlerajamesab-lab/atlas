@@ -58,3 +58,14 @@ test('source event time must come from the provider, never current ingest time',
   assert.doesNotMatch(read('../src/services/streamStore.js'), /incoming\.timestamp \?\? new Date\(\)/);
   assert.match(read('../src/services/streamStore.js'), /atlas_source_timestamp_missing_or_invalid/);
 });
+
+test('provider unavailability cannot be reported as an empty successful source response', () => {
+  const regulations = read('../src/adapters/regulationsGovAdapter.js');
+  const fara = read('../src/adapters/faraForeignAgentsAdapter.js');
+  const senate = read('../src/adapters/openSecretsAdapter.js');
+  const sec = read('../src/adapters/secEdgarAdapter.js');
+  assert.match(regulations, /throw new Error\('regulations_gov_credentials_missing:/);
+  assert.match(fara, /throw new Error\(`fara_source_request_failed/);
+  assert.match(senate, /throw new Error\(`senate_lda_request_failed/);
+  assert.match(sec, /throw new Error\(`sec_edgar_rss_fallback_failed/);
+});
