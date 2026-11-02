@@ -116,3 +116,15 @@ test('undated-only ProPublica batches never issue an ingest write', async () => 
   assert.equal(result.accepted, false);
   assert.throws(() => assertCompleteAdapterReceipt(result), /atlas_adapter_missing_receipt/);
 });
+
+import { searchNonprofits, fetchOrgDetail } from '../src/adapters/proPublicaAdapter.js';
+
+test('ProPublica search and detail reject unexpected API payloads without inventing an empty response', async () => {
+  await assert.rejects(searchNonprofits('WA', 0, '', async () => ({ data: {} })), /propublica_search_unexpected_shape/);
+  await assert.rejects(fetchOrgDetail('123456789', async () => ({ data: {} })), /propublica_detail_unexpected_shape/);
+  const page = await searchNonprofits('WA', 0, '', async () => ({
+    data: { organizations: [{ein:123456789}], num_pages:3 },
+  }));
+  assert.equal(page.num_pages, 3);
+  assert.equal(page.organizations.length, 1);
+});
