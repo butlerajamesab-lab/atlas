@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { assertCompleteAdapterReceipt, evaluateAdapterCliReceipt } from '../src/services/adapterReceiptAcceptance.js';
+import { assertCompleteAdapterReceipt, evaluateAdapterCliReceipt, formatAdapterRunFailure } from '../src/services/adapterReceiptAcceptance.js';
 import { toIsoTimestamp } from '../src/adapters/ingestClient.js';
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
@@ -193,4 +193,19 @@ test('standalone adapter CLI reports holds and partial source windows as exit co
     assert.match(code, /process\.exitCode = cli\.exit_code/);
     assert.doesNotMatch(code, /JSON\.stringify\(\{ ok: true, source:/);
   }
+});
+
+test('manual aggregate adapter failure output retains structured source hold identifiers', () => {
+  const source = {source:'pro_publica',reason:'source_metadata_unverified',
+    held_count:1,held_refs:[{source_record_json_sha256:'a'.repeat(64),reason:'atlas_source_timestamp_missing'}]};
+  let thrown;
+  try { assertCompleteAdapterReceipt({accepted:false,status:'held_source_metadata',source_hold:source}); }
+  catch (e) { thrown=e; }
+  const failure = formatAdapterRunFailure('propublica',thrown,25);
+  assert.equal(failure.status,'error');
+  assert.equal(failure.source_hold.reason,'source_metadata_unverified');
+  assert.equal(failure.source_hold.held_refs[0].source_record_json_sha256,'a'.repeat(64));
+  assert.match(runner, /formatAdapterRunFailure\(adapter\.name, e, elapsed\)/);
+  assert.match(runner, /\[HOLD\]/);
+  assert.match(runner, /source_hold=\$\{JSON\.stringify\(r\.source_hold\)\}/);
 });
