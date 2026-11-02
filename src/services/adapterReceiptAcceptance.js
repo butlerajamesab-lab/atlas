@@ -11,8 +11,17 @@ export function assertCompleteAdapterReceipt(receipt) {
   if (!Number.isFinite(failed) || failed < 0) {
     throw new Error('atlas_adapter_invalid_receipt: records_failed must be nonnegative');
   }
-  if (['failed', 'error', 'partial'].includes(state) || receipt.partial_completion === true || failed > 0) {
-    throw new Error('atlas_adapter_incomplete_receipt: partial/failed source transport cannot be called complete');
+  const sourceHoldCount = Number(receipt.source_hold_count ?? 0);
+  const incompleteWindow = receipt.source_window_incomplete === true;
+  if (!Number.isSafeInteger(sourceHoldCount) || sourceHoldCount < 0) {
+    throw new Error('atlas_adapter_invalid_receipt: source_hold_count must be a nonnegative integer');
+  }
+  if (['failed', 'error', 'partial', 'held_source_metadata'].includes(state) ||
+      receipt.partial_completion === true || failed > 0 || sourceHoldCount > 0 || incompleteWindow) {
+    throw new Error(
+      `atlas_adapter_incomplete_receipt: status=${state} records_failed=${failed} ` +
+      `source_hold_count=${sourceHoldCount} source_window_incomplete=${incompleteWindow}`,
+    );
   }
   return receipt;
 }
