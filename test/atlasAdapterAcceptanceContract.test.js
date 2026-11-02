@@ -89,6 +89,7 @@ test('ProPublica undated organization search hits are held rather than timestamp
   const prepared = prepareProPublicaSignals({ organizations, filings });
   assert.equal(prepared.signals.length, 1);
   assert.equal(prepared.held.length, 1);
+  assert.match(prepared.held[0].source_record_json_sha256, /^[0-9a-f]{64}$/);
   assert.equal(prepared.held[0].reason, 'atlas_source_timestamp_missing');
   let posted = 0;
   const result = await ingestProPublicaSignals({
@@ -99,10 +100,11 @@ test('ProPublica undated organization search hits are held rather than timestamp
       return { accepted: true, status: 'completed', ingested_count: 1, records_failed: 0 };
     },
   });
-  assert.equal(posted, 1);
-  assert.equal(result.status, 'partial');
-  assert.equal(result.records_failed, 1);
-  assert.throws(() => assertCompleteAdapterReceipt(result), /atlas_adapter_incomplete_receipt/);
+  assert.equal(posted, 0, 'mixed source batch must not produce partial candidate inputs');
+  assert.equal(result.status, 'held_source_metadata');
+  assert.equal(result.ingested_count, 0);
+  assert.equal(result.source_hold.held_count, 1);
+  assert.throws(() => assertCompleteAdapterReceipt(result), /atlas_adapter_missing_receipt/);
 });
 
 test('undated-only ProPublica batches never issue an ingest write', async () => {
@@ -139,4 +141,20 @@ test('source holds and incomplete source windows fail closed even when transport
   assert.throws(() => assertCompleteAdapterReceipt({
     accepted: true, status: 'completed', source_hold_count: 'invalid',
   }), /atlas_adapter_invalid_receipt/);
+});
+
+test('incomplete ProPublica search never requests details or posts observations', async () => {
+  const { runIngestProPublica } = await import('../src/adapters/proPublicaAdapter.js');
+  let searchCalls = 0, details = 0, posts = 0;
+  const receipt = await runIngestProPublica(null, 'WA', {
+    search: async () => { searchCalls++; return { organizations: [{ ein: 123456789 }], num_pages: 2 }; },
+    getDetail: async () => { details++; throw Error('unexpected source detail request'); },
+    postSignals: async () => { posts++; throw Error('unexpected Atlas write'); },
+  });
+  assert.equal(searchCalls, 1);
+  assert.equal(details, 0);
+  assert.equal(posts, 0);
+  assert.equal(receipt.ingested_count, 0);
+  assert.equal(receipt.source_hold.reason, 'source_window_incomplete');
+  assert.throws(() => assertCompleteAdapterReceipt(receipt), /atlas_adapter_missing_receipt/);
 });
