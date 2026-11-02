@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { assertCompleteAdapterReceipt } from '../src/services/adapterReceiptAcceptance.js';
+import { assertCompleteAdapterReceipt, evaluateAdapterCliReceipt } from '../src/services/adapterReceiptAcceptance.js';
 import { toIsoTimestamp } from '../src/adapters/ingestClient.js';
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
@@ -177,4 +177,20 @@ test('adapter source holds survive rejection as structured evidence', () => {
   });
   assert.throws(() => assertCompleteAdapterReceipt({accepted:true,status:'held'}), /atlas_adapter_incomplete_receipt/);
   assert.match(scheduler,/source_hold: error\?\.source_hold \?\? null/);
+});
+
+test('standalone adapter CLI reports holds and partial source windows as exit code 1', () => {
+  const hold = {accepted:false,status:'held',ingested_count:0,source_hold:{source:'court_listener',reason:'source_window_incomplete'}};
+  const result = evaluateAdapterCliReceipt(hold);
+  assert.equal(result.ok,false);
+  assert.equal(result.exit_code,1);
+  assert.deepEqual(result.source_hold,hold.source_hold);
+  assert.equal(evaluateAdapterCliReceipt({accepted:true,status:'partial',records_failed:1}).exit_code,1);
+  assert.equal(evaluateAdapterCliReceipt({accepted:true,status:'completed',records_failed:0}).exit_code,0);
+  for (const p of ['courtListenerAdapter.js','openStatesAdapter.js','proPublicaAdapter.js']) {
+    const code = read('../src/adapters/' + p);
+    assert.match(code, /evaluateAdapterCliReceipt\(result\)/);
+    assert.match(code, /process\.exitCode = cli\.exit_code/);
+    assert.doesNotMatch(code, /JSON\.stringify\(\{ ok: true, source:/);
+  }
 });
