@@ -105,8 +105,7 @@ export async function fetchFaraRegistrants({ country = null, limit = 100 } = {})
     const results = Array.isArray(rows) ? rows : rows ? [rows] : [];
     return results.slice(0, limit).map(normalizeFaraRegistrant);
   } catch (error) {
-    console.warn(`FARA fetch failed: ${error.message}`);
-    return [];
+    throw new Error(`fara_source_request_failed status=${error?.response?.status ?? 'unknown'} detail=${String(error?.message ?? error).slice(0, 240)}`);
   }
 }
 
