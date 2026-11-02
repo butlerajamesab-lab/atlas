@@ -9,6 +9,7 @@ import { supabase } from '../lib/supabaseClient.js';
 import { countStreamEvents, recordActionReceipt } from './actionReceiptService.js';
 import { runLiveDataSignalBridge } from './liveDataSignalBridgeService.js';
 import { projectStreamRuntimeSnapshot } from './streamRuntimeProjectionService.js';
+import { assertCompleteAdapterReceipt } from './adapterReceiptAcceptance.js';
 
 const STATE = process.env.ATLAS_STATE || 'WA';
 const STATE_FIPS = STATE === 'WA' ? '53' : STATE;
@@ -189,6 +190,7 @@ async function runAdapter(adapter, { initiator = 'scheduler' } = {}) {
     const fn = mod[adapter.fn];
     if (!fn) throw new Error(`Function ${adapter.fn} not found in ${adapter.module}`);
     const adapterResult = await fn(adapter.args || {});
+    assertCompleteAdapterReceipt(adapterResult);
     const elapsed = Date.now() - start;
     const afterEventCount = await countStreamEvents(streamId);
     const eventDelta = afterEventCount - beforeEventCount;
