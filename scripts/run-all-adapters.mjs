@@ -7,6 +7,7 @@
  * Usage: node scripts/run-all-adapters.mjs [--state WA] [--dry-run]
  */
 import dotenv from 'dotenv';
+import { assertCompleteAdapterReceipt } from '../src/services/adapterReceiptAcceptance.js';
 dotenv.config();
 
 const STATE = process.argv.find((a, i) => process.argv[i - 1] === '--state') || 'WA';
@@ -17,6 +18,10 @@ const adapters = [
   { name: 'openstates', module: '../src/adapters/openStatesAdapter.js', fn: 'ingestOpenStatesSignals' },
   { name: 'grants_gov', module: '../src/adapters/grantsGovAdapter.js', fn: 'ingestGrantsGovSignals' },
   { name: 'propublica', module: '../src/adapters/proPublicaAdapter.js', fn: 'runIngestProPublica' },
+  { name: 'wa_ag_consumer_complaints', module: '../src/adapters/waAgConsumerComplaintsAdapter.js', fn: 'ingestWaAgComplaints', args: { limit: 5000 } },
+  { name: 'or_doj_consumer_complaints', module: '../src/adapters/oregonConsumerComplaintsAdapter.js', fn: 'ingestOregonConsumerComplaints', args: { limit: 5000 } },
+  { name: 'nyc_311_service_requests', module: '../src/adapters/nyc311ServiceRequestsAdapter.js', fn: 'ingestNyc311ServiceRequests', args: { limit: 5000 } },
+  { name: 'chicago_311_service_requests', module: '../src/adapters/chicago311ServiceRequestsAdapter.js', fn: 'ingestChicago311ServiceRequests', args: { limit: 5000 } },
   { name: 'census_acs', module: '../src/adapters/censusAcsAdapter.js', fn: 'ingestCensusSignals', args: { state: STATE === 'WA' ? '53' : STATE } },
   { name: 'usda_snap', module: '../src/adapters/usdaSnapAdapter.js', fn: 'ingestSnapSignals', args: { state: STATE } },
   { name: 'hud_fmr', module: '../src/adapters/hudHousingAdapter.js', fn: 'ingestHudSignals', args: { stateCode: STATE === 'WA' ? '53' : STATE } },
@@ -64,6 +69,7 @@ for (const adapter of adapters) {
     }
 
     const result = await fn(adapter.args || {});
+    assertCompleteAdapterReceipt(result);
     const elapsed = Date.now() - start;
     const inserted = Number(result?.ingested_count ?? result?.events_inserted ?? 0);
     const replayed = Number(result?.replayed_count ?? result?.replays_suppressed ?? 0);
@@ -89,4 +95,4 @@ if (failed > 0) {
   });
 }
 
-process.exit(failed > 0 ? 1 : 0);
+process.exit(failed > 0 || (skipped > 0 && !DRY_RUN) ? 1 : 0);
