@@ -158,3 +158,23 @@ test('incomplete ProPublica search never requests details or posts observations'
   assert.equal(receipt.source_hold.reason, 'source_window_incomplete');
   assert.throws(() => assertCompleteAdapterReceipt(receipt), /atlas_adapter_missing_receipt/);
 });
+
+test('adapter source holds survive rejection as structured evidence', () => {
+  const hold = { accepted: false, status: 'held', source_hold: {
+    source:'open_states', reason:'source_window_incomplete', records_seen:20,
+  } };
+  assert.throws(() => assertCompleteAdapterReceipt(hold), error => {
+    assert.match(error.message,/atlas_adapter_missing_receipt/);
+    assert.deepEqual(error.source_hold,hold.source_hold);
+    return true;
+  });
+  const partial = { accepted: true, status:'partial', source_hold_count:1, source_holds:[
+    {source_record_id:'123456789',reason:'atlas_source_timestamp_missing'},
+  ]};
+  assert.throws(() => assertCompleteAdapterReceipt(partial), error => {
+    assert.equal(error.source_hold.held_count,1);
+    return true;
+  });
+  assert.throws(() => assertCompleteAdapterReceipt({accepted:true,status:'held'}), /atlas_adapter_incomplete_receipt/);
+  assert.match(scheduler,/source_hold: error\?\.source_hold \?\? null/);
+});
