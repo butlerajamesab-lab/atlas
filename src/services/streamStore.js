@@ -84,7 +84,10 @@ export async function buildRowsForIngest(body) {
       ), { status: 404 });
     }
 
-    const timestamp = incoming.timestamp ?? new Date().toISOString();
+    if (typeof incoming.timestamp !== 'string' || !Number.isFinite(Date.parse(incoming.timestamp))) {
+      throw Object.assign(new Error(`atlas_source_timestamp_missing_or_invalid signal_index=${index}`), { status: 400 });
+    }
+    const timestamp = new Date(incoming.timestamp).toISOString();
     const incomingSpacetime = incoming.spacetime ?? {};
     const spacetime = {
       ...incomingSpacetime,
