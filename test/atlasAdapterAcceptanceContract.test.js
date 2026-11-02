@@ -128,3 +128,15 @@ test('ProPublica search and detail reject unexpected API payloads without invent
   assert.equal(page.num_pages, 3);
   assert.equal(page.organizations.length, 1);
 });
+
+test('source holds and incomplete source windows fail closed even when transport says completed', () => {
+  assert.throws(() => assertCompleteAdapterReceipt({
+    accepted: true, status: 'completed', source_hold_count: 2,
+  }), /source_hold_count=2/);
+  assert.throws(() => assertCompleteAdapterReceipt({
+    accepted: true, status: 'completed', source_window_incomplete: true,
+  }), /source_window_incomplete=true/);
+  assert.throws(() => assertCompleteAdapterReceipt({
+    accepted: true, status: 'completed', source_hold_count: 'invalid',
+  }), /atlas_adapter_invalid_receipt/);
+});
