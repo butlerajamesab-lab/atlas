@@ -7,7 +7,7 @@
  * Usage: node scripts/run-all-adapters.mjs [--state WA] [--dry-run]
  */
 import dotenv from 'dotenv';
-import { assertCompleteAdapterReceipt } from '../src/services/adapterReceiptAcceptance.js';
+import { assertCompleteAdapterReceipt, formatAdapterRunFailure } from '../src/services/adapterReceiptAcceptance.js';
 dotenv.config();
 
 const STATE = process.argv.find((a, i) => process.argv[i - 1] === '--state') || 'WA';
@@ -78,9 +78,11 @@ for (const adapter of adapters) {
     results.push({ name: adapter.name, status: 'ok', observations_inserted: inserted, replayed, ms: elapsed });
   } catch (e) {
     const elapsed = Date.now() - start;
-    console.log(`  [FAIL] ${adapter.name} — ${e.message?.slice(0, 160)} (${elapsed}ms)`);
+    const failure = formatAdapterRunFailure(adapter.name, e, elapsed);
+    console.log(`  [FAIL] ${adapter.name} — ${failure.error?.slice(0, 160)} (${elapsed}ms)`);
+    if (failure.source_hold) console.log(`  [HOLD] ${adapter.name} ${JSON.stringify(failure.source_hold)}`);
     failed++;
-    results.push({ name: adapter.name, status: 'error', error: e.message?.slice(0, 500), ms: elapsed });
+    results.push(failure);
   }
 }
 
@@ -92,6 +94,7 @@ if (failed > 0) {
   console.log('Failed adapters:');
   results.filter((r) => r.status === 'error').forEach((r) => {
     console.log(`  - ${r.name}: ${r.error}`);
+    if (r.source_hold) console.log(`    source_hold=${JSON.stringify(r.source_hold)}`);
   });
 }
 
