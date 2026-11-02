@@ -72,8 +72,7 @@ export async function fetchHudFmr(stateCode = '53', year = '2024') {
   // runtime recorded this failure as HTTP 400; from a clean probe the
   // API's own answer to a missing/invalid token is 401.)
   if (!HUD_API_KEY) {
-    console.warn('HUD FMR: HUD_API_KEY is not set. The HUD User FMR API requires a registered Bearer token (register an app at huduser.gov); unauthenticated requests are rejected with 401. Skipping fetch.');
-    return [];
+    throw new Error('hud_credentials_missing: HUD_API_KEY is required for HUD FMR; no source request was attempted');
   }
 
   const url = `${HUD_API_BASE}/fmr/statedata/${resolveStateAbbr(stateCode)}`;
@@ -96,15 +95,15 @@ export async function fetchHudFmr(stateCode = '53', year = '2024') {
     throw wrapped;
   }
   const data = response.data?.data || response.data || {};
-  const counties = data.counties || data.basicdata || [];
-  return (Array.isArray(counties) ? counties : []).map((c) => normalizeHudFmr(c, year));
+  const counties = data.counties ?? data.basicdata;
+  if (!Array.isArray(counties)) throw new Error('hud_unexpected_response_shape: expected counties or basicdata array');
+  return counties.map((c) => normalizeHudFmr(c, year));
 }
 
 export async function ingestHudSignals({ stateCode = '53', year = '2024', apiBaseUrl } = {}) {
   const signals = await fetchHudFmr(stateCode, year);
   if (!signals.length) {
-    console.warn('HUD: No data returned. HUD API may require API key (set HUD_API_KEY).');
-    return { accepted: true, ingested_count: 0, note: 'HUD API key may be required' };
+    return { accepted: true, status: 'source_empty', ingested_count: 0, note: 'HUD API returned an empty county array' };
   }
   return postSignalsToAtlas({
     sourceId: 'hud_fmr',

@@ -115,8 +115,7 @@ export async function fetchLobbyingFilings({ limit = 100 } = {}) {
     const results = response.data?.results || response.data || [];
     return (Array.isArray(results) ? results : []).map(normalizeLobbyingFiling);
   } catch (e) {
-    console.warn(`Senate LDA fetch failed: ${e.message}`);
-    return [];
+    throw new Error(`senate_lda_request_failed status=${e?.response?.status ?? 'unknown'} detail=${String(e?.message ?? e).slice(0, 240)}`);
   }
 }
 

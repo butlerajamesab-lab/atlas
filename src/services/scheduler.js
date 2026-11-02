@@ -9,6 +9,7 @@ import { supabase } from '../lib/supabaseClient.js';
 import { countStreamEvents, recordActionReceipt } from './actionReceiptService.js';
 import { runLiveDataSignalBridge } from './liveDataSignalBridgeService.js';
 import { projectStreamRuntimeSnapshot } from './streamRuntimeProjectionService.js';
+import { assertCompleteAdapterReceipt } from './adapterReceiptAcceptance.js';
 
 const STATE = process.env.ATLAS_STATE || 'WA';
 const STATE_FIPS = STATE === 'WA' ? '53' : STATE;
@@ -189,6 +190,7 @@ async function runAdapter(adapter, { initiator = 'scheduler' } = {}) {
     const fn = mod[adapter.fn];
     if (!fn) throw new Error(`Function ${adapter.fn} not found in ${adapter.module}`);
     const adapterResult = await fn(adapter.args || {});
+    assertCompleteAdapterReceipt(adapterResult);
     const elapsed = Date.now() - start;
     const afterEventCount = await countStreamEvents(streamId);
     const eventDelta = afterEventCount - beforeEventCount;
@@ -222,7 +224,16 @@ async function runAdapter(adapter, { initiator = 'scheduler' } = {}) {
     if (beforeEventCount !== null && streamId) {
       try { afterEventCount = await countStreamEvents(streamId); } catch { /* preserve before count */ }
     }
-    const result = { status: 'error', error: message.slice(0, 500), stream_id: streamId ?? null, elapsed: Date.now() - start, outcome: 'failed' };
+    const partialPersisted = beforeEventCount !== null && afterEventCount !== null
+      && afterEventCount > beforeEventCount;
+    const result = {
+      status: 'error',
+      error: message.slice(0, 500),
+      stream_id: streamId ?? null,
+      elapsed: Date.now() - start,
+      outcome: error?.source_hold ? (partialPersisted ? 'partial_held' : 'held') : 'failed',
+      source_hold: error?.source_hold ?? null,
+    };
     const receipt = await persistRunReceipt({
       actionType: 'adapter_run', initiator, targetId: streamId ?? adapter.name, requestedAt, completedAt,
       outcomeStatus: 'failed', beforeEventCount, afterEventCount,
