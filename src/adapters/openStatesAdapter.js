@@ -2,6 +2,7 @@ import axios from 'axios';
 import dotenv from 'dotenv';
 import { asArray, postSignalsToAtlas, sourceUrlFrom, toIsoTimestamp } from './ingestClient.js';
 import { heldSourceWindow } from './sourceWindow.js';
+import { evaluateAdapterCliReceipt } from '../services/adapterReceiptAcceptance.js';
 
 dotenv.config();
 
@@ -124,5 +125,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const result = useSample
     ? await ingestOpenStatesSignals({ bills: sampleBills(), jurisdiction: 'wa' })
     : await runIngestOpenStatesWA();
-  console.log(JSON.stringify({ ok: true, source: 'open_states', mode: useSample ? 'sample' : 'live', result }, null, 2));
+  const cli = evaluateAdapterCliReceipt(result);
+  if (!cli.ok) process.exitCode = cli.exit_code;
+  console.log(JSON.stringify({ ok: cli.ok, source: 'open_states', mode: useSample ? 'sample' : 'live', result, error: cli.reason }, null, 2));
 }
