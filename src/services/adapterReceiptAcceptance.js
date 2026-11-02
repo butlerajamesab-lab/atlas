@@ -48,3 +48,13 @@ export function assertCompleteAdapterReceipt(receipt) {
   }
   return receipt;
 }
+
+/** Standalone commands must not turn an incomplete/held transport receipt into exit 0. */
+export function evaluateAdapterCliReceipt(receipt) {
+  try {
+    assertCompleteAdapterReceipt(receipt);
+    return { ok: true, exit_code: 0, reason: null };
+  } catch (error) {
+    return { ok: false, exit_code: 1, reason: String(error.message), source_hold: error.source_hold ?? null };
+  }
+}
