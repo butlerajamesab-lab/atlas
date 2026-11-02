@@ -69,3 +69,50 @@ test('provider unavailability cannot be reported as an empty successful source r
   assert.match(senate, /throw new Error\(`senate_lda_request_failed/);
   assert.match(sec, /throw new Error\(`sec_edgar_rss_fallback_failed/);
 });
+
+import { normalizeProPublicaFiling, prepareProPublicaSignals, ingestProPublicaSignals } from '../src/adapters/proPublicaAdapter.js';
+
+test('ProPublica source-dated filings use official tax_prd and stable EIN-period identity', () => {
+  const filing = { ein: 123456789, tax_prd: 202412, updated: '2025-03-11T08:20:00Z', totrevenue: 200, totassetsend: 700 };
+  const result = normalizeProPublicaFiling(filing, { organization: { ein: 123456789, name: 'Example' } });
+  assert.equal(result.timestamp, '2025-03-11T08:20:00.000Z');
+  assert.equal(result.payload.tax_period, 202412);
+  assert.equal(result.payload.external_id, '123456789:202412');
+  assert.equal(result.payload.total_revenue, 200);
+  assert.throws(() => normalizeProPublicaFiling({ ein: 123456789, tax_prd: 202412 }), /atlas_source_timestamp_missing/);
+  assert.throws(() => normalizeProPublicaFiling({ updated: '2025-03-11' }), /propublica_filing_identity_missing/);
+});
+
+test('ProPublica undated organization search hits are held rather than timestamped', async () => {
+  const organizations = [{ ein: 123456789, name: 'Example', subseccd: 3 }];
+  const filings = [{ organization: organizations[0], filings_with_data: [{ ein: 123456789, tax_prd: 202412, updated: '2025-03-11T08:20:00Z' }] }];
+  const prepared = prepareProPublicaSignals({ organizations, filings });
+  assert.equal(prepared.signals.length, 1);
+  assert.equal(prepared.held.length, 1);
+  assert.equal(prepared.held[0].reason, 'atlas_source_timestamp_missing');
+  let posted = 0;
+  const result = await ingestProPublicaSignals({
+    organizations, filings,
+    postSignals: async ({signals}) => {
+      posted++;
+      assert.equal(signals.length, 1);
+      return { accepted: true, status: 'completed', ingested_count: 1, records_failed: 0 };
+    },
+  });
+  assert.equal(posted, 1);
+  assert.equal(result.status, 'partial');
+  assert.equal(result.records_failed, 1);
+  assert.throws(() => assertCompleteAdapterReceipt(result), /atlas_adapter_incomplete_receipt/);
+});
+
+test('undated-only ProPublica batches never issue an ingest write', async () => {
+  let posted = 0;
+  const result = await ingestProPublicaSignals({
+    organizations: [{ ein: 123456789, name: 'Example' }],
+    postSignals: async () => { posted++; throw Error('unreachable'); },
+  });
+  assert.equal(posted, 0);
+  assert.equal(result.status, 'held_source_metadata');
+  assert.equal(result.accepted, false);
+  assert.throws(() => assertCompleteAdapterReceipt(result), /atlas_adapter_missing_receipt/);
+});
