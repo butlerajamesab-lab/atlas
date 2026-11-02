@@ -58,3 +58,14 @@ export function evaluateAdapterCliReceipt(receipt) {
     return { ok: false, exit_code: 1, reason: String(error.message), source_hold: error.source_hold ?? null };
   }
 }
+
+/** Preserve source-hold reasons/counts/hashes in manual runner receipts. */
+export function formatAdapterRunFailure(name, error, elapsedMs) {
+  return {
+    name,
+    status: 'error',
+    error: String(error?.message ?? error).slice(0, 500),
+    source_hold: error?.source_hold && typeof error.source_hold === 'object' ? error.source_hold : null,
+    ms: elapsedMs,
+  };
+}
