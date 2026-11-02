@@ -102,28 +102,31 @@ export function normalizeToFiling(filing, organization = {}, jurisdiction = 'us_
   return normalizeProPublicaFiling(filing, { organization, jurisdiction });
 }
 
-export async function searchNonprofits(state = 'WA', page = 0, query = '') {
+export async function searchNonprofits(state = 'WA', page = 0, query = '', httpGet = axios.get) {
   const params = { 'state[id]': state.toUpperCase(), page };
   if (query) params.q = query;
 
-  const response = await axios.get(`${PROPUBLICA_NONPROFIT_API_BASE_URL}/search.json`, {
+  const response = await httpGet(`${PROPUBLICA_NONPROFIT_API_BASE_URL}/search.json`, {
     params,
     timeout: 20000,
   });
 
-  return {
-    organizations: response.data?.organizations || [],
-    num_pages: response.data?.num_pages || 1,
-  };
+  const organizations = response.data?.organizations;
+  const numPages = Number(response.data?.num_pages);
+  if (!Array.isArray(organizations) || !Number.isInteger(numPages) || numPages < 1) {
+    throw new Error('propublica_search_unexpected_shape: organizations[] and num_pages required');
+  }
+  return { organizations, num_pages: numPages };
 }
 
-export async function fetchOrgDetail(ein) {
+export async function fetchOrgDetail(ein, httpGet = axios.get) {
   const cleanEin = String(ein).replace(/-/g, '');
-  const response = await axios.get(`${PROPUBLICA_NONPROFIT_API_BASE_URL}/organizations/${cleanEin}.json`, { timeout: 20000 });
-  return {
-    organization: response.data?.organization || {},
-    filings_with_data: response.data?.filings_with_data || [],
-  };
+  const response = await httpGet(`${PROPUBLICA_NONPROFIT_API_BASE_URL}/organizations/${cleanEin}.json`, { timeout: 20000 });
+  if (!response.data?.organization || typeof response.data.organization !== 'object' ||
+      !Array.isArray(response.data.filings_with_data)) {
+    throw new Error('propublica_detail_unexpected_shape: organization and filings_with_data[] required');
+  }
+  return { organization: response.data.organization, filings_with_data: response.data.filings_with_data };
 }
 
 /**
@@ -185,7 +188,7 @@ export async function ingestProPublicaSignals({
 }
 
 export async function runIngestProPublica(_supabase = null, state = 'WA') {
-  const { organizations } = await searchNonprofits(state);
+  const { organizations, num_pages: sourcePagesTotal } = await searchNonprofits(state);
   const details = [];
   for (const organization of organizations.slice(0, 10)) {
     const ein = organization.ein;
@@ -193,7 +196,13 @@ export async function runIngestProPublica(_supabase = null, state = 'WA') {
   }
   const detailedOrgs = new Map(details.filter((d) => d.organization?.ein).map((d) => [String(d.organization.ein), d.organization]));
   const sourceOrganizations = organizations.map((org) => detailedOrgs.get(String(org.ein)) || org);
-  return ingestProPublicaSignals({ organizations: sourceOrganizations, filings: details, jurisdiction: state.toUpperCase() });
+  const receipt = await ingestProPublicaSignals({ organizations: sourceOrganizations, filings: details, jurisdiction: state.toUpperCase() });
+  // Search results are capped to page zero. They are not the complete state corpus.
+  // Preserve partial-window status rather than recording full source completion.
+  if (sourcePagesTotal <= 1) return receipt;
+  return { ...receipt, status: 'partial', partial_completion: true,
+    source_window_incomplete: true, source_pages_processed: 1, source_pages_total: sourcePagesTotal };
+
 }
 
 function sampleRecords() {
