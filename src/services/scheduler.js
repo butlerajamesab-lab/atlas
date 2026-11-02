@@ -224,7 +224,16 @@ async function runAdapter(adapter, { initiator = 'scheduler' } = {}) {
     if (beforeEventCount !== null && streamId) {
       try { afterEventCount = await countStreamEvents(streamId); } catch { /* preserve before count */ }
     }
-    const result = { status: 'error', error: message.slice(0, 500), stream_id: streamId ?? null, elapsed: Date.now() - start, outcome: 'failed' };
+    const partialPersisted = beforeEventCount !== null && afterEventCount !== null
+      && afterEventCount > beforeEventCount;
+    const result = {
+      status: 'error',
+      error: message.slice(0, 500),
+      stream_id: streamId ?? null,
+      elapsed: Date.now() - start,
+      outcome: error?.source_hold ? (partialPersisted ? 'partial_held' : 'held') : 'failed',
+      source_hold: error?.source_hold ?? null,
+    };
     const receipt = await persistRunReceipt({
       actionType: 'adapter_run', initiator, targetId: streamId ?? adapter.name, requestedAt, completedAt,
       outcomeStatus: 'failed', beforeEventCount, afterEventCount,
