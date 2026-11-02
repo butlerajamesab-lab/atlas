@@ -111,8 +111,7 @@ async function fetchEdgarRss(formType = '4', limit = 40) {
       });
     });
   } catch (e) {
-    console.warn(`SEC RSS fallback also failed: ${e.message}`);
-    return [];
+    throw new Error(`sec_edgar_rss_fallback_failed status=${e?.response?.status ?? 'unknown'} detail=${String(e?.message ?? e).slice(0, 240)}`);
   }
 }
 
