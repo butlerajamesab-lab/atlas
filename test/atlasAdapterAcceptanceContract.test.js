@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { assertCompleteAdapterReceipt } from '../src/services/adapterReceiptAcceptance.js';
+import { toIsoTimestamp } from '../src/adapters/ingestClient.js';
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
 const scheduler = read('../src/services/scheduler.js');
@@ -47,4 +48,13 @@ test('HUD missing credentials and malformed source responses fail closed', () =>
   assert.match(hud, /throw new Error\('hud_credentials_missing:/);
   assert.match(hud, /throw new Error\('hud_unexpected_response_shape:/);
   assert.doesNotMatch(hud, /Skipping fetch/);
+});
+
+test('source event time must come from the provider, never current ingest time', () => {
+  assert.equal(toIsoTimestamp('2026-10-31'), '2026-10-31T00:00:00.000Z');
+  assert.throws(() => toIsoTimestamp(), /atlas_source_timestamp_missing/);
+  assert.throws(() => toIsoTimestamp(null, ''), /atlas_source_timestamp_missing/);
+  assert.throws(() => toIsoTimestamp('not-a-timestamp'), /atlas_source_timestamp_invalid/);
+  assert.doesNotMatch(read('../src/services/streamStore.js'), /incoming\.timestamp \?\? new Date\(\)/);
+  assert.match(read('../src/services/streamStore.js'), /atlas_source_timestamp_missing_or_invalid/);
 });
