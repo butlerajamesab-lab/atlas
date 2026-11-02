@@ -152,11 +152,11 @@ export async function fetchClusters(jurisdiction = 'us_federal', token = COURTLI
   };
 }
 
-export async function ingestCourtListenerSignals({ opinions, jurisdiction = 'us_federal', signalType = 'new_court_opinion', apiBaseUrl } = {}) {
-  if (opinions === undefined) return runIngestCourtListener(null, COURTLISTENER_API_KEY, jurisdiction);
+export async function ingestCourtListenerSignals({ opinions, jurisdiction = 'us_federal', signalType = 'new_court_opinion', apiBaseUrl, token = COURTLISTENER_API_KEY, fetchPage = fetchOpinions, postSignals = postSignalsToAtlas } = {}) {
+  if (opinions === undefined) return runIngestCourtListener(null, token, jurisdiction, fetchPage, postSignals);
   const sourceOpinions = opinions;
   const signals = sourceOpinions.map((opinion) => normalizeCourtListenerOpinion(opinion, { jurisdiction, signalType }));
-  return postSignalsToAtlas({
+  return postSignals({
     sourceId: 'court_listener',
     jurisdictionId: 'us_federal',
     moduleHint: 'judicial',
@@ -165,11 +165,12 @@ export async function ingestCourtListenerSignals({ opinions, jurisdiction = 'us_
   });
 }
 
-export async function runIngestCourtListener(_supabase = null, token = COURTLISTENER_API_KEY, jurisdiction = 'us_federal') {
-  const { results, next } = await fetchOpinions(jurisdiction, token);
+export async function runIngestCourtListener(_supabase = null, token = COURTLISTENER_API_KEY, jurisdiction = 'us_federal', fetchPage = fetchOpinions, postSignals = postSignalsToAtlas) {
+  const { results, next } = await fetchPage(jurisdiction, token);
+  if (!Array.isArray(results) || next === undefined) throw new Error('courtlistener_unverifiable_pagination_response');
   // No second API call or publication from an incomplete first-page window.
   if (next !== null) return heldSourceWindow('court_listener', results.length);
-  return ingestCourtListenerSignals({ opinions: results, jurisdiction });
+  return ingestCourtListenerSignals({ opinions: results, jurisdiction, postSignals });
 }
 
 function sampleOpinions() {
