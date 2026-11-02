@@ -2,6 +2,7 @@ import axios from 'axios';
 import dotenv from 'dotenv';
 import { postSignalsToAtlas, sourceUrlFrom, toIsoTimestamp } from './ingestClient.js';
 import { heldSourceWindow } from './sourceWindow.js';
+import { evaluateAdapterCliReceipt } from '../services/adapterReceiptAcceptance.js';
 
 dotenv.config();
 
@@ -195,5 +196,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const result = useSample
     ? await ingestCourtListenerSignals({ opinions: sampleOpinions() })
     : await runIngestCourtListener();
-  console.log(JSON.stringify({ ok: true, source: 'court_listener', mode: useSample ? 'sample' : 'live', result }, null, 2));
+  const cli = evaluateAdapterCliReceipt(result);
+  if (!cli.ok) process.exitCode = cli.exit_code;
+  console.log(JSON.stringify({ ok: cli.ok, source: 'court_listener', mode: useSample ? 'sample' : 'live', result, error: cli.reason }, null, 2));
 }
