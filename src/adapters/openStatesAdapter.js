@@ -78,15 +78,16 @@ export async function fetchStatutes(jurisdiction = 'ca', apiKey = OPENSTATES_API
   };
 }
 
-export async function ingestOpenStatesSignals({ bills, jurisdiction = 'us_states', apiBaseUrl, apiKey = OPENSTATES_API_KEY } = {}) {
+export async function ingestOpenStatesSignals({ bills, jurisdiction = 'us_states', apiBaseUrl, apiKey = OPENSTATES_API_KEY, fetchPage = fetchStatutes, postSignals = postSignalsToAtlas } = {}) {
   let sourceBills = bills;
   if (sourceBills === undefined) {
-    const page = await fetchStatutes(jurisdiction, apiKey);
+    const page = await fetchPage(jurisdiction, apiKey);
+    if (!Array.isArray(page?.results) || page.next === undefined) throw new Error('openstates_unverifiable_pagination_response');
     if (page.next !== null) return heldSourceWindow('open_states', page.results.length);
     sourceBills = page.results;
   }
   const signals = sourceBills.map((bill) => normalizeOpenStatesBill(bill, { jurisdiction }));
-  return postSignalsToAtlas({
+  return postSignals({
     sourceId: 'open_states',
     jurisdictionId: 'us_states',
     moduleHint: 'legislative',
@@ -95,8 +96,8 @@ export async function ingestOpenStatesSignals({ bills, jurisdiction = 'us_states
   });
 }
 
-export async function runIngestOpenStatesWA(_supabase = null, apiKey = OPENSTATES_API_KEY) {
-  return ingestOpenStatesSignals({ jurisdiction: 'wa', apiKey });
+export async function runIngestOpenStatesWA(_supabase = null, apiKey = OPENSTATES_API_KEY, fetchPage = fetchStatutes, postSignals = postSignalsToAtlas) {
+  return ingestOpenStatesSignals({ jurisdiction: 'wa', apiKey, fetchPage, postSignals });
 }
 
 function sampleBills() {
