@@ -13,9 +13,12 @@ import test from 'node:test';
 import {
   BACKFILL_CASE_TUPLE,
   BACKFILL_DECLARATION_TUPLE,
+  isTransientError,
   parseBackfillArgs,
   runBackfill,
 } from '../scripts/backfillWhdHistory.mjs';
+
+const NO_WAIT = { maxAttempts: 3, baseDelayMs: 1, rateLimitDelayMs: 1, sleepFn: async () => {} };
 
 function record(caseId, findingsEnd = '2020-06-30T00:00:00') {
   return {
@@ -100,16 +103,19 @@ test('undated cases post no declarations for their page', async () => {
   assert.equal(h.calls.declarations.length, 0);
 });
 
-test('a fetch failure propagates instead of reporting partial success', async () => {
+test('a fetch failure stops the sweep cleanly instead of reporting partial success', async () => {
   const h = harness([[record(1), record(2)]]);
   const failing = {
     ...h,
     fetchPage: async () => { throw new Error('dol_whd_request_failed status=503'); },
   };
-  await assert.rejects(
-    () => runBackfill({ ...failing, fromOffset: 0, maxPages: 3, pageSize: 2, delayMs: 0 }),
-    /dol_whd_request_failed/,
-  );
+  const summary = await runBackfill({
+    ...failing, fromOffset: 0, maxPages: 3, pageSize: 2, delayMs: 0, retry: NO_WAIT,
+  });
+  assert.equal(summary.pages_posted, 0);
+  assert.equal(summary.case_signals_posted, 0);
+  assert.equal(summary.next_offset, 0);
+  assert.match(summary.stopped_reason, /fetch_failed offset=0: dol_whd_request_failed status=503/);
 });
 
 test('a non-array page is a loud failure, not a silent zero', async () => {
@@ -119,6 +125,84 @@ test('a non-array page is a loud failure, not a silent zero', async () => {
     () => runBackfill({ ...weird, fromOffset: 0, maxPages: 1, pageSize: 2, delayMs: 0 }),
     /backfill_fetch_unexpected/,
   );
+});
+
+test('a rate-limited fetch is retried and the page still lands', async () => {
+  let fetches = 0;
+  const h = harness([[record(1), record(2)]]);
+  const flaky = {
+    ...h,
+    fetchPage: async (args) => {
+      fetches += 1;
+      if (fetches < 3) throw new Error('dol_whd_request_failed status=429 detail=');
+      return h.fetchPage(args);
+    },
+  };
+  const summary = await runBackfill({
+    ...flaky, fromOffset: 0, maxPages: 5, pageSize: 2, delayMs: 0, retry: NO_WAIT,
+  });
+  // 3 fetches for the retried first page + 1 for the empty page
+  // that proves exhaustion.
+  assert.equal(fetches, 4);
+  assert.equal(summary.case_signals_posted, 2);
+  assert.equal(summary.stopped_reason, null);
+  assert.equal(summary.exhausted, true);
+});
+
+test('a timed-out post is retried; dedupe makes the replay safe', async () => {
+  let posts = 0;
+  const h = harness([[record(1), record(2)]]);
+  const flaky = {
+    ...h,
+    postCases: async (signals) => {
+      posts += 1;
+      if (posts === 1) throw new Error('timeout of 60000ms exceeded');
+      return h.postCases(signals);
+    },
+  };
+  const summary = await runBackfill({
+    ...flaky, fromOffset: 0, maxPages: 5, pageSize: 2, delayMs: 0, retry: NO_WAIT,
+  });
+  assert.equal(posts, 2);
+  assert.equal(summary.case_signals_posted, 2);
+  assert.equal(summary.stopped_reason, null);
+});
+
+test('exhausted retries stop cleanly with the resume offset at the failed page', async () => {
+  const h = harness([[record(1), record(2)], [record(3), record(4)]]);
+  const doomed = {
+    ...h,
+    fetchPage: async ({ offset }) => {
+      if (offset === 2) throw new Error('dol_whd_request_failed status=503 detail=');
+      return h.fetchPage({ limit: 2, offset });
+    },
+  };
+  const summary = await runBackfill({
+    ...doomed, fromOffset: 0, maxPages: 5, pageSize: 2, delayMs: 0, retry: NO_WAIT,
+  });
+  assert.equal(summary.pages_posted, 1);
+  assert.equal(summary.case_signals_posted, 2);
+  assert.equal(summary.next_offset, 2);
+  assert.match(summary.stopped_reason, /fetch_failed offset=2/);
+});
+
+test('non-transient errors are not retried', async () => {
+  assert.equal(isTransientError(new Error('dol_whd_request_failed status=429')), true);
+  assert.equal(isTransientError(new Error('dol_whd_request_failed status=503')), true);
+  assert.equal(isTransientError(new Error('timeout of 60000ms exceeded')), true);
+  assert.equal(isTransientError(new Error('DOL_API_KEY is required')), false);
+  assert.equal(isTransientError(new Error('dol_whd_unexpected_payload')), false);
+  let fetches = 0;
+  const h = harness([]);
+  const fatal = {
+    ...h,
+    fetchPage: async () => { fetches += 1; throw new Error('DOL_API_KEY is required'); },
+  };
+  const summary = await runBackfill({
+    ...fatal, fromOffset: 0, maxPages: 2, pageSize: 2, delayMs: 0, retry: NO_WAIT,
+  });
+  assert.equal(fetches, 1);
+  assert.match(summary.stopped_reason, /fetch_failed offset=0/);
 });
 
 test('argument parser honors flags and ignores junk', () => {
