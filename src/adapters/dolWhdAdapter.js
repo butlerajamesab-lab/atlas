@@ -31,6 +31,34 @@ dotenv.config();
 // source itself carries occasional far-future typos — load_dt is the
 // freshness order that cannot trap the draw on undated rows. Replay
 // dedupe downstream absorbs overlap between quarterly refreshes.
+//
+// Integrity declarations (2026-11-07): alongside each case signal,
+// this adapter also emits DECLARED numeric observations for the
+// Domain 3 integrity engine (src/services/
+// integrityPatternDetectorService.js). That engine is deliberately
+// strict: it detects only over structures a governed source adapter
+// explicitly declares in payload.integrity_observation — it never
+// infers structure from raw record fields. For every case carrying
+// a findings_end_date, the adapter declares one observation:
+//   metric        findings_end_date (as epoch days)
+//   expected_min  the dataset's documented coverage start,
+//                 2005-01-01 (concluded actions since FY2005, per
+//                 the DOL catalog record for WHD_enforcement)
+//   expected_max  the record's own load_dt in epoch days — a
+//                 concluded case's findings period cannot end
+//                 after the publisher loaded the record
+// A record whose findings_end_date falls outside that declared
+// range (the source carries at least one far-future typo, a
+// findings end dated 3021) is exactly what the engine's
+// numeric_range_anomaly rule exists to surface — as an anomaly
+// observation, never as a finding of wrongdoing. Declarations are
+// posted to the dedicated atlas_integrity_observations stream
+// (registration: src/schema/
+// 20261107_integrity_observations_stream_registration.sql). Cases
+// without a findings_end_date, or without a load_dt to bound
+// against, emit NO declaration — a missing value is not a number,
+// and an unbounded observation would be an inference, not a
+// declaration.
 const DOL_WHD_ENFORCEMENT_URL = 'https://apiprod.dol.gov/v4/get/WHD/enforcement/json';
 
 function asNumber(value) {
@@ -164,7 +192,7 @@ function whdRequestError(error) {
   return wrapped;
 }
 
-export async function fetchWhdCases({ limit = 100, offset = 0, httpGet = defaultHttpGet } = {}) {
+export async function fetchWhdRecords({ limit = 100, offset = 0, httpGet = defaultHttpGet } = {}) {
   // Fail before any request when the key is absent: a credential
   // block must read as a failure in the run receipts, never a
   // silent zero.
@@ -195,21 +223,149 @@ export async function fetchWhdCases({ limit = 100, offset = 0, httpGet = default
       'unrecognised payload to zero records.'
     );
   }
-  return results.map(normalizeWhdCase);
+  return results;
+}
+
+export async function fetchWhdCases(args = {}) {
+  const records = await fetchWhdRecords(args);
+  return records.map(normalizeWhdCase);
+}
+
+// --- Integrity declarations ----------------------------------------
+// The declared-range rule for WHD findings dates. Versioned so a
+// future bounds change is a new rule, never a silent edit.
+export const WHD_FINDINGS_RANGE_RULE = 'whd_findings_end_date_range_v1';
+
+// The dataset's documented coverage start: concluded WHD compliance
+// actions since FY2005 (DOL Open Data catalog, WHD_enforcement,
+// verified 2026-11-06).
+const WHD_COVERAGE_START = '2005-01-01';
+
+// Whole days since the Unix epoch for an ISO date or datetime
+// string, computed on the UTC calendar date. Returns null for
+// anything that is not a real calendar date — Date.UTC alone
+// tolerates overflow (month 13 rolls over), so the components are
+// round-tripped and must match.
+export function epochDays(value) {
+  if (value === undefined || value === null || value === '') return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value).trim());
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const ms = Date.UTC(year, month - 1, day);
+  const check = new Date(ms);
+  if (
+    check.getUTCFullYear() !== year ||
+    check.getUTCMonth() !== month - 1 ||
+    check.getUTCDate() !== day
+  ) {
+    return null;
+  }
+  return Math.floor(ms / 86_400_000);
+}
+
+// Build the declared numeric observation for one WHD record (see
+// the header). Returns null when the record cannot carry an honest
+// declaration: no case id, no findings_end_date, an unparseable
+// date, or no load_dt to bound the range against.
+export function buildWhdFindingsDeclaration(record) {
+  const caseId = record?.case_id ?? '';
+  const findingsEnd = record?.findings_end_date || '';
+  const loadDt = record?.load_dt || '';
+  const actual = epochDays(findingsEnd);
+  const expectedMax = epochDays(loadDt);
+  if (!caseId || actual === null || expectedMax === null) return null;
+
+  const legalName = record.legal_name || record.trade_nm || 'Unknown';
+  const state = record.st_cd || '';
+  const jurisdictionId = state ? `us_state_${state}` : 'us_federal';
+
+  return {
+    signal_type: 'declared_numeric_observation',
+    timestamp: toIsoTimestamp(loadDt),
+    spacetime: {
+      region: jurisdictionId,
+      jurisdiction: jurisdictionId,
+      city: record.cty_nm || '',
+      state,
+      zip: record.zip_cd || '',
+    },
+    provenance: {
+      channel: 'atlas_integrity_declaration',
+      source_system: 'whd_enforcement',
+      confidence: 1.0,
+      source_url: null,
+      declared_by: 'dol_whd_adapter',
+      declaration_rule: WHD_FINDINGS_RANGE_RULE,
+    },
+    payload: {
+      external_id: `whd_decl_findings_end_${caseId}`,
+      declaration_kind: 'numeric_observation',
+      declaration_rule: WHD_FINDINGS_RANGE_RULE,
+      source_case_id: caseId,
+      source_external_id: `whd_${caseId}`,
+      source_dataset: 'WHD_enforcement',
+      employer_legal_name: legalName,
+      employer_trade_name: record.trade_nm || '',
+      findings_end_date: findingsEnd,
+      load_dt: loadDt,
+      bounds_basis: {
+        expected_min:
+          'Dataset coverage start: concluded WHD compliance actions since FY2005 ' +
+          '(DOL Open Data catalog record for WHD_enforcement).',
+        expected_max:
+          "The record's own load_dt: a concluded case's findings period cannot end " +
+          'after the publisher loaded the record.',
+      },
+      integrity_observation: {
+        kind: 'numeric_observation',
+        observation_id: `whd_findings_end:${caseId}`,
+        subject_canonical_entity_id: `whd_case:${caseId}`,
+        subject_name: `${legalName} — WHD case ${caseId}`,
+        metric: 'findings_end_date',
+        actual,
+        expected_min: epochDays(WHD_COVERAGE_START),
+        expected_max: expectedMax,
+        observed_at: toIsoTimestamp(loadDt),
+        jurisdiction_id: jurisdictionId,
+      },
+    },
+  };
+}
+
+export function buildWhdDeclarations(records) {
+  return (records || []).map(buildWhdFindingsDeclaration).filter(Boolean);
 }
 
 export async function ingestWhdSignals({ apiBaseUrl, httpGet, limit } = {}) {
-  const signals = await fetchWhdCases({ httpGet, limit });
+  const records = await fetchWhdRecords({ httpGet, limit });
+  const signals = records.map(normalizeWhdCase);
   if (!signals.length) {
     return { accepted: true, ingested_count: 0, note: 'No WHD enforcement cases returned' };
   }
-  return postSignalsToAtlas({
+  const result = await postSignalsToAtlas({
     sourceId: 'dol_whd',
     jurisdictionId: 'us_federal',
     moduleHint: 'labor_enforcement',
     signals,
     apiBaseUrl,
   });
+  // Declarations ride the same fetched records through their own
+  // governed door. A declaration failure fails the run visibly,
+  // exactly like a case-post failure — never a silent skip.
+  const declarations = buildWhdDeclarations(records);
+  let declarationResult = null;
+  if (declarations.length) {
+    declarationResult = await postSignalsToAtlas({
+      sourceId: 'atlas_integrity',
+      jurisdictionId: 'us_federal',
+      moduleHint: 'integrity_observation',
+      signals: declarations,
+      apiBaseUrl,
+    });
+  }
+  return { ...result, declarations_posted: declarations.length, declaration_result: declarationResult };
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
