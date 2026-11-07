@@ -62,6 +62,59 @@ export const BACKFILL_DECLARATION_TUPLE = {
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// The DOL API rate-limits the shared Atlas key (the first probe
+// sweep took HTTP 429 after 13 paced page fetches) and the Atlas
+// ingest door intermittently exceeds its own client timeout —
+// both are documented platform behaviors, and both are transient.
+// A page whose effect ultimately failed is safe to retry because
+// the ingest dedupe absorbs replays. Non-transient errors (bad
+// payload, missing key, 4xx other than 429) are never retried.
+const TRANSIENT_PATTERNS = [
+  /status=429/,
+  /status code 429/,
+  /status=5\d\d/,
+  /status code 5\d\d/,
+  /timeout/i,
+  /ECONNRESET/,
+  /ETIMEDOUT/,
+  /socket hang up/i,
+  /Network Error/,
+];
+
+export function isTransientError(error) {
+  const message = String(error?.message || error || '');
+  return TRANSIENT_PATTERNS.some((pattern) => pattern.test(message));
+}
+
+export function isRateLimitError(error) {
+  const message = String(error?.message || error || '');
+  return /status=429/.test(message) || /status code 429/.test(message);
+}
+
+export async function withRetries(operation, {
+  label = 'operation',
+  maxAttempts = 6,
+  baseDelayMs = 30000,
+  rateLimitDelayMs = 300000,
+  sleepFn = sleep,
+  log = () => {},
+} = {}) {
+  let lastError;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+      if (!isTransientError(error) || attempt === maxAttempts) throw error;
+      const backoff = baseDelayMs * 2 ** (attempt - 1);
+      const delay = isRateLimitError(error) ? Math.max(backoff, rateLimitDelayMs) : backoff;
+      log(`backfill retry: ${label} attempt ${attempt} failed transiently (${String(error?.message || error).slice(0, 160)}); waiting ${delay}ms`);
+      await sleepFn(delay);
+    }
+  }
+  throw lastError;
+}
+
 // The paging loop, with every side effect injectable for tests.
 // fetchPage({limit, offset}) resolves to raw WHD records;
 // postCases/postDeclarations receive signal arrays and resolve to
@@ -75,6 +128,7 @@ export async function runBackfill({
   maxPages = 10,
   pageSize = 100,
   delayMs = 250,
+  retry = {},
   log = () => {},
 } = {}) {
   if (typeof fetchPage !== 'function' || typeof postCases !== 'function' || typeof postDeclarations !== 'function') {
@@ -89,13 +143,24 @@ export async function runBackfill({
     declaration_signals_posted: 0,
     next_offset: fromOffset,
     exhausted: false,
+    stopped_reason: null,
   };
+  const retryConfig = { log, ...retry };
 
   for (let page = 0; page < maxPages; page += 1) {
     const offset = fromOffset + page * pageSize;
     summary.next_offset = offset;
     log(`backfill page offset=${offset}`);
-    const records = await fetchPage({ limit: pageSize, offset });
+    let records;
+    try {
+      records = await withRetries(
+        () => fetchPage({ limit: pageSize, offset }),
+        { ...retryConfig, label: `fetch offset=${offset}` },
+      );
+    } catch (error) {
+      summary.stopped_reason = `fetch_failed offset=${offset}: ${String(error?.message || error).slice(0, 200)}`;
+      return summary;
+    }
     if (!Array.isArray(records)) {
       throw new Error(`backfill_fetch_unexpected: page at offset ${offset} did not resolve to a record array`);
     }
@@ -106,13 +171,25 @@ export async function runBackfill({
     }
 
     const caseSignals = records.map(normalizeWhdCase);
-    await postCases(caseSignals);
-    summary.case_signals_posted += caseSignals.length;
-
     const declarations = buildWhdDeclarations(records);
-    if (declarations.length) {
-      await postDeclarations(declarations);
-      summary.declaration_signals_posted += declarations.length;
+    try {
+      await withRetries(
+        () => postCases(caseSignals),
+        { ...retryConfig, label: `post cases offset=${offset}` },
+      );
+      summary.case_signals_posted += caseSignals.length;
+      if (declarations.length) {
+        await withRetries(
+          () => postDeclarations(declarations),
+          { ...retryConfig, label: `post declarations offset=${offset}` },
+        );
+        summary.declaration_signals_posted += declarations.length;
+      }
+    } catch (error) {
+      // The page may be partially posted; the resume offset stays
+      // at THIS page and the ingest dedupe absorbs the overlap.
+      summary.stopped_reason = `post_failed offset=${offset}: ${String(error?.message || error).slice(0, 200)}`;
+      return summary;
     }
 
     summary.pages_posted += 1;
@@ -153,7 +230,8 @@ async function main() {
     delayMs: args.delayMs,
     log: (line) => console.log(line),
   });
-  console.log(JSON.stringify({ ok: true, backfill: 'dol_whd_violations', ...summary }));
+  console.log(JSON.stringify({ ok: summary.stopped_reason === null, backfill: 'dol_whd_violations', ...summary }));
+  if (summary.stopped_reason !== null) process.exitCode = 1;
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
