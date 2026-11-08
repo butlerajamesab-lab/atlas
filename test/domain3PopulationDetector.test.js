@@ -36,6 +36,13 @@ test('repeat entity and cross-category candidates derive from a population, not 
     for (let i = 0; i < 2; i += 1) rows.push(event({ offset: offset++, category: `other_${entityIndex % 3}`, city: `city_${entityIndex % 5}`, entity: `Other ${entityIndex}` }));
   }
 
+  // Second partition where the same entity is rare: the corrected
+  // baseline judges the first partition against the scan-wide rate.
+  for (let entityIndex = 0; entityIndex < 66; entityIndex += 1) {
+    for (let i = 0; i < 3; i += 1) rows.push(event({ offset: offset++, category: `beta_cat_${entityIndex % 5}`, city: `beta_city_${entityIndex % 7}`, entity: `Beta ${entityIndex}`, stream: 'nyc_311', jurisdiction: 'NY' }));
+  }
+  for (let i = 0; i < 2; i += 1) rows.push(event({ offset: offset++, category: 'cat_0', city: 'beta_city_0', entity: 'Dominant Corp', stream: 'nyc_311', jurisdiction: 'NY' }));
+
   const candidates = deriveDomain3PopulationCandidates(rows);
   const repeat = candidates.find((candidate) => candidate.signal_type === 'repeat_entity' && candidate.title.includes('Dominant Corp'));
   const cross = candidates.find((candidate) => candidate.signal_type === 'cross_category_entity' && candidate.title.includes('Dominant Corp'));
@@ -47,13 +54,21 @@ test('repeat entity and cross-category candidates derive from a population, not 
   assert.ok(repeat.supporting_statistics.pattern_count > 1);
   assert.ok(Array.isArray(repeat.source_event_refs));
   assert.ok(repeat.source_event_refs.length <= 25);
+  assert.ok(repeat.supporting_statistics.location_quotient >= 3);
+  assert.equal(repeat.supporting_statistics.entity_key, 'dominant'); // declared suffix rule drops the trailing 'Corp'
+  assert.equal(repeat.supporting_statistics.confidence_semantics, 'weighted_declared_factor_score_not_probability');
+  assert.ok(repeat.confidence_score <= 0.7, 'unresolved entity grouping caps the factor score at 0.7');
 });
 
-test('frequency and geographic candidates use statistical population baselines', () => {
+test('frequency and geographic candidates use location-quotient baselines against the scan-wide rate', () => {
   const rows = [];
   let offset = 1;
   for (let i = 0; i < 40; i += 1) rows.push(event({ offset: offset++, category: 'dominant_category', city: 'Seattle', entity: `Entity ${i % 8}` }));
   for (let i = 0; i < 8; i += 1) rows.push(event({ offset: offset++, category: `category_${i}`, city: `City ${i}`, entity: `Other ${i}` }));
+  // Second partition where the same category and city are unremarkable:
+  // uniform spread, with only a handful of dominant_category / Seattle.
+  for (let i = 0; i < 200; i += 1) rows.push(event({ offset: offset++, category: `spread_cat_${i % 20}`, city: `Spread City ${i % 20}`, entity: `Spread ${i % 40}`, stream: 'nyc_311', jurisdiction: 'NY' }));
+  for (let i = 0; i < 4; i += 1) rows.push(event({ offset: offset++, category: 'dominant_category', city: 'Seattle', entity: `Spread ${i}`, stream: 'nyc_311', jurisdiction: 'NY' }));
 
   const candidates = deriveDomain3PopulationCandidates(rows);
   const frequency = candidates.find((candidate) => candidate.signal_type === 'frequency_spike' && candidate.title.includes('dominant_category'));
@@ -61,8 +76,12 @@ test('frequency and geographic candidates use statistical population baselines',
 
   assert.ok(frequency, 'expected frequency_spike candidate');
   assert.ok(geography, 'expected geographic_cluster candidate');
-  assert.ok(frequency.supporting_statistics.z_score >= 1.5);
-  assert.ok(geography.supporting_statistics.z_score >= 1.5);
+  assert.ok(frequency.supporting_statistics.location_quotient >= 2);
+  assert.ok(geography.supporting_statistics.location_quotient >= 2);
+  assert.equal(frequency.supporting_statistics.z_score, undefined);
+  assert.equal(geography.supporting_statistics.z_score, undefined);
+  assert.equal(frequency.supporting_statistics.confidence_semantics, 'weighted_declared_factor_score_not_probability');
+  assert.ok(Array.isArray(frequency.supporting_statistics.confidence_factors));
 });
 
 test('trend anomaly compares adjacent years and preserves direction', () => {

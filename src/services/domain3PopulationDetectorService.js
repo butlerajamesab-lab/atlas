@@ -2,9 +2,10 @@ import crypto from 'crypto';
 
 const ENGINE_ID = 'atlas.domain3_population_exact';
 const ENGINE_VERSION = '1.0.0';
-const DEFAULT_OBSERVATION_LIMIT = 20000;
-const DEFAULT_CANDIDATE_LIMIT = 100;
 const SOURCE_REF_LIMIT = 25;
+
+export const CONFIDENCE_SEMANTICS = 'weighted_declared_factor_score_not_probability';
+export const EVIDENCE_SAMPLING = 'evenly_spaced_sample_over_stream_offset_order_including_first_and_last';
 
 const RULES = Object.freeze([
   {
@@ -14,9 +15,12 @@ const RULES = Object.freeze([
     rule_contract: {
       domain: 3,
       detector: 'frequency_spike',
+      baseline: 'location_quotient_vs_scan_wide_share',
       minimum_records: 10,
-      minimum_categories: 2,
-      minimum_z_score: 1.5,
+      minimum_partition_categorized_records: 20,
+      minimum_location_quotient: 2,
+      confidence: CONFIDENCE_SEMANTICS,
+      evidence_sampling: EVIDENCE_SAMPLING,
       interpretation_boundary: 'population concentration observation; not misconduct, causation, or legal finding',
     },
   },
@@ -27,9 +31,12 @@ const RULES = Object.freeze([
     rule_contract: {
       domain: 3,
       detector: 'geographic_cluster',
+      baseline: 'location_quotient_vs_scan_wide_share',
       minimum_records: 10,
-      minimum_geographies: 2,
-      minimum_z_score: 1.5,
+      minimum_partition_geography_records: 20,
+      minimum_location_quotient: 2,
+      confidence: CONFIDENCE_SEMANTICS,
+      evidence_sampling: EVIDENCE_SAMPLING,
       interpretation_boundary: 'geographic concentration observation; not misconduct, causation, or legal finding',
     },
   },
@@ -40,10 +47,14 @@ const RULES = Object.freeze([
     rule_contract: {
       domain: 3,
       detector: 'repeat_entity',
+      baseline: 'location_quotient_vs_scan_wide_share',
       minimum_records: 10,
-      minimum_entities: 2,
-      minimum_z_score: 2,
+      minimum_partition_entity_records: 20,
+      minimum_location_quotient: 3,
+      entity_grouping: 'declared_normalized_name_key_not_identity',
       entity_resolution: 'candidate remains unverified until exact entity resolution succeeds',
+      confidence: CONFIDENCE_SEMANTICS,
+      evidence_sampling: EVIDENCE_SAMPLING,
       interpretation_boundary: 'repeat-appearance observation; not misconduct, causation, or legal finding',
     },
   },
@@ -54,8 +65,11 @@ const RULES = Object.freeze([
     rule_contract: {
       domain: 3,
       detector: 'trend_anomaly',
+      baseline: 'own_prior_year_volume',
       minimum_prior_year_records: 10,
       minimum_absolute_percent_change: 50,
+      confidence: CONFIDENCE_SEMANTICS,
+      evidence_sampling: EVIDENCE_SAMPLING,
       interpretation_boundary: 'temporal volume change observation; reporting-practice changes remain unresolved',
     },
   },
@@ -68,7 +82,10 @@ const RULES = Object.freeze([
       detector: 'cross_category_entity',
       minimum_records: 10,
       minimum_categories: 3,
+      entity_grouping: 'declared_normalized_name_key_not_identity',
       entity_resolution: 'candidate remains unverified until exact entity resolution succeeds',
+      confidence: CONFIDENCE_SEMANTICS,
+      evidence_sampling: EVIDENCE_SAMPLING,
       interpretation_boundary: 'cross-category appearance observation; not misconduct, causation, or legal finding',
     },
   },
@@ -170,6 +187,89 @@ export function entityOf(event) {
   );
 }
 
+const ENTITY_SUFFIXES = new Set(['inc', 'llc', 'llp', 'corp', 'corporation', 'company', 'co', 'ltd']);
+
+export function normalizeEntityKey(value) {
+  const text = normalizeText(value);
+  if (!text) return null;
+  let key = text.toLowerCase().replace(/\s+/g, ' ').replace(/[.,]+$/g, '').trim();
+  const tokens = key.split(' ');
+  if (tokens.length > 1 && ENTITY_SUFFIXES.has(tokens[tokens.length - 1].replace(/[.,]/g, ''))) {
+    tokens.pop();
+    key = tokens.join(' ').replace(/[.,]+$/g, '').trim();
+  }
+  return key.length ? key : null;
+}
+
+export function entityKeyOf(event) {
+  return normalizeEntityKey(entityOf(event));
+}
+
+function mostFrequentText(values) {
+  const counts = new Map();
+  for (const value of values) {
+    if (!value) continue;
+    counts.set(value, (counts.get(value) || 0) + 1);
+  }
+  let best = null;
+  let bestCount = -1;
+  for (const [value, count] of counts) {
+    if (count > bestCount || (count === bestCount && (best === null || value < best))) {
+      best = value;
+      bestCount = count;
+    }
+  }
+  return best;
+}
+
+function countBy(values) {
+  const counts = new Map();
+  for (const value of values) {
+    if (value === null || value === undefined) continue;
+    counts.set(value, (counts.get(value) || 0) + 1);
+  }
+  return counts;
+}
+
+function locationQuotient(localCount, localTotal, globalCount, globalTotal) {
+  if (!localTotal || !globalTotal || !globalCount) return 0;
+  return (localCount / localTotal) / (globalCount / globalTotal);
+}
+
+function factorScore(factors) {
+  const total = factors.reduce((sum, factor) => sum + factor.weight, 0);
+  const met = factors.reduce((sum, factor) => sum + (factor.satisfied ? factor.weight : 0), 0);
+  return {
+    score: total > 0 ? Number((met / total).toFixed(6)) : 0,
+    factors: factors.map((factor) => ({ ...factor, satisfied: Boolean(factor.satisfied) })),
+  };
+}
+
+function unresolvedResolutionFactor() {
+  return {
+    factor_id: 'exact_entity_resolution',
+    weight: 0.3,
+    satisfied: false,
+    explanation: 'Grouping uses a declared normalized name key; exact entity resolution has not succeeded, so this factor is not satisfied and the score is capped until it does.',
+  };
+}
+
+export function sampleSourceRefs(events, limit = SOURCE_REF_LIMIT) {
+  const sorted = events
+    .slice()
+    .sort((a, b) => String(a.stream_id).localeCompare(String(b.stream_id)) || Number(a.offset) - Number(b.offset));
+  if (sorted.length <= limit) return sorted.map(sourceRef);
+  const picked = [];
+  const seen = new Set();
+  for (let i = 0; i < limit; i += 1) {
+    const index = Math.round((i * (sorted.length - 1)) / (limit - 1));
+    if (seen.has(index)) continue;
+    seen.add(index);
+    picked.push(sorted[index]);
+  }
+  return picked.map(sourceRef);
+}
+
 function sourceRef(event) {
   return {
     stream_id: event.stream_id,
@@ -178,31 +278,25 @@ function sourceRef(event) {
   };
 }
 
-function meanStd(values) {
-  if (!values.length) return { mean: 0, stddev: 0 };
-  const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
-  const variance = values.reduce((sum, value) => sum + ((value - mean) ** 2), 0) / values.length;
-  return { mean, stddev: Math.sqrt(variance) };
-}
-
-function severityFromZ(z) {
-  if (z >= 3) return 'critical';
-  if (z >= 2) return 'high';
-  return 'medium';
-}
-
-function candidateBase({ ruleId, signalType, title, description, events, jurisdiction, severity, confidence, statistics, entityName = null }) {
-  const refs = events
-    .slice()
-    .sort((a, b) => String(a.stream_id).localeCompare(String(b.stream_id)) || Number(a.offset) - Number(b.offset))
-    .slice(0, SOURCE_REF_LIMIT)
-    .map(sourceRef);
+function candidateBase({ ruleId, signalType, title, description, events, jurisdiction, severity, factors, statistics, entityName = null, entityKey = null }) {
+  const refs = sampleSourceRefs(events);
   const streams = [...new Set(events.map((event) => event.stream_id))].sort();
   const sourceFreshnessAt = events.reduce((latest, event) => {
     const value = new Date(event.timestamp || event.ingested_at || 0).getTime();
     return Number.isFinite(value) && value > latest ? value : latest;
   }, 0);
-  const sourceInputHash = stableHash({ ruleId, refs, statistics });
+  const { score, factors: scoredFactors } = factorScore(factors);
+  const fullStatistics = {
+    ...statistics,
+    streams,
+    entity_name: entityName,
+    ...(entityKey ? { entity_key: entityKey } : {}),
+    confidence_factors: scoredFactors,
+    confidence_semantics: CONFIDENCE_SEMANTICS,
+    evidence_sampling: EVIDENCE_SAMPLING,
+    evidence_ref_count: refs.length,
+  };
+  const sourceInputHash = stableHash({ ruleId, refs, statistics: fullStatistics });
   const candidateHash = stableHash({ ruleId, signalType, jurisdiction, title, sourceInputHash });
 
   return {
@@ -220,9 +314,9 @@ function candidateBase({ ruleId, signalType, title, description, events, jurisdi
     entity_resolution_status: entityName ? 'unresolved_exact_match_required' : 'not_applicable',
     jurisdiction_id: jurisdiction,
     severity,
-    confidence_score: Number(Math.max(0, Math.min(1, confidence)).toFixed(6)),
+    confidence_score: score,
     verification_state: 'unverified',
-    supporting_statistics: { ...statistics, streams, entity_name: entityName },
+    supporting_statistics: fullStatistics,
     evidence_refs: refs,
     source_freshness_at: new Date(sourceFreshnessAt || Date.now()).toISOString(),
     detected_at: new Date().toISOString(),
@@ -241,33 +335,41 @@ function partitionEvents(events) {
 }
 
 function detectFrequencySpikes(events) {
+  const categorized = events.filter((event) => categoryOf(event) !== 'unclassified');
+  const globalCounts = countBy(categorized.map((event) => categoryOf(event)));
+  const scanTotal = categorized.length;
   const candidates = [];
   for (const partition of partitionEvents(events)) {
+    const bearing = partition.filter((event) => categoryOf(event) !== 'unclassified');
+    if (bearing.length < 20) continue;
     const groups = new Map();
-    for (const event of partition) {
+    for (const event of bearing) {
       const category = categoryOf(event);
       if (!groups.has(category)) groups.set(category, []);
       groups.get(category).push(event);
     }
-    if (groups.size < 2) continue;
-    const counts = [...groups.values()].map((rows) => rows.length);
-    const { mean, stddev } = meanStd(counts);
-    if (stddev <= 0) continue;
     for (const [category, rows] of groups) {
-      const z = (rows.length - mean) / stddev;
-      if (rows.length < 10 || z < 1.5) continue;
+      const localShare = rows.length / bearing.length;
+      const globalShare = (globalCounts.get(category) || 0) / scanTotal;
+      const quotient = locationQuotient(rows.length, bearing.length, globalCounts.get(category) || 0, scanTotal);
+      if (rows.length < 10 || quotient < 2) continue;
       const jurisdiction = jurisdictionOf(rows[0]);
-      const percentage = (rows.length / partition.length) * 100;
+      const percentage = localShare * 100;
       candidates.push(candidateBase({
         ruleId: 'atlas.domain3.frequency_spike',
         signalType: 'frequency_spike',
         title: `Frequency spike: ${category}`,
-        description: `${category} accounts for ${rows.length} of ${partition.length} observations (${percentage.toFixed(1)}%), ${z.toFixed(2)} standard deviations above the category mean.`,
+        description: `${category} accounts for ${rows.length} of ${bearing.length} categorized observations in this stream and jurisdiction (${percentage.toFixed(1)}%), ${quotient.toFixed(2)}x its rate across the full scanned population (${(globalShare * 100).toFixed(1)}%). Concentration observation; not misconduct, causation, or a legal finding.`,
         events: rows,
         jurisdiction,
-        severity: severityFromZ(z),
-        confidence: Math.min(0.95, 0.55 + (z * 0.1)),
-        statistics: { records_analyzed: partition.length, pattern_count: rows.length, percentage_affected: Number(percentage.toFixed(2)), z_score: Number(z.toFixed(4)), category_mean: Number(mean.toFixed(4)), category_stddev: Number(stddev.toFixed(4)), category },
+        severity: quotient >= 4 && rows.length >= 50 ? 'high' : 'medium',
+        factors: [
+          { factor_id: 'local_elevation', weight: 0.45, satisfied: quotient >= 2, explanation: `Local share is ${quotient.toFixed(2)}x the scan-wide rate (declared minimum 2x).` },
+          { factor_id: 'strong_elevation', weight: 0.2, satisfied: quotient >= 4, explanation: quotient >= 4 ? 'Local share is at least 4x the scan-wide rate.' : 'Local share is below 4x the scan-wide rate.' },
+          { factor_id: 'volume', weight: 0.2, satisfied: rows.length >= 25, explanation: `${rows.length} observations in the pattern (declared full-volume mark 25).` },
+          { factor_id: 'partition_share', weight: 0.15, satisfied: localShare >= 0.1, explanation: `Pattern is ${(localShare * 100).toFixed(1)}% of its partition (declared share mark 10%).` },
+        ],
+        statistics: { records_analyzed: partition.length, pattern_count: rows.length, percentage_affected: Number(percentage.toFixed(2)), location_quotient: Number(quotient.toFixed(4)), local_share: Number(localShare.toFixed(6)), global_share: Number(globalShare.toFixed(6)), category },
       }));
     }
   }
@@ -275,34 +377,41 @@ function detectFrequencySpikes(events) {
 }
 
 function detectGeographicClusters(events) {
+  const bearingAll = events.filter((event) => geographyOf(event));
+  const globalCounts = countBy(bearingAll.map((event) => geographyOf(event)));
+  const scanTotal = bearingAll.length;
   const candidates = [];
   for (const partition of partitionEvents(events)) {
+    const bearing = partition.filter((event) => geographyOf(event));
+    if (bearing.length < 20) continue;
     const groups = new Map();
-    for (const event of partition) {
+    for (const event of bearing) {
       const geography = geographyOf(event);
-      if (!geography) continue;
       if (!groups.has(geography)) groups.set(geography, []);
       groups.get(geography).push(event);
     }
-    if (groups.size < 2) continue;
-    const counts = [...groups.values()].map((rows) => rows.length);
-    const { mean, stddev } = meanStd(counts);
-    if (stddev <= 0) continue;
     for (const [geography, rows] of groups) {
-      const z = (rows.length - mean) / stddev;
-      if (rows.length < 10 || z < 1.5) continue;
+      const localShare = rows.length / bearing.length;
+      const globalShare = (globalCounts.get(geography) || 0) / scanTotal;
+      const quotient = locationQuotient(rows.length, bearing.length, globalCounts.get(geography) || 0, scanTotal);
+      if (rows.length < 10 || quotient < 2) continue;
       const jurisdiction = jurisdictionOf(rows[0]);
-      const percentage = (rows.length / partition.length) * 100;
+      const percentage = localShare * 100;
       candidates.push(candidateBase({
         ruleId: 'atlas.domain3.geographic_cluster',
         signalType: 'geographic_cluster',
         title: `Geographic concentration: ${geography}`,
-        description: `${geography} contains ${rows.length} of ${partition.length} observations (${percentage.toFixed(1)}%), ${z.toFixed(2)} standard deviations above the geography mean.`,
+        description: `${geography} contains ${rows.length} of ${bearing.length} geography-bearing observations in this stream and jurisdiction (${percentage.toFixed(1)}%), ${quotient.toFixed(2)}x its rate across the full scanned population (${(globalShare * 100).toFixed(1)}%). Concentration observation; not misconduct, causation, or a legal finding.`,
         events: rows,
         jurisdiction,
-        severity: severityFromZ(z),
-        confidence: Math.min(0.93, 0.5 + (z * 0.1)),
-        statistics: { records_analyzed: partition.length, pattern_count: rows.length, percentage_affected: Number(percentage.toFixed(2)), z_score: Number(z.toFixed(4)), geography_mean: Number(mean.toFixed(4)), geography_stddev: Number(stddev.toFixed(4)), geography },
+        severity: quotient >= 4 && rows.length >= 50 ? 'high' : 'medium',
+        factors: [
+          { factor_id: 'local_elevation', weight: 0.45, satisfied: quotient >= 2, explanation: `Local share is ${quotient.toFixed(2)}x the scan-wide rate (declared minimum 2x).` },
+          { factor_id: 'strong_elevation', weight: 0.2, satisfied: quotient >= 4, explanation: quotient >= 4 ? 'Local share is at least 4x the scan-wide rate.' : 'Local share is below 4x the scan-wide rate.' },
+          { factor_id: 'volume', weight: 0.2, satisfied: rows.length >= 25, explanation: `${rows.length} observations in the pattern (declared full-volume mark 25).` },
+          { factor_id: 'partition_share', weight: 0.15, satisfied: localShare >= 0.1, explanation: `Pattern is ${(localShare * 100).toFixed(1)}% of its partition (declared share mark 10%).` },
+        ],
+        statistics: { records_analyzed: partition.length, pattern_count: rows.length, percentage_affected: Number(percentage.toFixed(2)), location_quotient: Number(quotient.toFixed(4)), local_share: Number(localShare.toFixed(6)), global_share: Number(globalShare.toFixed(6)), geography },
       }));
     }
   }
@@ -310,35 +419,47 @@ function detectGeographicClusters(events) {
 }
 
 function detectRepeatEntities(events) {
+  const bearingAll = events.filter((event) => entityKeyOf(event));
+  const globalCounts = countBy(bearingAll.map((event) => entityKeyOf(event)));
+  const scanTotal = bearingAll.length;
   const candidates = [];
   for (const partition of partitionEvents(events)) {
+    const bearing = partition.filter((event) => entityKeyOf(event));
+    if (bearing.length < 20) continue;
     const groups = new Map();
-    for (const event of partition) {
-      const entity = entityOf(event);
-      if (!entity) continue;
-      if (!groups.has(entity)) groups.set(entity, []);
-      groups.get(entity).push(event);
+    for (const event of bearing) {
+      const key = entityKeyOf(event);
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(event);
     }
-    if (groups.size < 2) continue;
-    const counts = [...groups.values()].map((rows) => rows.length);
-    const { mean, stddev } = meanStd(counts);
-    if (stddev <= 0) continue;
-    for (const [entity, rows] of groups) {
-      const z = (rows.length - mean) / stddev;
-      if (rows.length < 10 || z < 2) continue;
+    for (const [key, rows] of groups) {
+      const localShare = rows.length / bearing.length;
+      const globalShare = (globalCounts.get(key) || 0) / scanTotal;
+      const quotient = locationQuotient(rows.length, bearing.length, globalCounts.get(key) || 0, scanTotal);
+      if (rows.length < 10 || quotient < 3) continue;
+      const display = mostFrequentText(rows.map((event) => entityOf(event))) || key;
       const jurisdiction = jurisdictionOf(rows[0]);
-      const percentage = (rows.length / partition.length) * 100;
+      const percentage = localShare * 100;
+      const spread = new Set(rows.map((event) => jurisdictionOf(event))).size >= 2
+        || new Set(rows.map((event) => categoryOf(event))).size >= 3;
       candidates.push(candidateBase({
         ruleId: 'atlas.domain3.repeat_entity',
         signalType: 'repeat_entity',
-        title: `Repeat entity: ${entity}`,
-        description: `${entity} appears in ${rows.length} of ${partition.length} observations (${percentage.toFixed(1)}%), ${z.toFixed(2)} standard deviations above the entity mean.`,
+        title: `Repeat entity: ${display}`,
+        description: `${display} appears in ${rows.length} of ${bearing.length} entity-bearing observations in this stream and jurisdiction (${percentage.toFixed(1)}%), ${quotient.toFixed(2)}x its rate across the full scanned population (${(globalShare * 100).toFixed(1)}%). Grouping uses a declared normalized name key, not resolved identity. Repeat-appearance observation; not misconduct, causation, or a legal finding.`,
         events: rows,
         jurisdiction,
-        severity: severityFromZ(z),
-        confidence: Math.min(0.92, 0.5 + (z * 0.08)),
-        statistics: { records_analyzed: partition.length, pattern_count: rows.length, percentage_affected: Number(percentage.toFixed(2)), z_score: Number(z.toFixed(4)), entity_mean: Number(mean.toFixed(4)), entity_stddev: Number(stddev.toFixed(4)) },
-        entityName: entity,
+        severity: quotient >= 6 && rows.length >= 50 ? 'high' : 'medium',
+        factors: [
+          { factor_id: 'local_elevation', weight: 0.3, satisfied: quotient >= 3, explanation: `Local share is ${quotient.toFixed(2)}x the scan-wide rate (declared minimum 3x).` },
+          { factor_id: 'strong_elevation', weight: 0.15, satisfied: quotient >= 6, explanation: quotient >= 6 ? 'Local share is at least 6x the scan-wide rate.' : 'Local share is below 6x the scan-wide rate.' },
+          { factor_id: 'volume', weight: 0.15, satisfied: rows.length >= 25, explanation: `${rows.length} observations in the pattern (declared full-volume mark 25).` },
+          { factor_id: 'spread', weight: 0.1, satisfied: spread, explanation: spread ? 'Appearances span at least two jurisdictions or at least three categories.' : 'Appearances sit inside one jurisdiction and fewer than three categories.' },
+          unresolvedResolutionFactor(),
+        ],
+        statistics: { records_analyzed: partition.length, pattern_count: rows.length, percentage_affected: Number(percentage.toFixed(2)), location_quotient: Number(quotient.toFixed(4)), local_share: Number(localShare.toFixed(6)), global_share: Number(globalShare.toFixed(6)) },
+        entityName: display,
+        entityKey: key,
       }));
     }
   }
@@ -368,16 +489,19 @@ function detectTrendAnomalies(events) {
       if (magnitude < 50) continue;
       const jurisdiction = jurisdictionOf(partition[0]);
       const direction = percentChange >= 0 ? 'increase' : 'decrease';
-      const severity = magnitude >= 200 ? 'critical' : magnitude >= 100 ? 'high' : 'medium';
       candidates.push(candidateBase({
         ruleId: 'atlas.domain3.trend_anomaly',
         signalType: 'trend_anomaly',
-        title: `Year-over-year ${direction}: ${priorYear} → ${currentYear}`,
+        title: `Year-over-year ${direction}: ${priorYear} \u2192 ${currentYear}`,
         description: `Observation volume changed from ${prior.length} in ${priorYear} to ${current.length} in ${currentYear}, a ${magnitude.toFixed(1)}% ${direction}.`,
         events: [...prior, ...current],
         jurisdiction,
-        severity,
-        confidence: Math.min(0.95, 0.55 + (magnitude / 500)),
+        severity: magnitude >= 200 ? 'high' : magnitude >= 100 ? 'medium' : 'low',
+        factors: [
+          { factor_id: 'threshold_change', weight: 0.4, satisfied: true, explanation: `Volume changed ${magnitude.toFixed(1)}% year over year, at or beyond the declared 50% band.` },
+          { factor_id: 'prior_year_volume', weight: 0.3, satisfied: prior.length >= 50, explanation: `${prior.length} observations in the prior year (declared full-volume mark 50).` },
+          { factor_id: 'current_year_volume', weight: 0.3, satisfied: current.length >= 50, explanation: `${current.length} observations in the current year (declared full-volume mark 50).` },
+        ],
         statistics: { prior_year: priorYear, current_year: currentYear, prior_count: prior.length, current_count: current.length, percent_change: Number(percentChange.toFixed(4)), records_analyzed: partition.length },
       }));
     }
@@ -396,26 +520,32 @@ function detectCrossCategoryEntities(events) {
   for (const [jurisdiction, rows] of byJurisdiction) {
     const entities = new Map();
     for (const event of rows) {
-      const entity = entityOf(event);
-      if (!entity) continue;
-      if (!entities.has(entity)) entities.set(entity, []);
-      entities.get(entity).push(event);
+      const key = entityKeyOf(event);
+      if (!key) continue;
+      if (!entities.has(key)) entities.set(key, []);
+      entities.get(key).push(event);
     }
-    for (const [entity, entityRows] of entities) {
-      const categories = [...new Set(entityRows.map(categoryOf))].sort();
+    for (const [key, entityRows] of entities) {
+      const categories = [...new Set(entityRows.map(categoryOf).filter((category) => category !== 'unclassified'))].sort();
       if (entityRows.length < 10 || categories.length < 3) continue;
-      const severity = categories.length >= 7 ? 'critical' : categories.length >= 5 ? 'high' : 'medium';
+      const display = mostFrequentText(entityRows.map((event) => entityOf(event))) || key;
       candidates.push(candidateBase({
         ruleId: 'atlas.domain3.cross_category_entity',
         signalType: 'cross_category_entity',
-        title: `Cross-category entity: ${entity}`,
-        description: `${entity} appears in ${entityRows.length} observations across ${categories.length} categories in ${jurisdiction}.`,
+        title: `Cross-category entity: ${display}`,
+        description: `${display} appears in ${entityRows.length} observations across ${categories.length} categories in ${jurisdiction}. Grouping uses a declared normalized name key, not resolved identity. Cross-category appearance observation; not misconduct, causation, or a legal finding.`,
         events: entityRows,
         jurisdiction,
-        severity,
-        confidence: Math.min(0.93, 0.5 + (categories.length * 0.06)),
+        severity: categories.length >= 7 ? 'high' : categories.length >= 5 ? 'medium' : 'low',
+        factors: [
+          { factor_id: 'minimum_breadth', weight: 0.3, satisfied: categories.length >= 3, explanation: `Appears across ${categories.length} categories (declared minimum 3).` },
+          { factor_id: 'wide_breadth', weight: 0.2, satisfied: categories.length >= 5, explanation: categories.length >= 5 ? 'Appears across at least five categories.' : 'Appears across fewer than five categories.' },
+          { factor_id: 'volume', weight: 0.2, satisfied: entityRows.length >= 25, explanation: `${entityRows.length} observations in the pattern (declared full-volume mark 25).` },
+          unresolvedResolutionFactor(),
+        ],
         statistics: { records_analyzed: rows.length, pattern_count: entityRows.length, category_count: categories.length, categories },
-        entityName: entity,
+        entityName: display,
+        entityKey: key,
       }));
     }
   }
@@ -431,131 +561,6 @@ export function deriveDomain3PopulationCandidates(events) {
     ...detectTrendAnomalies(canonical),
     ...detectCrossCategoryEntities(canonical),
   ].sort((a, b) => a.candidate_hash.localeCompare(b.candidate_hash));
-}
-
-async function loadCanonicalObservations(atlasClient, limit) {
-  const bounded = Math.min(100000, Math.max(1, Number(limit) || DEFAULT_OBSERVATION_LIMIT));
-  const pageSize = 1000;
-  const rows = [];
-  for (let from = 0; from < bounded; from += pageSize) {
-    const to = Math.min(from + pageSize - 1, bounded - 1);
-    const { data, error } = await atlasClient
-      .from('signal_events')
-      .select('stream_id,offset,timestamp,signal_type,spacetime,provenance,payload,source_id,jurisdiction_id,module_hint,ingested_at,event_identity_hash')
-      .not('event_identity_hash', 'is', null)
-      .order('ingested_at', { ascending: false })
-      .range(from, to);
-    if (error) throw new Error(`Domain 3 observation read failed: ${error.message}`);
-    rows.push(...(data || []));
-    if (!data || data.length < pageSize) break;
-  }
-  return rows;
-}
-
-async function ensureRules(atlasClient) {
-  const rows = RULES.map((rule) => {
-    const ruleContract = { ...rule.rule_contract, engine_id: ENGINE_ID, engine_version: ENGINE_VERSION };
-    return {
-      ...rule,
-      engine_id: ENGINE_ID,
-      engine_version: ENGINE_VERSION,
-      rule_contract: ruleContract,
-      rule_contract_hash: stableHash(ruleContract),
-      is_active: true,
-    };
-  });
-  const { error } = await atlasClient.schema('atlas').from('live_data_signal_rule').upsert(rows, { onConflict: 'rule_id,rule_version' });
-  if (error) throw new Error(`Domain 3 rule registration failed: ${error.message}`);
-  return new Map(rows.map((row) => [row.rule_id, row]));
-}
-
-async function persistRuleRun({ atlasClient, rule, observationsScanned, candidates }) {
-  const runId = crypto.randomUUID();
-  const { error: runError } = await atlasClient.schema('atlas').from('live_data_signal_run').insert({
-    run_id: runId,
-    rule_id: rule.rule_id,
-    rule_version: rule.rule_version,
-    rule_contract_hash: rule.rule_contract_hash,
-    status: 'running',
-    canonical_events_scanned: observationsScanned,
-    entities_evaluated: candidates.filter((candidate) => candidate.supporting_statistics?.entity_name).length,
-    candidates_produced: 0,
-    started_at: new Date().toISOString(),
-  });
-  if (runError) throw new Error(`Domain 3 run start failed for ${rule.rule_id}: ${runError.message}`);
-
-  let produced = 0;
-  try {
-    for (const candidate of candidates) {
-      const { data: existing, error: readError } = await atlasClient.schema('atlas').from('live_data_signal_candidate')
-        .select('candidate_id,first_run_id')
-        .eq('candidate_hash', candidate.candidate_hash)
-        .maybeSingle();
-      if (readError) throw readError;
-      if (existing) {
-        const { error: updateError } = await atlasClient.schema('atlas').from('live_data_signal_candidate')
-          .update({
-            last_run_id: runId,
-            last_replayed_at: new Date().toISOString(),
-            detected_at: candidate.detected_at,
-            source_freshness_at: candidate.source_freshness_at,
-            supporting_statistics: candidate.supporting_statistics,
-            source_event_refs: candidate.source_event_refs,
-            evidence_refs: candidate.evidence_refs,
-          })
-          .eq('candidate_id', existing.candidate_id);
-        if (updateError) throw updateError;
-      } else {
-        const { error: insertError } = await atlasClient.schema('atlas').from('live_data_signal_candidate').insert({
-          ...candidate,
-          rule_contract_hash: rule.rule_contract_hash,
-          first_run_id: runId,
-          last_run_id: runId,
-        });
-        if (insertError) throw insertError;
-      }
-      produced += 1;
-    }
-
-    const { error: finishError } = await atlasClient.schema('atlas').from('live_data_signal_run')
-      .update({ status: 'completed', candidates_produced: produced, completed_at: new Date().toISOString() })
-      .eq('run_id', runId);
-    if (finishError) throw finishError;
-    return { run_id: runId, rule_id: rule.rule_id, candidates_produced: produced };
-  } catch (error) {
-    await atlasClient.schema('atlas').from('live_data_signal_run')
-      .update({ status: 'failed', error_message: String(error?.message || error).slice(0, 2000), completed_at: new Date().toISOString() })
-      .eq('run_id', runId);
-    throw new Error(`Domain 3 persistence failed for ${rule.rule_id}: ${error?.message || error}`);
-  }
-}
-
-export async function executeDomain3PopulationDetection({
-  atlasClient,
-  observationLimit = DEFAULT_OBSERVATION_LIMIT,
-  candidateLimit = DEFAULT_CANDIDATE_LIMIT,
-}) {
-  if (!atlasClient) throw new Error('atlasClient is required');
-  const observations = await loadCanonicalObservations(atlasClient, observationLimit);
-  const rules = await ensureRules(atlasClient);
-  const allCandidates = deriveDomain3PopulationCandidates(observations);
-  const boundedCandidateLimit = Math.min(1000, Math.max(1, Number(candidateLimit) || DEFAULT_CANDIDATE_LIMIT));
-  const candidates = allCandidates.slice(0, boundedCandidateLimit);
-  const runs = [];
-
-  for (const rule of rules.values()) {
-    const ruleCandidates = candidates.filter((candidate) => candidate.rule_id === rule.rule_id);
-    runs.push(await persistRuleRun({ atlasClient, rule, observationsScanned: observations.length, candidates: ruleCandidates }));
-  }
-
-  return {
-    engine_id: ENGINE_ID,
-    engine_version: ENGINE_VERSION,
-    observations_scanned: observations.length,
-    candidates_derived: allCandidates.length,
-    candidates_persisted: candidates.length,
-    runs,
-  };
 }
 
 export { RULES as DOMAIN3_POPULATION_RULES };
