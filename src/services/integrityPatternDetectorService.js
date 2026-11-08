@@ -870,10 +870,10 @@ function slimEvidenceEvent(event) {
     signal_type: event.signal_type,
     provenance: pick(provenance, ['source_system', 'channel', 'source_url']),
     payload: {
-      ...pick(payload, ['source_url', 'pinpoint', 'locator', 'quote_text', 'excerpt']),
+      ...pick(payload, ['source_url', 'pinpoint', 'locator', 'quote_text', 'excerpt', 'source_record_key', 'external_id', 'filing_id', 'action_id', 'observation_id', 'assertion_id', 'registration_number']),
       // evidenceRef reads raw fields through payload.raw (rawOf), so the
       // slimmed raw record must live there, not at the top level.
-      raw: pick(raw, ['source_url', 'openstates_url', 'pinpoint', 'locator', 'quote_text', 'excerpt']),
+      raw: pick(raw, ['source_url', 'openstates_url', 'pinpoint', 'locator', 'quote_text', 'excerpt', 'source_record_key', 'external_id', 'id']),
     },
   };
 }
