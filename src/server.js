@@ -9,6 +9,7 @@ import { recognitionAtlasRouter } from './routes/recognition_atlas.js';
 import { civicGenomeSnapshotsRouter } from './routes/civicGenomeSnapshots.js';
 import { atlasUiRouter, FRONTEND_READ_MODEL_VERSION } from './routes/ui.js';
 import { atlasOperatorRouter } from './routes/operator.js';
+import { reservoirRouter } from './routes/reservoir.js';
 import { esquireBridgeRouter } from './routes/esquireBridge.js';
 import convergenceRouter from './routes/convergence.js';
 import { requireBearerToken } from './lib/serviceAuth.js';
@@ -132,6 +133,7 @@ app.use(express.static('public', { etag: true, maxAge: '5m' }));
 // All operational, unrestricted data, and case bridge routes remain private control surfaces.
 app.use(requireControl);
 app.use(atlasOperatorRouter(routeContext));
+app.use(reservoirRouter(routeContext));
 app.use(esquireBridgeRouter());
 app.use(streamsRouter(routeContext));
 app.use(populationRouter(routeContext));
