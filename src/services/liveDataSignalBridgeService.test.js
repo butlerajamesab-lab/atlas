@@ -243,22 +243,29 @@ test('Domain 3 cycle bridges each population detector run independently on both 
 test('Domain 3 population detector derives repeat and cross-category signals from canonical observations', () => {
   const rows = [];
   let offset = 1;
-  const makeEvent = ({ category, entity, city = 'Seattle' }) => ({
-    stream_id: 'cfpb_complaints',
+  const makeEvent = ({ category, entity, city = 'Seattle', stream = 'cfpb_complaints', jurisdiction = 'WA' }) => ({
+    stream_id: stream,
     offset: offset++,
     timestamp: '2025-01-01T00:00:00.000Z',
     ingested_at: '2025-01-02T00:00:00.000Z',
     signal_type: category,
-    spacetime: { jurisdiction: 'WA', city },
+    spacetime: { jurisdiction, city },
     payload: { category, company: entity },
     event_identity_hash: String(offset).padStart(64, '0').slice(-64),
-    jurisdiction_id: 'WA',
+    jurisdiction_id: jurisdiction,
   });
 
   for (let i = 0; i < 40; i += 1) rows.push(makeEvent({ category: `category_${i % 4}`, entity: 'Dominant Corp' }));
   for (let entityIndex = 0; entityIndex < 12; entityIndex += 1) {
     for (let i = 0; i < 2; i += 1) rows.push(makeEvent({ category: `other_${entityIndex % 3}`, entity: `Other ${entityIndex}`, city: `City ${entityIndex % 4}` }));
   }
+  // Diluting second partition: under the corrected location-quotient
+  // baseline, a repeat pattern must be concentrated relative to the
+  // scan-wide rate, not merely large inside one partition.
+  for (let entityIndex = 0; entityIndex < 66; entityIndex += 1) {
+    for (let i = 0; i < 3; i += 1) rows.push(makeEvent({ category: `beta_${entityIndex % 5}`, entity: `Beta ${entityIndex}`, city: `Beta City ${entityIndex % 7}`, stream: 'nyc_311', jurisdiction: 'NY' }));
+  }
+  for (let i = 0; i < 2; i += 1) rows.push(makeEvent({ category: 'category_0', entity: 'Dominant Corp', city: 'Beta City 0', stream: 'nyc_311', jurisdiction: 'NY' }));
 
   const candidates = deriveDomain3PopulationCandidates(rows);
   const repeat = candidates.find((candidate) => candidate.signal_type === 'repeat_entity' && candidate.title.includes('Dominant Corp'));

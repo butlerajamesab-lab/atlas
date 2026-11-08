@@ -1,9 +1,13 @@
 import crypto from 'crypto';
 import {
+  CONFIDENCE_SEMANTICS,
   DOMAIN3_POPULATION_RULES,
   deriveDomain3PopulationCandidates,
+  entityKeyOf,
   entityOf,
+  EVIDENCE_SAMPLING,
   jurisdictionOf,
+  sampleSourceRefs,
 } from './domain3PopulationDetectorService.js';
 import {
   INTEGRITY_PATTERN_RULES,
@@ -26,7 +30,10 @@ const CROSS_JURISDICTION_RULE = Object.freeze({
     detector: 'cross_jurisdiction_recurrence',
     minimum_records: 10,
     minimum_jurisdictions: 2,
+    entity_grouping: 'declared_normalized_name_key_not_identity',
     entity_resolution: 'candidate remains unverified until exact entity resolution succeeds',
+    confidence: CONFIDENCE_SEMANTICS,
+    evidence_sampling: EVIDENCE_SAMPLING,
     interpretation_boundary: 'cross-jurisdiction repeat-appearance observation; not misconduct, causation, or legal finding',
   },
 });
@@ -64,26 +71,42 @@ function sourceRef(event) {
 function deriveCrossJurisdictionCandidates(events) {
   const byEntity = new Map();
   for (const event of events) {
-    const entity = entityOf(event);
-    if (!entity) continue;
-    if (!byEntity.has(entity)) byEntity.set(entity, []);
-    byEntity.get(entity).push(event);
+    const key = entityKeyOf(event);
+    if (!key) continue;
+    if (!byEntity.has(key)) byEntity.set(key, []);
+    byEntity.get(key).push(event);
   }
 
   const candidates = [];
-  for (const [entity, rows] of byEntity) {
+  for (const [key, rows] of byEntity) {
     const jurisdictions = [...new Set(rows.map(jurisdictionOf).filter((value) => value && value !== 'unknown'))].sort();
     if (rows.length < 10 || jurisdictions.length < 2) continue;
     const streams = [...new Set(rows.map((row) => row.stream_id))].sort();
-    const refs = rows
-      .slice()
-      .sort((a, b) => String(a.stream_id).localeCompare(String(b.stream_id)) || Number(a.offset) - Number(b.offset))
-      .slice(0, SOURCE_REF_LIMIT)
-      .map(sourceRef);
+    const nameCounts = new Map();
+    for (const row of rows) {
+      const name = entityOf(row);
+      if (name) nameCounts.set(name, (nameCounts.get(name) || 0) + 1);
+    }
+    let entity = key;
+    let bestCount = -1;
+    for (const [name, count] of nameCounts) {
+      if (count > bestCount || (count === bestCount && name < entity)) {
+        entity = name;
+        bestCount = count;
+      }
+    }
+    const refs = sampleSourceRefs(rows);
     const sourceFreshness = rows.reduce((latest, row) => {
       const value = new Date(row.timestamp || row.ingested_at || 0).getTime();
       return Number.isFinite(value) && value > latest ? value : latest;
     }, 0);
+    const factors = [
+      { factor_id: 'recurrence_minimum', weight: 0.3, satisfied: true, explanation: `Appears in ${rows.length} observations across ${jurisdictions.length} jurisdictions (declared minimums 10 and 2).` },
+      { factor_id: 'wide_recurrence', weight: 0.2, satisfied: jurisdictions.length >= 4, explanation: jurisdictions.length >= 4 ? 'Recurs across at least four jurisdictions.' : 'Recurs across fewer than four jurisdictions.' },
+      { factor_id: 'volume', weight: 0.2, satisfied: rows.length >= 50, explanation: `${rows.length} observations in the pattern (declared full-volume mark 50).` },
+      { factor_id: 'exact_entity_resolution', weight: 0.3, satisfied: false, explanation: 'Grouping uses a declared normalized name key; exact entity resolution has not succeeded, so this factor is not satisfied and the score is capped until it does.' },
+    ];
+    const confidence = factors.reduce((sum, factor) => sum + (factor.satisfied ? factor.weight : 0), 0);
     const statistics = {
       records_analyzed: events.length,
       pattern_count: rows.length,
@@ -91,6 +114,11 @@ function deriveCrossJurisdictionCandidates(events) {
       jurisdictions,
       streams,
       entity_name: entity,
+      entity_key: key,
+      confidence_factors: factors,
+      confidence_semantics: CONFIDENCE_SEMANTICS,
+      evidence_sampling: EVIDENCE_SAMPLING,
+      evidence_ref_count: refs.length,
     };
     const sourceInputHash = stableHash({ rule_id: CROSS_JURISDICTION_RULE.rule_id, refs, statistics });
     const candidateHash = stableHash({
@@ -99,8 +127,7 @@ function deriveCrossJurisdictionCandidates(events) {
       jurisdictions,
       source_input_hash: sourceInputHash,
     });
-    const severity = jurisdictions.length >= 8 ? 'critical' : jurisdictions.length >= 4 ? 'high' : 'medium';
-    const confidence = Math.min(0.95, 0.5 + (jurisdictions.length * 0.05) + Math.min(rows.length, 100) / 1000);
+    const severity = jurisdictions.length >= 8 ? 'high' : jurisdictions.length >= 4 ? 'medium' : 'low';
 
     candidates.push({
       candidate_hash: candidateHash,
@@ -110,7 +137,7 @@ function deriveCrossJurisdictionCandidates(events) {
       engine_version: ENGINE_VERSION,
       signal_type: CROSS_JURISDICTION_RULE.signal_type,
       title: `Cross-jurisdiction recurrence: ${entity}`,
-      description: `${entity} appears in ${rows.length} observations across ${jurisdictions.length} governed jurisdictions. This is a recurrence observation, not a finding of wrongdoing.`,
+      description: `${entity} appears in ${rows.length} observations across ${jurisdictions.length} governed jurisdictions. Grouping uses a declared normalized name key, not resolved identity. This is a recurrence observation, not a finding of wrongdoing.`,
       primary_stream_id: streams[0] || 'unknown',
       source_event_refs: refs,
       entity_ids: [],
