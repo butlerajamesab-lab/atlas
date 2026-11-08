@@ -29,6 +29,11 @@ async function rvFetch(path) {
   return payload;
 }
 
+function showMainError(message) {
+  const el = $('rvMainError');
+  if (el) el.textContent = message ?? '';
+}
+
 function setState(text, live) {
   $('rvState').textContent = text;
   $('rvDot').className = `status-dot${live ? ' live' : ''}`;
@@ -62,12 +67,19 @@ async function loadCensus() {
 }
 
 async function loadRecords(streamId, beforeOffset = null) {
+  showMainError('');
   rvCurrentStream = streamId;
   const params = new URLSearchParams({ limit: '50' });
   if (beforeOffset !== null) params.set('before_offset', String(beforeOffset));
-  const page = await rvFetch(
-    `/reservoir-api/streams/${encodeURIComponent(streamId)}/records?${params}`,
-  );
+  let page;
+  try {
+    page = await rvFetch(
+      `/reservoir-api/streams/${encodeURIComponent(streamId)}/records?${params}`,
+    );
+  } catch (error) {
+    showMainError(`Could not load records for ${streamId}: ${error.message}`);
+    return;
+  }
   const rows = page.records
     .map(
       (r) => `<tr data-offset="${r.offset}">
@@ -103,9 +115,20 @@ async function loadRecords(streamId, beforeOffset = null) {
 }
 
 async function loadRecord(streamId, offset) {
-  const record = await rvFetch(
-    `/reservoir-api/streams/${encodeURIComponent(streamId)}/records/${encodeURIComponent(offset)}`,
-  );
+  showMainError('');
+  $('rvDetail').innerHTML =
+    '<div class="rv-pane">Loading record…</div>';
+  let record;
+  try {
+    record = await rvFetch(
+      `/reservoir-api/streams/${encodeURIComponent(streamId)}/records/${encodeURIComponent(offset)}`,
+    );
+  } catch (error) {
+    // No silent failure: the error is shown where the click happened.
+    $('rvDetail').innerHTML = `<div class="rv-pane"><span class="rv-error">Could not open record ${esc(offset)}: ${esc(error.message)}</span></div>`;
+    $('rvDetail').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return;
+  }
   $('rvDetail').innerHTML = `
     <div class="rv-pane">
       <div style="font:700 13px var(--mono);color:var(--bright);">${esc(record.stream_id)} · offset ${record.offset}</div>
