@@ -23,6 +23,25 @@ export function normalizeLobbyingFiling(filing) {
   const clientId = filing.client?.id || filing.client_id || filing.client_uuid || null;
   const issues = filing.lobbying_activities?.map(a => a.general_issue_code)?.join(', ') || filing.specific_issues || '';
 
+  // The filing's substance lives on its lobbying activities: each
+  // carries the lobbyist's own free-text description of the specific
+  // activity and the government entities lobbied. Keeping only the
+  // general issue codes (TRD, TOR, BAN…) reduces the record to a
+  // category label with nothing researchable behind it — preserve
+  // the per-activity detail verbatim (length-capped per activity).
+  const activityDetails = (filing.lobbying_activities || []).map((activity) => ({
+    general_issue_code: activity?.general_issue_code || null,
+    general_issue_code_display: activity?.general_issue_code_display || null,
+    description: activity?.description ? String(activity.description).slice(0, 4000) : null,
+    government_entities: (activity?.government_entities || [])
+      .map((entity) => (typeof entity === 'string' ? entity : entity?.name))
+      .filter(Boolean),
+    foreign_entity_interest: activity?.foreign_entity_interest || null,
+  }));
+  const activityGovernmentEntities = [...new Set(
+    activityDetails.flatMap((activity) => activity.government_entities),
+  )].sort();
+
   const isLarge = amount > 500000;
 
   return {
@@ -46,9 +65,11 @@ export function normalizeLobbyingFiling(filing) {
       amount,
       filing_date: filingDate,
       issues,
+      activity_details: activityDetails,
       is_large: isLarge,
       filing_type: filing.filing_type || filing.type || null,
-      government_entities: filing.government_entities?.map(e => e.name)?.join(', ') || null,
+      government_entities: filing.government_entities?.map(e => e.name)?.join(', ')
+        || (activityGovernmentEntities.length ? activityGovernmentEntities.join(', ') : null),
       registrant_source_id: registrantId,
       client_source_id: clientId,
       integrity_identity_gaps: [
