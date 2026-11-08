@@ -564,3 +564,309 @@ export function deriveDomain3PopulationCandidates(events) {
 }
 
 export { RULES as DOMAIN3_POPULATION_RULES };
+
+// ---------------------------------------------------------------------------
+// Streaming accumulation (2026-11-08 full-set replay correction).
+//
+// The array detectors above group the whole event array in memory, which
+// capped the replay at 100,000 observations. The accumulator below consumes
+// events one at a time in loader order (stream_id, offset) and retains only
+// counters, sets, name-frequency maps, and 5-field event stubs
+// ({stream_id, offset, event_identity_hash, timestamp, ingested_at}) — the
+// exact fields candidateBase consumes. finalizePopulationCandidates must
+// produce candidates identical to deriveDomain3PopulationCandidates over the
+// same events (modulo detected_at); the equivalence contract test and the
+// production verification script enforce that.
+// ---------------------------------------------------------------------------
+
+export function mostFrequentFromCounts(counts) {
+  let best = null;
+  let bestCount = -1;
+  for (const [value, count] of counts) {
+    if (count > bestCount || (count === bestCount && (best === null || value < best))) {
+      best = value;
+      bestCount = count;
+    }
+  }
+  return best;
+}
+
+function pushIndex(map, key, index) {
+  if (!map.has(key)) map.set(key, []);
+  map.get(key).push(index);
+}
+
+function bumpCount(map, key) {
+  map.set(key, (map.get(key) || 0) + 1);
+}
+
+function bumpNameCount(map, key, raw) {
+  if (!map.has(key)) map.set(key, new Map());
+  bumpCount(map.get(key), raw);
+}
+
+export function createPopulationAccumulator() {
+  return {
+    total: 0,
+    stubs: [],
+    categorizedTotal: 0,
+    categoryGlobal: new Map(),
+    geographyTotal: 0,
+    geographyGlobal: new Map(),
+    entityTotal: 0,
+    entityGlobal: new Map(),
+    partitions: new Map(),
+    crossCategory: new Map(),
+    crossJurisdiction: new Map(),
+  };
+}
+
+export function accumulatePopulationEvent(acc, event) {
+  if (!event?.event_identity_hash) return;
+  const index = acc.stubs.length;
+  acc.stubs.push({
+    stream_id: event.stream_id,
+    offset: event.offset,
+    event_identity_hash: event.event_identity_hash,
+    timestamp: event.timestamp,
+    ingested_at: event.ingested_at,
+  });
+  acc.total += 1;
+
+  const category = categoryOf(event);
+  const geography = geographyOf(event);
+  const rawEntity = entityOf(event);
+  const entityKey = normalizeEntityKey(rawEntity);
+  const jurisdiction = jurisdictionOf(event);
+  const partitionKey = `${event.stream_id}::${jurisdiction}`;
+
+  if (!acc.partitions.has(partitionKey)) {
+    acc.partitions.set(partitionKey, {
+      stream_id: event.stream_id,
+      jurisdiction,
+      total: 0,
+      categorized: 0,
+      geographyBearing: 0,
+      entityBearing: 0,
+      byCategory: new Map(),
+      byGeography: new Map(),
+      byEntity: new Map(),
+      byYear: new Map(),
+      entityNames: new Map(),
+      entityJurisdictions: new Map(),
+      entityCategories: new Map(),
+    });
+  }
+  const partition = acc.partitions.get(partitionKey);
+  partition.total += 1;
+
+  if (category !== 'unclassified') {
+    acc.categorizedTotal += 1;
+    bumpCount(acc.categoryGlobal, category);
+    partition.categorized += 1;
+    pushIndex(partition.byCategory, category, index);
+  }
+  if (geography) {
+    acc.geographyTotal += 1;
+    bumpCount(acc.geographyGlobal, geography);
+    partition.geographyBearing += 1;
+    pushIndex(partition.byGeography, geography, index);
+  }
+  if (entityKey) {
+    acc.entityTotal += 1;
+    bumpCount(acc.entityGlobal, entityKey);
+    partition.entityBearing += 1;
+    pushIndex(partition.byEntity, entityKey, index);
+    bumpNameCount(partition.entityNames, entityKey, rawEntity);
+    if (!partition.entityJurisdictions.has(entityKey)) partition.entityJurisdictions.set(entityKey, new Set());
+    partition.entityJurisdictions.get(entityKey).add(jurisdiction);
+    if (!partition.entityCategories.has(entityKey)) partition.entityCategories.set(entityKey, new Set());
+    partition.entityCategories.get(entityKey).add(category);
+
+    if (!acc.crossJurisdiction.has(entityKey)) {
+      acc.crossJurisdiction.set(entityKey, { indexes: [], jurisdictions: new Set(), streams: new Set(), names: new Map() });
+    }
+    const crossJur = acc.crossJurisdiction.get(entityKey);
+    crossJur.indexes.push(index);
+    if (jurisdiction && jurisdiction !== 'unknown') crossJur.jurisdictions.add(jurisdiction);
+    crossJur.streams.add(event.stream_id);
+    bumpCount(crossJur.names, rawEntity);
+
+    if (!acc.crossCategory.has(jurisdiction)) acc.crossCategory.set(jurisdiction, { total: 0, byEntity: new Map() });
+    const crossCat = acc.crossCategory.get(jurisdiction);
+    if (!crossCat.byEntity.has(entityKey)) crossCat.byEntity.set(entityKey, { indexes: [], categories: new Set(), names: new Map() });
+    const crossEntity = crossCat.byEntity.get(entityKey);
+    crossEntity.indexes.push(index);
+    if (category !== 'unclassified') crossEntity.categories.add(category);
+    bumpCount(crossEntity.names, rawEntity);
+  }
+  if (!acc.crossCategory.has(jurisdiction)) acc.crossCategory.set(jurisdiction, { total: 0, byEntity: new Map() });
+  acc.crossCategory.get(jurisdiction).total += 1;
+
+  const year = new Date(event.timestamp).getUTCFullYear();
+  if (Number.isFinite(year)) pushIndex(partition.byYear, year, index);
+}
+
+function stubsAt(acc, indexes) {
+  return indexes.map((index) => acc.stubs[index]);
+}
+
+export function finalizePopulationCandidates(acc) {
+  const candidates = [];
+
+  // frequency_spike + geographic_cluster + repeat_entity share the
+  // partition/concentration shape; each block mirrors its array detector.
+  for (const partition of acc.partitions.values()) {
+    if (partition.categorized >= 20) {
+      for (const [category, indexes] of partition.byCategory) {
+        const rows = stubsAt(acc, indexes);
+        const localShare = rows.length / partition.categorized;
+        const globalShare = (acc.categoryGlobal.get(category) || 0) / acc.categorizedTotal;
+        const quotient = locationQuotient(rows.length, partition.categorized, acc.categoryGlobal.get(category) || 0, acc.categorizedTotal);
+        if (rows.length < 10 || quotient < 2) continue;
+        const jurisdiction = partition.jurisdiction;
+        const percentage = localShare * 100;
+        candidates.push(candidateBase({
+          ruleId: 'atlas.domain3.frequency_spike',
+          signalType: 'frequency_spike',
+          title: `Frequency spike: ${category}`,
+          description: `${category} accounts for ${rows.length} of ${partition.categorized} categorized observations in this stream and jurisdiction (${percentage.toFixed(1)}%), ${quotient.toFixed(2)}x its rate across the full scanned population (${(globalShare * 100).toFixed(1)}%). Concentration observation; not misconduct, causation, or a legal finding.`,
+          events: rows,
+          jurisdiction,
+          severity: quotient >= 4 && rows.length >= 50 ? 'high' : 'medium',
+          factors: [
+            { factor_id: 'local_elevation', weight: 0.45, satisfied: quotient >= 2, explanation: `Local share is ${quotient.toFixed(2)}x the scan-wide rate (declared minimum 2x).` },
+            { factor_id: 'strong_elevation', weight: 0.2, satisfied: quotient >= 4, explanation: quotient >= 4 ? 'Local share is at least 4x the scan-wide rate.' : 'Local share is below 4x the scan-wide rate.' },
+            { factor_id: 'volume', weight: 0.2, satisfied: rows.length >= 25, explanation: `${rows.length} observations in the pattern (declared full-volume mark 25).` },
+            { factor_id: 'partition_share', weight: 0.15, satisfied: localShare >= 0.1, explanation: `Pattern is ${(localShare * 100).toFixed(1)}% of its partition (declared share mark 10%).` },
+          ],
+          statistics: { records_analyzed: partition.total, pattern_count: rows.length, percentage_affected: Number(percentage.toFixed(2)), location_quotient: Number(quotient.toFixed(4)), local_share: Number(localShare.toFixed(6)), global_share: Number(globalShare.toFixed(6)), category },
+        }));
+      }
+    }
+
+    if (partition.geographyBearing >= 20) {
+      for (const [geography, indexes] of partition.byGeography) {
+        const rows = stubsAt(acc, indexes);
+        const localShare = rows.length / partition.geographyBearing;
+        const globalShare = (acc.geographyGlobal.get(geography) || 0) / acc.geographyTotal;
+        const quotient = locationQuotient(rows.length, partition.geographyBearing, acc.geographyGlobal.get(geography) || 0, acc.geographyTotal);
+        if (rows.length < 10 || quotient < 2) continue;
+        const jurisdiction = partition.jurisdiction;
+        const percentage = localShare * 100;
+        candidates.push(candidateBase({
+          ruleId: 'atlas.domain3.geographic_cluster',
+          signalType: 'geographic_cluster',
+          title: `Geographic concentration: ${geography}`,
+          description: `${geography} contains ${rows.length} of ${partition.geographyBearing} geography-bearing observations in this stream and jurisdiction (${percentage.toFixed(1)}%), ${quotient.toFixed(2)}x its rate across the full scanned population (${(globalShare * 100).toFixed(1)}%). Concentration observation; not misconduct, causation, or a legal finding.`,
+          events: rows,
+          jurisdiction,
+          severity: quotient >= 4 && rows.length >= 50 ? 'high' : 'medium',
+          factors: [
+            { factor_id: 'local_elevation', weight: 0.45, satisfied: quotient >= 2, explanation: `Local share is ${quotient.toFixed(2)}x the scan-wide rate (declared minimum 2x).` },
+            { factor_id: 'strong_elevation', weight: 0.2, satisfied: quotient >= 4, explanation: quotient >= 4 ? 'Local share is at least 4x the scan-wide rate.' : 'Local share is below 4x the scan-wide rate.' },
+            { factor_id: 'volume', weight: 0.2, satisfied: rows.length >= 25, explanation: `${rows.length} observations in the pattern (declared full-volume mark 25).` },
+            { factor_id: 'partition_share', weight: 0.15, satisfied: localShare >= 0.1, explanation: `Pattern is ${(localShare * 100).toFixed(1)}% of its partition (declared share mark 10%).` },
+          ],
+          statistics: { records_analyzed: partition.total, pattern_count: rows.length, percentage_affected: Number(percentage.toFixed(2)), location_quotient: Number(quotient.toFixed(4)), local_share: Number(localShare.toFixed(6)), global_share: Number(globalShare.toFixed(6)), geography },
+        }));
+      }
+    }
+
+    if (partition.entityBearing >= 20) {
+      for (const [key, indexes] of partition.byEntity) {
+        const rows = stubsAt(acc, indexes);
+        const localShare = rows.length / partition.entityBearing;
+        const globalShare = (acc.entityGlobal.get(key) || 0) / acc.entityTotal;
+        const quotient = locationQuotient(rows.length, partition.entityBearing, acc.entityGlobal.get(key) || 0, acc.entityTotal);
+        if (rows.length < 10 || quotient < 3) continue;
+        const display = mostFrequentFromCounts(partition.entityNames.get(key) || new Map()) || key;
+        const jurisdiction = partition.jurisdiction;
+        const percentage = localShare * 100;
+        const spread = (partition.entityJurisdictions.get(key)?.size || 0) >= 2
+          || (partition.entityCategories.get(key)?.size || 0) >= 3;
+        candidates.push(candidateBase({
+          ruleId: 'atlas.domain3.repeat_entity',
+          signalType: 'repeat_entity',
+          title: `Repeat entity: ${display}`,
+          description: `${display} appears in ${rows.length} of ${partition.entityBearing} entity-bearing observations in this stream and jurisdiction (${percentage.toFixed(1)}%), ${quotient.toFixed(2)}x its rate across the full scanned population (${(globalShare * 100).toFixed(1)}%). Grouping uses a declared normalized name key, not resolved identity. Repeat-appearance observation; not misconduct, causation, or a legal finding.`,
+          events: rows,
+          jurisdiction,
+          severity: quotient >= 6 && rows.length >= 50 ? 'high' : 'medium',
+          factors: [
+            { factor_id: 'local_elevation', weight: 0.3, satisfied: quotient >= 3, explanation: `Local share is ${quotient.toFixed(2)}x the scan-wide rate (declared minimum 3x).` },
+            { factor_id: 'strong_elevation', weight: 0.15, satisfied: quotient >= 6, explanation: quotient >= 6 ? 'Local share is at least 6x the scan-wide rate.' : 'Local share is below 6x the scan-wide rate.' },
+            { factor_id: 'volume', weight: 0.15, satisfied: rows.length >= 25, explanation: `${rows.length} observations in the pattern (declared full-volume mark 25).` },
+            { factor_id: 'spread', weight: 0.1, satisfied: spread, explanation: spread ? 'Appearances span at least two jurisdictions or at least three categories.' : 'Appearances sit inside one jurisdiction and fewer than three categories.' },
+            unresolvedResolutionFactor(),
+          ],
+          statistics: { records_analyzed: partition.total, pattern_count: rows.length, percentage_affected: Number(percentage.toFixed(2)), location_quotient: Number(quotient.toFixed(4)), local_share: Number(localShare.toFixed(6)), global_share: Number(globalShare.toFixed(6)) },
+          entityName: display,
+          entityKey: key,
+        }));
+      }
+    }
+
+    // trend_anomaly
+    const orderedYears = [...partition.byYear.keys()].sort((a, b) => a - b);
+    for (let i = 1; i < orderedYears.length; i += 1) {
+      const priorYear = orderedYears[i - 1];
+      const currentYear = orderedYears[i];
+      if (currentYear !== priorYear + 1) continue;
+      const prior = stubsAt(acc, partition.byYear.get(priorYear));
+      const current = stubsAt(acc, partition.byYear.get(currentYear));
+      if (prior.length < 10) continue;
+      const percentChange = ((current.length - prior.length) / prior.length) * 100;
+      const magnitude = Math.abs(percentChange);
+      if (magnitude < 50) continue;
+      const jurisdiction = partition.jurisdiction;
+      const direction = percentChange >= 0 ? 'increase' : 'decrease';
+      candidates.push(candidateBase({
+        ruleId: 'atlas.domain3.trend_anomaly',
+        signalType: 'trend_anomaly',
+        title: `Year-over-year ${direction}: ${priorYear} \u2192 ${currentYear}`,
+        description: `Observation volume changed from ${prior.length} in ${priorYear} to ${current.length} in ${currentYear}, a ${magnitude.toFixed(1)}% ${direction}.`,
+        events: [...prior, ...current],
+        jurisdiction,
+        severity: magnitude >= 200 ? 'high' : 'medium',
+        factors: [
+          { factor_id: 'threshold_change', weight: 0.4, satisfied: true, explanation: `Volume changed ${magnitude.toFixed(1)}% year over year, at or beyond the declared 50% band.` },
+          { factor_id: 'prior_year_volume', weight: 0.3, satisfied: prior.length >= 50, explanation: `${prior.length} observations in the prior year (declared full-volume mark 50).` },
+          { factor_id: 'current_year_volume', weight: 0.3, satisfied: current.length >= 50, explanation: `${current.length} observations in the current year (declared full-volume mark 50).` },
+        ],
+        statistics: { prior_year: priorYear, current_year: currentYear, prior_count: prior.length, current_count: current.length, percent_change: Number(percentChange.toFixed(4)), records_analyzed: partition.total },
+      }));
+    }
+  }
+
+  // cross_category_entity
+  for (const [jurisdiction, crossCat] of acc.crossCategory) {
+    for (const [key, group] of crossCat.byEntity) {
+      const categories = [...group.categories].sort();
+      if (group.indexes.length < 10 || categories.length < 3) continue;
+      const rows = stubsAt(acc, group.indexes);
+      const display = mostFrequentFromCounts(group.names) || key;
+      candidates.push(candidateBase({
+        ruleId: 'atlas.domain3.cross_category_entity',
+        signalType: 'cross_category_entity',
+        title: `Cross-category entity: ${display}`,
+        description: `${display} appears in ${group.indexes.length} observations across ${categories.length} categories in ${jurisdiction}. Grouping uses a declared normalized name key, not resolved identity. Cross-category appearance observation; not misconduct, causation, or a legal finding.`,
+        events: rows,
+        jurisdiction,
+        severity: categories.length >= 7 ? 'high' : 'medium',
+        factors: [
+          { factor_id: 'minimum_breadth', weight: 0.3, satisfied: categories.length >= 3, explanation: `Appears across ${categories.length} categories (declared minimum 3).` },
+          { factor_id: 'wide_breadth', weight: 0.2, satisfied: categories.length >= 5, explanation: categories.length >= 5 ? 'Appears across at least five categories.' : 'Appears across fewer than five categories.' },
+          { factor_id: 'volume', weight: 0.2, satisfied: group.indexes.length >= 25, explanation: `${group.indexes.length} observations in the pattern (declared full-volume mark 25).` },
+          unresolvedResolutionFactor(),
+        ],
+        statistics: { records_analyzed: crossCat.total, pattern_count: group.indexes.length, category_count: categories.length, categories },
+        entityName: display,
+        entityKey: key,
+      }));
+    }
+  }
+
+  return candidates.sort((a, b) => a.candidate_hash.localeCompare(b.candidate_hash));
+}
+

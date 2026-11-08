@@ -790,10 +790,9 @@ function detectNumericRangeAnomalies(observations) {
   return results.filter(Boolean);
 }
 
-export function summarizeIntegrityPatternReadiness(events) {
-  const input = mapIntegrityPatternInput(events);
+export function summarizeIntegrityPatternReadinessFromInput(input, canonicalEventsScanned) {
   const counts = {
-    canonical_events_scanned: (Array.isArray(events) ? events : []).filter((event) => sourceEventRef(event)).length,
+    canonical_events_scanned: canonicalEventsScanned,
     exact_entity_records: input.entities.length,
     exact_financial_transfers: input.transfers.length,
     exact_legislative_actions: input.legislative_actions.length,
@@ -814,8 +813,7 @@ export function summarizeIntegrityPatternReadiness(events) {
   };
 }
 
-export function deriveIntegrityPatternCandidates(events) {
-  const input = mapIntegrityPatternInput(events);
+export function deriveIntegrityPatternCandidatesFromInput(input) {
   const candidates = [
     ...detectPhoenixContinuity(input.entities),
     ...detectIdentifierReuse(input.entities),
@@ -834,3 +832,80 @@ export {
   INTERPRETATION_BOUNDARY as INTEGRITY_PATTERN_INTERPRETATION_BOUNDARY,
   RULES as INTEGRITY_PATTERN_RULES,
 };
+
+export function summarizeIntegrityPatternReadiness(events) {
+  const input = mapIntegrityPatternInput(events);
+  const scanned = (Array.isArray(events) ? events : []).filter((event) => sourceEventRef(event)).length;
+  return summarizeIntegrityPatternReadinessFromInput(input, scanned);
+}
+
+export function deriveIntegrityPatternCandidates(events) {
+  return deriveIntegrityPatternCandidatesFromInput(mapIntegrityPatternInput(events));
+}
+
+// ---------------------------------------------------------------------------
+// Streaming accumulation (2026-11-08 full-set replay correction). Each event
+// is mapped once, while it is in hand; the mapped object is retained with
+// its `event` slimmed to exactly the fields the evidence path reads
+// (sourceEventRef, evidenceRef, eventFreshness). Unmapped events retain
+// nothing. Finalize feeds the accumulated input to the same derive /
+// readiness code the array path uses.
+// ---------------------------------------------------------------------------
+
+function slimEvidenceEvent(event) {
+  const payload = payloadOf(event);
+  const raw = rawOf(event);
+  const provenance = provenanceOf(event);
+  const pick = (object, keys) => Object.fromEntries(
+    keys.filter((key) => object?.[key] !== undefined).map((key) => [key, object[key]]),
+  );
+  return {
+    stream_id: event.stream_id,
+    offset: event.offset,
+    event_identity_hash: event.event_identity_hash,
+    timestamp: event.timestamp,
+    ingested_at: event.ingested_at,
+    source_id: event.source_id,
+    module_hint: event.module_hint,
+    signal_type: event.signal_type,
+    provenance: pick(provenance, ['source_system', 'channel', 'source_url']),
+    payload: {
+      ...pick(payload, ['source_url', 'pinpoint', 'locator', 'quote_text', 'excerpt']),
+      // evidenceRef reads raw fields through payload.raw (rawOf), so the
+      // slimmed raw record must live there, not at the top level.
+      raw: pick(raw, ['source_url', 'openstates_url', 'pinpoint', 'locator', 'quote_text', 'excerpt']),
+    },
+  };
+}
+
+export function createIntegrityAccumulator() {
+  return {
+    scanned: 0,
+    input: {
+      entities: [],
+      transfers: [],
+      legislative_actions: [],
+      assertions: [],
+      numeric_observations: [],
+    },
+  };
+}
+
+export function accumulateIntegrityEvent(acc, event) {
+  if (!sourceEventRef(event)) return;
+  acc.scanned += 1;
+  const mapped = [
+    ['entities', mapEntity(event)],
+    ['transfers', mapTransfer(event)],
+    ['legislative_actions', mapLegislativeAction(event)],
+    ['assertions', mapAssertion(event)],
+    ['numeric_observations', mapNumericObservation(event)],
+  ];
+  let slim = null;
+  for (const [bucket, item] of mapped) {
+    if (!item) continue;
+    if (!slim) slim = slimEvidenceEvent(event);
+    item.event = slim;
+    acc.input[bucket].push(item);
+  }
+}
