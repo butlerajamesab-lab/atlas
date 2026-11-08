@@ -20,9 +20,6 @@ export const RESERVOIR_CENSUS_CACHE_TTL_MS = 15_000;
 export const RESERVOIR_DEFAULT_LIMIT = 50;
 export const RESERVOIR_MAX_LIMIT = 100;
 
-const LIGHT_RECORD_COLUMNS =
-  'stream_id, offset, timestamp, signal_type, source_id, jurisdiction_id, ingested_at, event_identity_hash';
-
 export function clampLimit(value) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return RESERVOIR_DEFAULT_LIMIT;
@@ -136,17 +133,24 @@ export async function listReservoirRecords(
   if (!(await streamExists(client, streamId))) return null;
 
   const pageLimit = clampLimit(limit);
-  let query = client
-    .from('signal_events')
-    .select(LIGHT_RECORD_COLUMNS, { count: 'exact' })
-    .eq('stream_id', streamId)
-    .order('offset', { ascending: false })
-    .limit(pageLimit);
-  const before = parseNonNegativeInt(beforeOffset);
-  if (before !== null) query = query.lt('offset', before);
-
-  const { data, count, error } = await query;
+  // Rows come from the SQL page function: PostgREST claims the
+  // `offset` query parameter for its own pagination, so client-side
+  // filters on the offset column never reach the WHERE clause
+  // (proven in production 2026-11-08 — see the schema file
+  // 20261108_reservoir_viewer_rpc.sql). The exact total still comes
+  // from a head count on stream_id only, which is unaffected.
+  const { data, error } = await client.rpc('atlas_reservoir_records_page', {
+    p_stream_id: streamId,
+    p_limit: pageLimit,
+    p_before_offset: parseNonNegativeInt(beforeOffset),
+  });
   if (error) throw error;
+
+  const { count, error: countError } = await client
+    .from('signal_events')
+    .select('offset', { count: 'exact', head: true })
+    .eq('stream_id', streamId);
+  if (countError) throw countError;
 
   const records = (data ?? []).map(shapeRecordSummary);
   return {
@@ -163,12 +167,12 @@ export async function getReservoirRecord(injectedClient, streamId, offset) {
   const parsedOffset = parseNonNegativeInt(offset);
   if (parsedOffset === null) return null;
 
-  const { data, error } = await client
-    .from('signal_events')
-    .select('*')
-    .eq('stream_id', streamId)
-    .eq('offset', parsedOffset)
-    .maybeSingle();
+  // SQL function, not a PostgREST filter — see listReservoirRecords.
+  const { data, error } = await client.rpc('atlas_reservoir_record', {
+    p_stream_id: streamId,
+    p_offset: parsedOffset,
+  });
   if (error) throw error;
-  return data ? shapeRecordDetail(data) : null;
+  const row = Array.isArray(data) ? data[0] : data;
+  return row ? shapeRecordDetail(row) : null;
 }

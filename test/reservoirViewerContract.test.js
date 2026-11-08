@@ -52,7 +52,27 @@ class FakeQuery {
 }
 
 function fakeClient(handler) {
-  return { from: (table) => new FakeQuery(handler, table) };
+  return {
+    from: (table) => new FakeQuery(handler, table),
+    // Mirrors the SQL functions in src/schema/20261108_reservoir_viewer_rpc.sql
+    rpc: async (name, args) => {
+      if (name === 'atlas_reservoir_record') {
+        const rows = (EVENTS[args.p_stream_id] ?? []).filter(
+          (r) => r.offset === args.p_offset,
+        );
+        return { data: rows, error: null };
+      }
+      if (name === 'atlas_reservoir_records_page') {
+        let rows = [...(EVENTS[args.p_stream_id] ?? [])];
+        if (args.p_before_offset !== null && args.p_before_offset !== undefined) {
+          rows = rows.filter((r) => r.offset < args.p_before_offset);
+        }
+        rows.sort((a, b) => b.offset - a.offset);
+        return { data: rows.slice(0, args.p_limit), error: null };
+      }
+      throw new Error(`unknown rpc ${name}`);
+    },
+  };
 }
 
 const STREAMS = [

@@ -24,6 +24,7 @@ export function reservoirRouter({ apiError }) {
       }
       return res.json(censusCache);
     } catch (error) {
+      console.error('[reservoir] census failed:', error?.message ?? error);
       return apiError(res, 500, error.message);
     }
   });
@@ -37,6 +38,7 @@ export function reservoirRouter({ apiError }) {
       if (!page) return apiError(res, 404, 'Stream not found');
       return res.json(page);
     } catch (error) {
+      console.error('[reservoir] records failed:', error?.message ?? error);
       return apiError(res, 500, error.message);
     }
   });
@@ -51,6 +53,7 @@ export function reservoirRouter({ apiError }) {
       if (!record) return apiError(res, 404, 'Record not found');
       return res.json(record);
     } catch (error) {
+      console.error('[reservoir] record failed:', error?.message ?? error);
       return apiError(res, 500, error.message);
     }
   });
