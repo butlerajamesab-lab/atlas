@@ -5,9 +5,11 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
+import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+
 import { supabase } from '../lib/supabaseClient.js';
 import { countStreamEvents, recordActionReceipt } from './actionReceiptService.js';
-import { runLiveDataSignalBridge } from './liveDataSignalBridgeService.js';
 import { projectStreamRuntimeSnapshot } from './streamRuntimeProjectionService.js';
 
 const STATE = process.env.ATLAS_STATE || 'WA';
@@ -242,12 +244,54 @@ async function runAdapter(adapter, { initiator = 'scheduler' } = {}) {
   }
 }
 
+const DOMAIN3_CHILD_TIMEOUT_MS = 30 * 60 * 1000;
+
+// One Domain 3 cycle runs in a child process (see
+// scripts/run-domain3-bridge-cycle.mjs): the replay window's heap
+// never enters this long-lived web process, and the OS reclaims
+// it whole when the child exits. The child prints one receipt
+// line; everything else on its stdout (dotenv tips, logs) is
+// ignored.
+function runDomain3BridgeInChild() {
+  return new Promise((resolve, reject) => {
+    const scriptPath = fileURLToPath(new URL('../../scripts/run-domain3-bridge-cycle.mjs', import.meta.url));
+    const child = spawn(process.execPath, [scriptPath], { env: process.env, stdio: ['ignore', 'pipe', 'pipe'] });
+    let stdout = '';
+    let stderr = '';
+    const timer = setTimeout(() => { child.kill('SIGKILL'); }, DOMAIN3_CHILD_TIMEOUT_MS);
+    child.stdout.on('data', (chunk) => { if (stdout.length < 4_000_000) stdout += chunk; });
+    child.stderr.on('data', (chunk) => { if (stderr.length < 20_000) stderr += chunk; });
+    child.on('error', (spawnError) => {
+      clearTimeout(timer);
+      reject(spawnError);
+    });
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      const receiptLine = stdout.split('\n').filter((line) => line.startsWith('BRIDGE_CYCLE_RESULT ')).pop();
+      if (!receiptLine) {
+        reject(new Error(`Domain 3 child exited (code ${code}) without a result receipt. stderr tail: ${stderr.slice(-300)}`));
+        return;
+      }
+      try {
+        const receipt = JSON.parse(receiptLine.slice('BRIDGE_CYCLE_RESULT '.length));
+        if (!receipt.ok) {
+          reject(new Error(receipt.error || 'Domain 3 child reported failure'));
+          return;
+        }
+        resolve(receipt.result);
+      } catch (parseError) {
+        reject(new Error(`Domain 3 child receipt unparseable: ${parseError.message}`));
+      }
+    });
+  });
+}
+
 async function runDomain3Bridge() {
   if (domain3State.running) return { status: 'already_running' };
   domain3State.running = true;
   const start = Date.now();
   try {
-    const result = await runLiveDataSignalBridge();
+    const result = await runDomain3BridgeInChild();
     const bridgeFailed = Number(result?.bridge?.failed ?? 0);
     const retirementFailed = Number(result?.retirement_bridge?.failed ?? 0);
     const partial = result?.status !== 'completed' || bridgeFailed > 0 || retirementFailed > 0;
