@@ -127,6 +127,7 @@ let schedulerRunning = false;
 let schedulerStartedAt = null;
 let domain3State = { running: false, lastRun: null, lastResult: null, errors: 0 };
 let streamProjectionState = { running: false, lastRun: null, lastResult: null, errors: 0 };
+let observationSummaryState = { running: false, lastRun: null, lastResult: null, errors: 0 };
 
 function summarizeAdapterResult(result) {
   return {
@@ -275,6 +276,30 @@ async function runDomain3Bridge() {
   }
 }
 
+async function runObservationSummaryRefresh() {
+  if (observationSummaryState.running) return { status: 'already_running' };
+  observationSummaryState.running = true;
+  const start = Date.now();
+  try {
+    const { data, error } = await supabase.rpc('refresh_atlas_observation_type_summary_v1');
+    if (error) throw error;
+    observationSummaryState.lastRun = new Date().toISOString();
+    observationSummaryState.lastResult = { status: 'ok', elapsed: Date.now() - start, groups: data ?? null };
+    observationSummaryState.errors = 0;
+    console.log(`[scheduler] [observation-summary] refreshed groups=${data ?? '?'} elapsed=${Date.now() - start}ms`);
+    return observationSummaryState.lastResult;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    observationSummaryState.lastRun = new Date().toISOString();
+    observationSummaryState.lastResult = { status: 'error', error: message.slice(0, 500), elapsed: Date.now() - start };
+    observationSummaryState.errors += 1;
+    console.error(`[scheduler] [observation-summary] ${message.slice(0, 180)}`);
+    return observationSummaryState.lastResult;
+  } finally {
+    observationSummaryState.running = false;
+  }
+}
+
 async function runStreamRuntimeProjection() {
   if (streamProjectionState.running) return { status: 'already_running' };
   streamProjectionState.running = true;
@@ -301,8 +326,14 @@ async function runStreamRuntimeProjection() {
   }
 }
 
-function scheduleAdapter(adapter) {
-  const initialDelay = adapter.priority === 'high' ? 30_000 : adapter.priority === 'medium' ? 120_000 : 300_000;
+export function adapterInitialDelayMs(priority, tierIndex = 0) {
+  const base = priority === 'high' ? 30_000 : priority === 'medium' ? 120_000 : 300_000;
+  const index = Number.isFinite(tierIndex) && tierIndex > 0 ? Math.floor(tierIndex) : 0;
+  return base + index * 20_000;
+}
+
+function scheduleAdapter(adapter, tierIndex = 0) {
+  const initialDelay = adapterInitialDelayMs(adapter.priority, tierIndex);
   setTimeout(async () => {
     await runAdapter(adapter);
     setInterval(() => runAdapter(adapter), adapter.intervalMs);
@@ -314,7 +345,20 @@ export function startScheduler() {
   if (schedulerRunning) return;
   schedulerRunning = true;
   schedulerStartedAt = new Date().toISOString();
-  for (const adapter of ADAPTER_REGISTRY) scheduleAdapter(adapter);
+  const tierCounters = {};
+  for (const adapter of ADAPTER_REGISTRY) {
+    const tierIndex = tierCounters[adapter.priority] ?? 0;
+    tierCounters[adapter.priority] = tierIndex + 1;
+    scheduleAdapter(adapter, tierIndex);
+  }
+
+  const observationSummaryIntervalMs = 15 * 60 * 1000;
+  const observationSummaryInitialDelayMs = 45_000;
+  console.log('[scheduler] Observation summary refresh scheduled every 15m');
+  setTimeout(async () => {
+    await runObservationSummaryRefresh();
+    setInterval(() => runObservationSummaryRefresh(), observationSummaryIntervalMs);
+  }, observationSummaryInitialDelayMs);
 
   const streamProjectionIntervalMs = 15 * 60 * 1000;
   const streamProjectionInitialDelayMs = 75_000;
@@ -325,7 +369,7 @@ export function startScheduler() {
   }, streamProjectionInitialDelayMs);
 
   const domain3IntervalMs = 6 * HOUR;
-  const domain3InitialDelayMs = 3 * 60 * 1000;
+  const domain3InitialDelayMs = 12 * 60 * 1000;
   console.log('[scheduler] Domain 3 detection/bridge scheduled every 6h');
   setTimeout(async () => {
     await runDomain3Bridge();
