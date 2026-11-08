@@ -281,8 +281,26 @@ async function runObservationSummaryRefresh() {
   observationSummaryState.running = true;
   const start = Date.now();
   try {
-    const { data, error } = await supabase.rpc('refresh_atlas_observation_type_summary_v1');
-    if (error) throw error;
+    // The Supabase front door intermittently returns 520s tonight
+    // (the same flakiness hits adapter receipt persists), so a
+    // failed refresh retries before it reports: the summary simply
+    // stays at its previous refresh until one attempt lands.
+    const retryDelaysMs = [0, 10_000, 30_000];
+    let data = null;
+    let lastError = null;
+    for (let attempt = 0; attempt < retryDelaysMs.length; attempt += 1) {
+      if (retryDelaysMs[attempt] > 0) {
+        await new Promise((resolve) => setTimeout(resolve, retryDelaysMs[attempt]));
+      }
+      const result = await supabase.rpc('refresh_atlas_observation_type_summary_v1');
+      if (!result?.error) {
+        data = result.data;
+        lastError = null;
+        break;
+      }
+      lastError = result.error;
+    }
+    if (lastError) throw lastError;
     observationSummaryState.lastRun = new Date().toISOString();
     observationSummaryState.lastResult = { status: 'ok', elapsed: Date.now() - start, groups: data ?? null };
     observationSummaryState.errors = 0;
