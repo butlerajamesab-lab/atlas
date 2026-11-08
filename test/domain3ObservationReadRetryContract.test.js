@@ -48,6 +48,10 @@ const truncated = () => new Error('SyntaxError: Unterminated string in JSON at p
 test('transience classification covers truncation and 5xx, not permission errors', () => {
   assert.equal(isTransientObservationReadError(truncated()), true);
   assert.equal(isTransientObservationReadError(new Error('Cloudflare 520')), true);
+  // The 2026-11-08 production shape: PostgREST surfaces the edge's
+  // HTML error page as the error message — a 521 with no JSON at all.
+  assert.equal(isTransientObservationReadError(new Error('<!DOCTYPE html>\n<html><head><title>supabase.co | 521: Web server is down</title>')), true);
+  assert.equal(isTransientObservationReadError(new Error('522')), true);
   assert.equal(isTransientObservationReadError(new Error('fetch failed')), true);
   assert.equal(isTransientObservationReadError(new Error('permission denied for table signal_events')), false);
   assert.equal(isTransientObservationReadError(new Error('relation "signal_events" does not exist')), false);
