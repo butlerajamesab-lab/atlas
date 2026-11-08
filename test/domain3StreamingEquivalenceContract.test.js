@@ -174,7 +174,11 @@ function declarationEvent({ offset, declared, stream = 'atlas_integrity_observat
     signal_type: 'declared_numeric_observation',
     spacetime: { jurisdiction: 'us_federal' },
     provenance: { channel: 'test', source_system: 'test_source' },
-    payload: { integrity_observation: declared },
+    // Production declaration events carry a source record key beside the
+    // declared observation; evidence refs must keep it through the
+    // accumulator's slimming (regression: the 2026-11-08 production
+    // equivalence run diffed on exactly this field).
+    payload: { integrity_observation: declared, external_id: `whd-case-${offset}`, raw: { id: `whd-case-${offset}` } },
     source_id: 'test_source',
     jurisdiction_id: 'us_federal',
     module_hint: 'integrity_observation',
