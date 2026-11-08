@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#071219" />
+  <title>Atlas — Reservoir Viewer</title>
+  <link rel="stylesheet" href="/atlas.css" />
+  <style>
+    .rv-table { width: 100%; border-collapse: collapse; font: 12px var(--mono); }
+    .rv-table th, .rv-table td { text-align: left; padding: 7px 9px; border-bottom: 1px solid var(--line-soft); color: var(--muted); vertical-align: top; }
+    .rv-table th { color: var(--bright); letter-spacing: .06em; font-size: 10px; text-transform: uppercase; }
+    .rv-table tbody tr { cursor: pointer; }
+    .rv-table tbody tr:hover td { color: var(--bright); background: rgba(70,216,207,.035); }
+    .rv-num { text-align: right; }
+    .rv-pane { border: 1px solid var(--line-soft); background: #07151b; padding: 16px; margin-top: 18px; }
+    .rv-pane pre { white-space: pre-wrap; word-break: break-word; font: 11px/1.5 var(--mono); color: var(--muted); max-height: 55vh; overflow: auto; }
+    .rv-crumb-line { font: 11px var(--mono); color: var(--muted); margin: 14px 0 8px; }
+    .rv-crumb-line button { background: none; border: none; color: var(--cyan); cursor: pointer; font: inherit; padding: 0; }
+    .rv-ref { font: 11px var(--mono); color: var(--bright); word-break: break-all; }
+    .rv-locked { max-width: 560px; margin-top: 24px; }
+    .rv-locked input { width: 100%; padding: 9px; background: #081820; border: 1px solid var(--line); color: var(--bright); font: 12px var(--mono); margin: 8px 0; }
+    .rv-error { color: var(--red); font: 11px var(--mono); min-height: 14px; }
+    .rv-total { font: 13px var(--mono); color: var(--bright); margin: 10px 0 16px; }
+    .rv-pager { margin-top: 12px; }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand-block">
+        <div class="brand-mark">A</div>
+        <div>
+          <div class="brand-name">ATLAS</div>
+          <div class="brand-subtitle">DETERMINISTIC SIGNAL ENGINE</div>
+        </div>
+      </div>
+      <nav class="nav" aria-label="Atlas sections">
+        <a class="nav-item" href="/"><span>←</span>Atlas Console</a>
+        <span class="nav-item active"><span>09</span>Reservoir Viewer</span>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="determinism-light"><i></i><span>DETERMINISTIC</span></div>
+        <small>No blind spots — every pooled record is seen here.</small>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div><span class="crumb">ATLAS / RESERVOIR VIEWER</span></div>
+        <div class="top-status">
+          <div class="connection-state">
+            <span id="rvDot" class="status-dot"></span>
+            <span id="rvState">LOCKED</span>
+          </div>
+          <button id="rvRefresh" class="top-button" type="button">Refresh</button>
+        </div>
+      </header>
+
+      <section class="view">
+        <h1 style="font:700 20px var(--mono);color:var(--bright);letter-spacing:.08em;">RESERVOIR VIEWER</h1>
+        <p style="color:var(--muted);max-width:70ch;">Every record in the pool, by stream, counted exactly against the reservoir. Open any record to see its full stored form — payload, provenance, and the identity hash a case attach would carry. Read-only: nothing here writes, promotes, or bypasses governance.</p>
+
+        <div id="rvLock" class="rv-locked">
+          <p style="color:var(--muted);">This surface shows raw records, so it requires the Atlas control token. The token is sent only to Atlas for verification and is kept in memory for this page session. It is not written to browser storage.</p>
+          <label for="rvToken" style="color:var(--bright);font:11px var(--mono);">ATLAS CONTROL TOKEN</label>
+          <input id="rvToken" type="password" autocomplete="off" />
+          <button id="rvUnlock" class="top-button" type="button">Unlock viewer</button>
+          <div id="rvError" class="rv-error"></div>
+        </div>
+
+        <div id="rvMain" hidden>
+          <div id="rvCensus"></div>
+          <div id="rvRecords"></div>
+          <div id="rvDetail"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script src="/reservoir.js"></script>
+</body>
+</html>
