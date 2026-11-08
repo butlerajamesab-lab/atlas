@@ -127,7 +127,7 @@ function deriveCrossJurisdictionCandidates(events) {
       jurisdictions,
       source_input_hash: sourceInputHash,
     });
-    const severity = jurisdictions.length >= 8 ? 'high' : jurisdictions.length >= 4 ? 'medium' : 'low';
+    const severity = jurisdictions.length >= 8 ? 'high' : 'medium';
 
     candidates.push({
       candidate_hash: candidateHash,
@@ -365,4 +365,4 @@ export async function executeDomain3FullReplay({
   };
 }
 
-export { RULES as DOMAIN3_FULL_REPLAY_RULES };
+export { RULES as DOMAIN3_FULL_REPLAY_RULES, deriveCrossJurisdictionCandidates };
