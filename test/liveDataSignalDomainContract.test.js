@@ -22,6 +22,10 @@ const scheduler = fs.readFileSync(
   new URL('../src/services/scheduler.js', import.meta.url),
   'utf8',
 );
+const domain3Child = fs.readFileSync(
+  new URL('../scripts/run-domain3-bridge-cycle.mjs', import.meta.url),
+  'utf8',
+);
 const server = fs.readFileSync(
   new URL('../src/server.js', import.meta.url),
   'utf8',
@@ -97,7 +101,12 @@ test('Domain 3 output requires explicit evidence, statistics, entity, severity, 
 });
 
 test('canonical scheduler runs Domain 3 and quarantines legacy mixed transport', () => {
-  assert.match(scheduler, /runLiveDataSignalBridge/);
+  // Since 2026-11-08 the cycle runs in a child process for memory
+  // isolation: the scheduler spawns the cycle script, and the
+  // script is what calls runLiveDataSignalBridge.
+  assert.match(scheduler, /runDomain3BridgeInChild/);
+  assert.match(scheduler, /run-domain3-bridge-cycle\.mjs/);
+  assert.match(domain3Child, /runLiveDataSignalBridge/);
   assert.match(scheduler, /Domain 3 detection\/bridge scheduled/);
   assert.match(scheduler, /legacy_mixed_signal_transport_disabled/);
   assert.doesNotMatch(scheduler, /import \{ runBridgeDrain \}/);
