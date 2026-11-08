@@ -204,7 +204,17 @@ export function isTransientObservationReadError(error) {
 
 const observationReadSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-export async function readObservationPage(atlasClient, from, to, {
+export function observationCursorFilter(cursor) {
+  return `stream_id.gt.${cursor.stream_id},and(stream_id.eq.${cursor.stream_id},offset.gt.${cursor.offset})`;
+}
+
+// Keyset paging (2026-11-08): pages are located by the (stream_id,
+// offset) cursor of the last row served, never by a numeric range.
+// Range paging re-scans every preceding row per page (the deep pages
+// of a ~900k-row reservoir took seconds each and timed out under
+// load); a keyset page seeks through the (stream_id, offset) index.
+// `cursor` is null for the first page; `pageSize` rows are returned.
+export async function readObservationPage(atlasClient, cursor, pageSize, {
   attempts = 5,
   baseDelayMs = 2_000,
   maxDelayMs = 30_000,
@@ -213,13 +223,15 @@ export async function readObservationPage(atlasClient, from, to, {
   let lastError = null;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
-      const { data, error } = await atlasClient
+      let query = atlasClient
         .from('signal_events')
         .select('stream_id,offset,timestamp,signal_type,spacetime,provenance,payload,source_id,jurisdiction_id,module_hint,ingested_at,event_identity_hash')
         .not('event_identity_hash', 'is', null)
         .order('stream_id', { ascending: true })
         .order('offset', { ascending: true })
-        .range(from, to);
+        .limit(pageSize);
+      if (cursor) query = query.or(observationCursorFilter(cursor));
+      const { data, error } = await query;
       if (error) throw error;
       return data || [];
     } catch (error) {
@@ -236,11 +248,14 @@ async function loadCanonicalObservations(atlasClient, limit) {
   const readLimit = bounded + 1;
   const pageSize = 1000;
   const rows = [];
-  for (let from = 0; from < readLimit; from += pageSize) {
-    const to = Math.min(from + pageSize - 1, readLimit - 1);
-    const data = await readObservationPage(atlasClient, from, to);
+  let cursor = null;
+  while (rows.length < readLimit) {
+    const want = Math.min(pageSize, readLimit - rows.length);
+    const data = await readObservationPage(atlasClient, cursor, want);
     rows.push(...data);
-    if (data.length < pageSize) break;
+    if (data.length < want) break;
+    const last = data[data.length - 1];
+    cursor = { stream_id: last.stream_id, offset: last.offset };
   }
   return {
     observations: rows.slice(0, bounded),
@@ -515,13 +530,16 @@ export async function executeDomain3FullReplay({
 async function streamCanonicalObservations(atlasClient, onEvent) {
   const pageSize = 1000;
   let total = 0;
-  for (let from = 0; ; from += pageSize) {
-    const rows = await readObservationPage(atlasClient, from, from + pageSize - 1);
+  let cursor = null;
+  for (;;) {
+    const rows = await readObservationPage(atlasClient, cursor, pageSize);
     for (const row of rows) {
       onEvent(row);
       total += 1;
     }
     if (rows.length < pageSize) break;
+    const last = rows[rows.length - 1];
+    cursor = { stream_id: last.stream_id, offset: last.offset };
   }
   return total;
 }
