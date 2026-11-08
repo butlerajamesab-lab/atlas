@@ -496,7 +496,7 @@ function detectTrendAnomalies(events) {
         description: `Observation volume changed from ${prior.length} in ${priorYear} to ${current.length} in ${currentYear}, a ${magnitude.toFixed(1)}% ${direction}.`,
         events: [...prior, ...current],
         jurisdiction,
-        severity: magnitude >= 200 ? 'high' : magnitude >= 100 ? 'medium' : 'low',
+        severity: magnitude >= 200 ? 'high' : 'medium',
         factors: [
           { factor_id: 'threshold_change', weight: 0.4, satisfied: true, explanation: `Volume changed ${magnitude.toFixed(1)}% year over year, at or beyond the declared 50% band.` },
           { factor_id: 'prior_year_volume', weight: 0.3, satisfied: prior.length >= 50, explanation: `${prior.length} observations in the prior year (declared full-volume mark 50).` },
@@ -536,7 +536,7 @@ function detectCrossCategoryEntities(events) {
         description: `${display} appears in ${entityRows.length} observations across ${categories.length} categories in ${jurisdiction}. Grouping uses a declared normalized name key, not resolved identity. Cross-category appearance observation; not misconduct, causation, or a legal finding.`,
         events: entityRows,
         jurisdiction,
-        severity: categories.length >= 7 ? 'high' : categories.length >= 5 ? 'medium' : 'low',
+        severity: categories.length >= 7 ? 'high' : 'medium',
         factors: [
           { factor_id: 'minimum_breadth', weight: 0.3, satisfied: categories.length >= 3, explanation: `Appears across ${categories.length} categories (declared minimum 3).` },
           { factor_id: 'wide_breadth', weight: 0.2, satisfied: categories.length >= 5, explanation: categories.length >= 5 ? 'Appears across at least five categories.' : 'Appears across fewer than five categories.' },
