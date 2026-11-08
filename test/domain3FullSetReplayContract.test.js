@@ -48,7 +48,7 @@ class FakeQuery {
     this.table = table;
     this.filters = {};
     this.countMode = false;
-    this.rangeSpec = null;
+    this.orFilter = null;
     this.limitVal = null;
     this.single = false;
   }
@@ -62,7 +62,7 @@ class FakeQuery {
   not() { return this; }
   order() { return this; }
   limit(value) { this.limitVal = value; return this; }
-  range(from, to) { this.rangeSpec = [from, to]; return this; }
+  or(filter) { this.orFilter = filter; return this; }
   maybeSingle() { this.single = true; return this; }
 
   upsert(row) {
@@ -90,11 +90,18 @@ class FakeQuery {
         const max = filtered.reduce((acc, row) => Math.max(acc, row.offset), null);
         return { data: max === null ? null : { offset: max }, error: null };
       }
-      if (this.rangeSpec) {
-        db.rangeReads += 1;
-        const [from, to] = this.rangeSpec;
-        const sorted = [...db.rows].sort((a, b) => String(a.stream_id).localeCompare(String(b.stream_id)) || a.offset - b.offset);
-        return { data: sorted.slice(from, to + 1), error: null };
+      if (this.orFilter !== null || this.limitVal) {
+        db.pageReads += 1;
+        const sorted = [...filtered].sort((a, b) => String(a.stream_id).localeCompare(String(b.stream_id)) || a.offset - b.offset);
+        let startIndex = 0;
+        if (this.orFilter) {
+          const match = /stream_id\.eq\.([^,]+),offset\.gt\.(\d+)/.exec(this.orFilter);
+          const sid = match[1];
+          const off = Number(match[2]);
+          startIndex = sorted.findIndex((row) => row.stream_id > sid || (row.stream_id === sid && row.offset > off));
+          if (startIndex === -1) startIndex = sorted.length;
+        }
+        return { data: sorted.slice(startIndex, startIndex + (this.limitVal || sorted.length)), error: null };
       }
     }
     throw new Error(`FakeQuery: unhandled table ${this.table}`);
@@ -108,7 +115,7 @@ function makeDb() {
     streamIds: ['stream_a', 'stream_b'],
     stateRow: null,
     stateUpserts: [],
-    rangeReads: 0,
+    pageReads: 0,
     persistCalls: [],
     reconcileCalls: [],
     failPersistOnCall: null,
@@ -153,7 +160,7 @@ test('full-set replay pages the whole reservoir, persists all candidates, reconc
   assert.equal(result.status, 'completed');
   assert.equal(result.observations_scanned, 2500);
   assert.equal(result.observation_scan_complete, true);
-  assert.equal(db.rangeReads, 3); // 1000 + 1000 + 500
+  assert.equal(db.pageReads, 3); // 1000 + 1000 + 500
   const geoRun = result.runs.find((run) => run.rule_id === 'atlas.domain3.geographic_cluster');
   assert.equal(geoRun.candidates_derived, 5);
   assert.equal(geoRun.replay_complete, true);
@@ -206,10 +213,10 @@ test('an unchanged reservoir skips derivation entirely on the next cycle', async
   const db = makeDb();
   const first = await executeDomain3FullReplay({ atlasClient: db.client, candidateChunkSize: 250 });
   assert.equal(first.status, 'completed');
-  const readsBefore = db.rangeReads;
+  const readsBefore = db.pageReads;
   const second = await executeDomain3FullReplay({ atlasClient: db.client, candidateChunkSize: 250 });
   assert.equal(second.status, 'skipped_no_change');
-  assert.equal(db.rangeReads, readsBefore); // no observation pages read
+  assert.equal(db.pageReads, readsBefore); // no observation pages read
   assert.equal(second.last_run_ids.length, 12);
 });
 

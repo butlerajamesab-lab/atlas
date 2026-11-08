@@ -15,18 +15,33 @@ import {
 
 function fakeClient({ rows = [], failures = new Map() } = {}) {
   const attempts = new Map();
+  const sorted = [...rows].sort(
+    (a, b) => String(a.stream_id).localeCompare(String(b.stream_id)) || a.offset - b.offset,
+  );
   return {
     attempts,
     from() {
       const query = {
-        _range: null,
+        _limit: null,
+        _or: null,
         select() { return query; },
         not() { return query; },
         order() { return query; },
-        range(from, to) { query._range = [from, to]; return query; },
+        limit(n) { query._limit = n; return query; },
+        or(filter) { query._or = filter; return query; },
         then(resolve) {
-          const [from, to] = query._range;
-          const key = `${from}-${to}`;
+          let key = 'start';
+          let startIndex = 0;
+          if (query._or) {
+            const match = /stream_id\.eq\.([^,]+),offset\.gt\.(\d+)/.exec(query._or);
+            const sid = match[1];
+            const off = Number(match[2]);
+            key = `${sid}:${off}`;
+            startIndex = sorted.findIndex(
+              (row) => row.stream_id > sid || (row.stream_id === sid && row.offset > off),
+            );
+            if (startIndex === -1) startIndex = sorted.length;
+          }
           const attempt = (attempts.get(key) || 0) + 1;
           attempts.set(key, attempt);
           const failure = (failures.get(key) || [])[attempt - 1];
@@ -34,7 +49,7 @@ function fakeClient({ rows = [], failures = new Map() } = {}) {
             resolve({ data: null, error: failure });
             return;
           }
-          resolve({ data: rows.slice(from, to + 1), error: null });
+          resolve({ data: sorted.slice(startIndex, startIndex + (query._limit || sorted.length)), error: null });
         },
       };
       return query;
@@ -59,39 +74,39 @@ test('transience classification covers truncation and 5xx, not permission errors
 
 test('a page that truncates twice then recovers returns its rows', async () => {
   const rows = [{ offset: 1 }, { offset: 2 }];
-  const client = fakeClient({ rows, failures: new Map([['0-999', [truncated(), truncated()]]]) });
-  const data = await readObservationPage(client, 0, 999, { sleepFn: noSleep, baseDelayMs: 1 });
+  const client = fakeClient({ rows, failures: new Map([['start', [truncated(), truncated()]]]) });
+  const data = await readObservationPage(client, null, 1000, { sleepFn: noSleep, baseDelayMs: 1 });
   assert.deepEqual(data, rows);
-  assert.equal(client.attempts.get('0-999'), 3);
+  assert.equal(client.attempts.get('start'), 3);
 });
 
 test('a page that never recovers throws the standard error after bounded attempts', async () => {
-  const client = fakeClient({ failures: new Map([['0-999', [truncated(), truncated(), truncated()]]]) });
+  const client = fakeClient({ failures: new Map([['start', [truncated(), truncated(), truncated()]]]) });
   await assert.rejects(
-    readObservationPage(client, 0, 999, { attempts: 3, sleepFn: noSleep, baseDelayMs: 1 }),
+    readObservationPage(client, null, 1000, { attempts: 3, sleepFn: noSleep, baseDelayMs: 1 }),
     /^Error: Domain 3 full replay observation read failed: SyntaxError: Unterminated string/,
   );
-  assert.equal(client.attempts.get('0-999'), 3);
+  assert.equal(client.attempts.get('start'), 3);
 });
 
 test('a non-transient error fails on the first attempt', async () => {
   const client = fakeClient({
-    failures: new Map([['0-999', [new Error('permission denied for table signal_events')]]]),
+    failures: new Map([['start', [new Error('permission denied for table signal_events')]]]),
   });
   await assert.rejects(
-    readObservationPage(client, 0, 999, { sleepFn: noSleep, baseDelayMs: 1 }),
+    readObservationPage(client, null, 1000, { sleepFn: noSleep, baseDelayMs: 1 }),
     /Domain 3 full replay observation read failed: permission denied/,
   );
-  assert.equal(client.attempts.get('0-999'), 1);
+  assert.equal(client.attempts.get('start'), 1);
 });
 
 test('the full-set stream survives a mid-stream truncated page', async () => {
-  const rows = Array.from({ length: 1500 }, (_, i) => ({ offset: i + 1 }));
-  const client = fakeClient({ rows, failures: new Map([['1000-1999', [truncated()]]]) });
+  const rows = Array.from({ length: 1500 }, (_, i) => ({ stream_id: 's', offset: i + 1 }));
+  const client = fakeClient({ rows, failures: new Map([['s:1000', [truncated()]]]) });
   const seen = [];
   const total = await streamCanonicalObservations(client, (row) => seen.push(row.offset));
   assert.equal(total, 1500);
   assert.equal(seen.length, 1500);
   assert.equal(seen[1499], 1500);
-  assert.equal(client.attempts.get('1000-1999'), 2);
+  assert.equal(client.attempts.get('s:1000'), 2);
 });
