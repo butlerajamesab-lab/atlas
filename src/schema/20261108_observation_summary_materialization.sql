@@ -40,7 +40,11 @@ AS $$
 DECLARE
   inserted integer;
 BEGIN
-  DELETE FROM public.atlas_observation_type_summary_mat;
+  -- WHERE true is load-bearing: API-role sessions on Supabase run
+  -- with the safeupdate guard, which rejects a DELETE without a
+  -- WHERE clause ("DELETE requires a WHERE clause") when the
+  -- function is called through PostgREST. Found live 2026-11-08.
+  DELETE FROM public.atlas_observation_type_summary_mat WHERE true;
   INSERT INTO public.atlas_observation_type_summary_mat (
     stream_id, observation_classification, module_hint, jurisdiction_id,
     observation_count, identity_bound_observation_count,
