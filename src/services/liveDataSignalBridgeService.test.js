@@ -47,17 +47,19 @@ test('Domain 3 bridge configuration requires Atlas service credentials only', ()
   assert.equal(config.minUniqueRecords, 12);
   assert.equal(config.minUnresolvedRate, 0.75);
   assert.equal(config.candidateLimit, 25);
-  assert.equal(config.observationLimit, 12345);
+  // The observation limit is gone (2026-11-08): derivation covers the
+  // full stored set; the candidate limit is a persist/bridge chunk size.
+  assert.equal('observationLimit' in config, false);
   assert.equal('lighthouseUrl' in config, false);
   assert.equal('lighthouseKey' in config, false);
 });
 
-test('Domain 3 bridge defaults to complete current observation substrate capacity', () => {
+test('Domain 3 bridge defaults the chunk size to 250 with no observation limit', () => {
   const config = resolveLiveDataSignalBridgeConfiguration({
     SUPABASE_URL: 'https://atlas.example.test',
     SUPABASE_SERVICE_ROLE_KEY: 'atlas-service-key',
   });
-  assert.equal(config.observationLimit, 100000);
+  assert.equal('observationLimit' in config, false);
   assert.equal(config.candidateLimit, 250);
 });
 
@@ -107,11 +109,9 @@ test('Domain 3 cycle runs seed detection, population detection, then both govern
     minUniqueRecords: 12,
     minUnresolvedRate: 0.75,
     candidateLimit: 25,
-    observationLimit: 12345,
-    populationDetector: async ({ observationLimit, candidateLimit }) => {
+    populationDetector: async ({ candidateChunkSize }) => {
       populationCalled = true;
-      assert.equal(observationLimit, 12345);
-      assert.equal(candidateLimit, 25);
+      assert.equal(candidateChunkSize, 25);
       return emptyPopulationDetector();
     },
   });

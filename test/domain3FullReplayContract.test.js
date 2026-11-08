@@ -30,8 +30,8 @@ test('Domain 3 full replay scans the current bounded observation substrate and p
 });
 
 test('integrity patterns are derived inside Atlas and use the existing candidate receipt path', () => {
-  assert.match(replay, /deriveIntegrityPatternCandidates\(observations\)/);
-  assert.match(replay, /summarizeIntegrityPatternReadiness\(observations\)/);
+  assert.match(replay, /deriveIntegrityPatternCandidatesFromInput\(integrityAcc\.input\)/);
+  assert.match(replay, /summarizeIntegrityPatternReadinessFromInput\(integrityAcc\.input, integrityAcc\.scanned\)/);
   assert.match(replay, /INTEGRITY_PATTERN_RULES/);
   assert.match(integrityDetector, /atlas\.domain3\.integrity\.financial_conduit/);
   assert.match(integrityDetector, /atlas\.domain3\.integrity\.legislative_financial_convergence/);
@@ -77,14 +77,15 @@ test('one Domain 3 rule failure cannot silence later detector rules', () => {
   assert.match(bridge, /map\(\(run\) => run\.run_id\)\.filter\(Boolean\)/);
 });
 
-test('complete non-truncated replay retires absent candidates but truncated replay fails closed', () => {
+test('full-set replay scans uncapped, persists every candidate in chunks, and always reconciles', () => {
   assert.match(replay, /reconcile_domain3_population_currentness_v1/);
-  assert.match(replay, /const readLimit = bounded \+ 1/);
-  assert.match(replay, /complete: rows\.length <= bounded/);
-  assert.match(replay, /const replayComplete = observationScan\.complete/);
-  assert.match(replay, /candidate_limit_truncated_replay_currentness_not_reconciled/);
-  assert.match(replay, /observation_limit_truncated_replay_currentness_not_reconciled/);
-  assert.match(replay, /observation_scan_complete: observationScan\.complete/);
+  assert.match(replay, /streamCanonicalObservations/);
+  assert.match(replay, /if \(rows\.length < pageSize\) break/);
+  assert.match(replay, /replayComplete: true/);
+  assert.match(replay, /candidates: ruleCandidates/);
+  assert.match(replay, /observation_scan_complete: true/);
+  assert.match(replay, /skipped_no_change/);
+  assert.match(replay, /atlas_derivation_state/);
   assert.match(retirementMigration, /p_replay_complete boolean/);
   assert.match(retirementMigration, /replay_not_complete_or_truncated/);
   assert.match(retirementMigration, /run_superseded_by_newer_completed_replay/);
