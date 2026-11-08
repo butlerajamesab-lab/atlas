@@ -289,9 +289,9 @@ async function runObservationSummaryRefresh() {
     console.log(`[scheduler] [observation-summary] refreshed groups=${data ?? '?'} elapsed=${Date.now() - start}ms`);
     return observationSummaryState.lastResult;
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = String(error?.message || error?.code || 'unknown_error').replace(/\s+/g, ' ').slice(0, 500);
     observationSummaryState.lastRun = new Date().toISOString();
-    observationSummaryState.lastResult = { status: 'error', error: message.slice(0, 500), elapsed: Date.now() - start };
+    observationSummaryState.lastResult = { status: 'error', error: message, elapsed: Date.now() - start };
     observationSummaryState.errors += 1;
     console.error(`[scheduler] [observation-summary] ${message.slice(0, 180)}`);
     return observationSummaryState.lastResult;
