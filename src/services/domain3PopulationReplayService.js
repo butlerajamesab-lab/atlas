@@ -168,6 +168,66 @@ function deriveCrossJurisdictionCandidates(events) {
   return candidates.sort((a, b) => a.candidate_hash.localeCompare(b.candidate_hash));
 }
 
+// Page reads cross Cloudflare to PostgREST; a truncated body or a
+// 520 surfaces as a JSON SyntaxError or a 5xx error on ONE page.
+// Range paging is stateless, so a page is safe to re-read: retry
+// transient failures per page with backoff instead of killing a
+// full-set derivation that may already be hundreds of pages in
+// (first observed live 2026-11-08, when a truncated ~2 MB page
+// failed the verification job while the origin shed 520s).
+// Non-transient errors (auth, missing table, bad query) fail fast.
+const TRANSIENT_READ_PATTERNS = [
+  /unterminated string/i,
+  /unexpected end of json/i,
+  /syntaxerror/i,
+  /fetch failed/i,
+  /socket/i,
+  /ECONNRESET/,
+  /ETIMEDOUT/,
+  /timeout/i,
+  /network/i,
+  /\b429\b/,
+  /\b520\b/,
+  /\b502\b/,
+  /\b503\b/,
+  /\b504\b/,
+  /status=5\d\d/,
+];
+
+export function isTransientObservationReadError(error) {
+  const message = String(error?.message || error || '');
+  return TRANSIENT_READ_PATTERNS.some((pattern) => pattern.test(message));
+}
+
+const observationReadSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+export async function readObservationPage(atlasClient, from, to, {
+  attempts = 5,
+  baseDelayMs = 2_000,
+  maxDelayMs = 30_000,
+  sleepFn = observationReadSleep,
+} = {}) {
+  let lastError = null;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      const { data, error } = await atlasClient
+        .from('signal_events')
+        .select('stream_id,offset,timestamp,signal_type,spacetime,provenance,payload,source_id,jurisdiction_id,module_hint,ingested_at,event_identity_hash')
+        .not('event_identity_hash', 'is', null)
+        .order('stream_id', { ascending: true })
+        .order('offset', { ascending: true })
+        .range(from, to);
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      lastError = error;
+      if (!isTransientObservationReadError(error) || attempt === attempts) break;
+      await sleepFn(Math.min(baseDelayMs * 2 ** (attempt - 1), maxDelayMs));
+    }
+  }
+  throw new Error(`Domain 3 full replay observation read failed: ${lastError?.message || lastError}`);
+}
+
 async function loadCanonicalObservations(atlasClient, limit) {
   const bounded = Math.min(100000, Math.max(1, Number(limit) || DEFAULT_OBSERVATION_LIMIT));
   const readLimit = bounded + 1;
@@ -175,16 +235,9 @@ async function loadCanonicalObservations(atlasClient, limit) {
   const rows = [];
   for (let from = 0; from < readLimit; from += pageSize) {
     const to = Math.min(from + pageSize - 1, readLimit - 1);
-    const { data, error } = await atlasClient
-      .from('signal_events')
-      .select('stream_id,offset,timestamp,signal_type,spacetime,provenance,payload,source_id,jurisdiction_id,module_hint,ingested_at,event_identity_hash')
-      .not('event_identity_hash', 'is', null)
-      .order('stream_id', { ascending: true })
-      .order('offset', { ascending: true })
-      .range(from, to);
-    if (error) throw new Error(`Domain 3 full replay observation read failed: ${error.message}`);
-    rows.push(...(data || []));
-    if (!data || data.length < pageSize) break;
+    const data = await readObservationPage(atlasClient, from, to);
+    rows.push(...data);
+    if (data.length < pageSize) break;
   }
   return {
     observations: rows.slice(0, bounded),
@@ -460,15 +513,7 @@ async function streamCanonicalObservations(atlasClient, onEvent) {
   const pageSize = 1000;
   let total = 0;
   for (let from = 0; ; from += pageSize) {
-    const { data, error } = await atlasClient
-      .from('signal_events')
-      .select('stream_id,offset,timestamp,signal_type,spacetime,provenance,payload,source_id,jurisdiction_id,module_hint,ingested_at,event_identity_hash')
-      .not('event_identity_hash', 'is', null)
-      .order('stream_id', { ascending: true })
-      .order('offset', { ascending: true })
-      .range(from, from + pageSize - 1);
-    if (error) throw new Error(`Domain 3 full replay observation read failed: ${error.message}`);
-    const rows = data || [];
+    const rows = await readObservationPage(atlasClient, from, from + pageSize - 1);
     for (const row of rows) {
       onEvent(row);
       total += 1;
