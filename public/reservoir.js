@@ -5,6 +5,9 @@
 
 let rvToken = '';
 let rvCurrentStream = null;
+let rvBeforeStack = [];
+let rvCurrentBefore = null;
+let rvNextBefore = null;
 
 const $ = (id) => document.getElementById(id);
 
@@ -62,13 +65,20 @@ async function loadCensus() {
       <tbody>${rows}</tbody>
     </table>`;
   for (const row of $('rvCensus').querySelectorAll('tr[data-stream]')) {
-    row.addEventListener('click', () => loadRecords(row.dataset.stream));
+    row.addEventListener('click', () => openStream(row.dataset.stream));
   }
+}
+
+function openStream(streamId) {
+  rvBeforeStack = [];
+  rvCurrentBefore = null;
+  return loadRecords(streamId, null);
 }
 
 async function loadRecords(streamId, beforeOffset = null) {
   showMainError('');
   rvCurrentStream = streamId;
+  rvCurrentBefore = beforeOffset;
   const params = new URLSearchParams({ limit: '50' });
   if (beforeOffset !== null) params.set('before_offset', String(beforeOffset));
   let page;
@@ -80,6 +90,8 @@ async function loadRecords(streamId, beforeOffset = null) {
     showMainError(`Could not load records for ${streamId}: ${error.message}`);
     return;
   }
+  rvNextBefore = page.next_before_offset;
+  const pageNumber = rvBeforeStack.length + 1;
   const rows = page.records
     .map(
       (r) => `<tr data-offset="${r.offset}">
@@ -98,16 +110,32 @@ async function loadRecords(streamId, beforeOffset = null) {
       <thead><tr><th class="rv-num">Offset</th><th>Event time</th><th>Signal type</th><th>Source</th><th>Identity hash</th><th>Ingested</th></tr></thead>
       <tbody>${rows || '<tr><td colspan="6">No records.</td></tr>'}</tbody>
     </table>
-    ${page.has_more ? '<div class="rv-pager"><button id="rvOlder" class="top-button" type="button">Older records →</button></div>' : ''}`;
+    <div class="rv-pager">
+      ${rvBeforeStack.length ? '<button id="rvNewer" class="top-button" type="button">← Previous page</button>' : ''}
+      <span style="margin:0 10px;">Page ${pageNumber}</span>
+      ${page.has_more ? '<button id="rvOlder" class="top-button" type="button">Next page →</button>' : ''}
+    </div>`;
   $('rvDetail').innerHTML = '';
   $('rvBack').addEventListener('click', () => {
     $('rvRecords').innerHTML = '';
     $('rvDetail').innerHTML = '';
     rvCurrentStream = null;
+    rvBeforeStack = [];
+    rvCurrentBefore = null;
   });
   const older = $('rvOlder');
   if (older) {
-    older.addEventListener('click', () => loadRecords(streamId, page.next_before_offset));
+    older.addEventListener('click', () => {
+      rvBeforeStack.push(rvCurrentBefore);
+      loadRecords(streamId, rvNextBefore);
+    });
+  }
+  const newer = $('rvNewer');
+  if (newer) {
+    newer.addEventListener('click', () => {
+      const previous = rvBeforeStack.pop() ?? null;
+      loadRecords(streamId, previous);
+    });
   }
   for (const row of $('rvRecords').querySelectorAll('tr[data-offset]')) {
     row.addEventListener('click', () => loadRecord(streamId, row.dataset.offset));
@@ -163,7 +191,7 @@ $('rvUnlock').addEventListener('click', async () => {
 $('rvRefresh').addEventListener('click', async () => {
   if (!rvToken) return;
   try {
-    if (rvCurrentStream) await loadRecords(rvCurrentStream);
+    if (rvCurrentStream) await loadRecords(rvCurrentStream, rvCurrentBefore);
     else await loadCensus();
   } catch (error) {
     $('rvError').textContent = error.message;
