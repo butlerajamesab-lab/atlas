@@ -219,7 +219,7 @@ test('fetch wraps transport errors with the dataset id and status', async () => 
 
 test('ingest preserves the cms_nh / us_state_WA / nursing_home_* tuples', () => {
   assert.match(adapterSource, /sourceId:\s*'cms_nh'/);
-  assert.match(adapterSource, /jurisdictionId:\s*JURISDICTION_ID/);
+  assert.match(adapterSource, /state = STATE, jurisdictionId = JURISDICTION_ID/);
   assert.match(adapterSource, /moduleHint:\s*'nursing_home_provider'/);
   assert.match(adapterSource, /moduleHint:\s*'nursing_home_deficiency'/);
   assert.match(adapterSource, /moduleHint:\s*'nursing_home_fire_safety'/);
@@ -244,4 +244,46 @@ test('ingest posts in small batches (25), not the client default', () => {
   // 2026-11-08 and landed zero records. 25 is the WHD backfill's
   // proven batch shape.
   assert.match(adapterSource, /batchSize:\s*25/);
+});
+
+// ---- National expansion (2026-11-08/09) ----
+
+test('spacetime jurisdiction derives from the record state', async () => {
+  const { normalizeCmsProvider: norm, jurisdictionIdForState } = await import('../src/adapters/cmsNursingHomeAdapter.js');
+  const orRow = { ...PROVIDER_ROW, state: 'OR', citytown: 'PORTLAND' };
+  const signal = norm(orRow);
+  assert.equal(signal.spacetime.jurisdiction, 'us_state_OR');
+  assert.equal(signal.spacetime.region, 'us_state_OR');
+  assert.equal(jurisdictionIdForState('CA'), 'us_state_CA');
+  assert.equal(jurisdictionIdForState(''), 'us_state_WA');
+  // WA rows read exactly as before the national change.
+  assert.equal(norm(PROVIDER_ROW).spacetime.jurisdiction, 'us_state_WA');
+});
+
+test('national ingest posts under the us_federal tuple (the WHD pattern)', () => {
+  assert.match(adapterSource, /NATIONAL_JURISDICTION_ID = 'us_federal'/);
+  assert.match(adapterSource, /jurisdictionId: NATIONAL_JURISDICTION_ID/);
+});
+
+test('a state draw with an empty fetch takes the no-post branch on all four datasets', async () => {
+  const { ingestCmsStateSignals } = await import('../src/adapters/cmsNursingHomeAdapter.js');
+  const { httpGet } = stubTransport(async () => ({ results: [], count: '0' }));
+  const results = await ingestCmsStateSignals('OR', { httpGet });
+  for (const key of ['providers', 'health_deficiencies', 'fire_safety', 'penalties']) {
+    assert.equal(results[key].accepted, true);
+    assert.equal(results[key].ingested_count, 0);
+  }
+});
+
+test('backfill leg list excludes WA and covers 55 jurisdictions', async () => {
+  const { CMS_BACKFILL_STATES, parseBackfillArgs } = await import('../scripts/backfillCmsNational.mjs');
+  assert.equal(CMS_BACKFILL_STATES.includes('WA'), false);
+  assert.equal(CMS_BACKFILL_STATES.length, 55);
+  assert.deepEqual(parseBackfillArgs(['--state', 'or']).states, ['OR']);
+  assert.deepEqual(parseBackfillArgs(['--states', 'CA,TX']).states, ['CA', 'TX']);
+  const fromNy = parseBackfillArgs(['--from-state', 'NY']).states;
+  assert.equal(fromNy[0], 'NY');
+  assert.equal(fromNy[fromNy.length - 1], 'VI');
+  assert.throws(() => parseBackfillArgs(['--state', 'WA']), /wa_excluded/);
+  assert.throws(() => parseBackfillArgs(['--bogus']), /unknown_flag/);
 });
