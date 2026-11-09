@@ -358,7 +358,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   // ingest client's default base URL is the in-service loopback,
   // which does not exist there. Post through the public URL, the
   // same door the WHD backfill uses.
-  const apiBaseUrl = process.env.ATLAS_PUBLIC_URL || undefined;
+  const apiBaseUrl = process.env.ATLAS_PUBLIC_URL || 'https://atlas.columbiacitycustomllc.com';
   console.log('Fetching CMS nursing-home WA slices (providers, deficiencies, fire safety, penalties)...');
   const results = {};
   results.providers = await ingestCmsProviderInfoSignals({ apiBaseUrl });
