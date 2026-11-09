@@ -237,3 +237,11 @@ test('ingest propagates a fetch failure instead of reporting a zero', async () =
   const { httpGet } = stubTransport(async () => { throw new Error('socket hang up'); });
   await assert.rejects(() => ingestCmsHealthDeficiencySignals({ httpGet }), /cms_nh_request_failed/);
 });
+
+test('ingest posts in small batches (25), not the client default', () => {
+  // Evidence pin: the first live provider post (one 193-signal,
+  // 604 KB batch) exceeded the ingest client's 60 s timeout on
+  // 2026-11-08 and landed zero records. 25 is the WHD backfill's
+  // proven batch shape.
+  assert.match(adapterSource, /batchSize:\s*25/);
+});
