@@ -83,9 +83,13 @@ export async function runForm2567({ ccn, targets, probe = false, apiBaseUrl, sta
     for (const r of outcome.receipts) {
       log(`[cms-2567] ${ccn} ${category} ${surveyDate} ${r.kind}: status=${r.status} bytes=${r.bytes} pdf=${r.is_pdf}${r.sha256 ? ` sha256=${r.sha256}` : ''}`);
     }
+    // The per-candidate receipts ride in the summary itself:
+    // stdout log lines scroll out of a job's retrievable log
+    // window, the closing summary does not.
+    const candidateReceipts = outcome.receipts.map(({ body, ...receipt }) => receipt);
     if (!outcome.found) {
       failures.push({ category, survey_date: surveyDate, error: 'no candidate answered with a PDF' });
-      results.push({ category, survey_date: surveyDate, found: false });
+      results.push({ category, survey_date: surveyDate, found: false, candidates: candidateReceipts });
       continue;
     }
     const entry = {
@@ -96,6 +100,7 @@ export async function runForm2567({ ccn, targets, probe = false, apiBaseUrl, sta
       source_url: outcome.found.url,
       bytes: outcome.found.bytes,
       sha256: outcome.found.sha256,
+      candidates: candidateReceipts,
     };
     if (!probe) {
       const signal = normalizeForm2567Document({
