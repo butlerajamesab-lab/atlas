@@ -1,6 +1,7 @@
 import axios from 'axios';
 import dotenv from 'dotenv';
 import { postSignalsToAtlas, toIsoTimestamp } from './ingestClient.js';
+import { SourceFetchError } from './sourceFetchError.js';
 dotenv.config();
 
 // DOJ FARA (Foreign Agents Registration Act) - tracks foreign influence.
@@ -105,8 +106,9 @@ export async function fetchFaraRegistrants({ country = null, limit = 100 } = {})
     const results = Array.isArray(rows) ? rows : rows ? [rows] : [];
     return results.slice(0, limit).map(normalizeFaraRegistrant);
   } catch (error) {
-    console.warn(`FARA fetch failed: ${error.message}`);
-    return [];
+    // Finding 1 (rulebook audit 2026-11-09): surface the failure;
+    // an empty array here reads downstream as a healthy empty draw.
+    throw new SourceFetchError('fara_registrants', error);
   }
 }
 

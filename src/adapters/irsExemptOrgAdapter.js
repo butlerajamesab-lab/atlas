@@ -1,6 +1,7 @@
 import axios from 'axios';
 import dotenv from 'dotenv';
 import { postSignalsToAtlas, toIsoTimestamp } from './ingestClient.js';
+import { SourceFetchError } from './sourceFetchError.js';
 dotenv.config();
 
 // Exempt Organizations data - 527 political orgs and 501(c)(4) groups
@@ -145,8 +146,11 @@ export async function fetch501c4Orgs(state = 'WA', limit = 100) {
     }));
     return records.map(normalize501c4);
   } catch (e) {
-    console.warn(`501c4 fetch failed: ${e.message}`);
-    return [];
+    // Finding 1 (rulebook audit 2026-11-09): the search-level
+    // failure surfaces; the per-record detail fallback above stays
+    // (a single record's detail failing degrades that record, it
+    // does not hide a source outage).
+    throw new SourceFetchError('propublica_nonprofit_501c4', e);
   }
 }
 
