@@ -354,11 +354,16 @@ export async function ingestCmsPenaltySignals({ httpGet, apiBaseUrl } = {}) {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
+  // Standalone runs (Render jobs) are separate containers: the
+  // ingest client's default base URL is the in-service loopback,
+  // which does not exist there. Post through the public URL, the
+  // same door the WHD backfill uses.
+  const apiBaseUrl = process.env.ATLAS_PUBLIC_URL || undefined;
   console.log('Fetching CMS nursing-home WA slices (providers, deficiencies, fire safety, penalties)...');
   const results = {};
-  results.providers = await ingestCmsProviderInfoSignals({});
-  results.health_deficiencies = await ingestCmsHealthDeficiencySignals({});
-  results.fire_safety = await ingestCmsFireSafetySignals({});
-  results.penalties = await ingestCmsPenaltySignals({});
+  results.providers = await ingestCmsProviderInfoSignals({ apiBaseUrl });
+  results.health_deficiencies = await ingestCmsHealthDeficiencySignals({ apiBaseUrl });
+  results.fire_safety = await ingestCmsFireSafetySignals({ apiBaseUrl });
+  results.penalties = await ingestCmsPenaltySignals({ apiBaseUrl });
   console.log(JSON.stringify({ ok: true, source: 'cms_nh', results }, null, 2));
 }
