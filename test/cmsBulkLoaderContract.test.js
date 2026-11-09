@@ -132,3 +132,29 @@ test('concurrent poster slices are disjoint and complete, receipts aggregate', a
   assert.equal(totals.ingested_count, 103);
   assert.deepEqual([...seen].sort((a, b) => a - b), Array.from({ length: 103 }, (_, n) => n));
 });
+
+test('withRetry absorbs transient failures and still surfaces deterministic ones', async () => {
+  const { withRetry } = await import('../scripts/loadCmsNationalBulk.mjs');
+  let calls = 0;
+  const flaky = async () => { calls += 1; if (calls < 3) throw new Error('cloudflare 500'); return 'ok'; };
+  assert.equal(await withRetry(flaky, { attempts: 5, sleep: async () => {} }), 'ok');
+  assert.equal(calls, 3);
+  let doomed = 0;
+  await assert.rejects(
+    () => withRetry(async () => { doomed += 1; throw new Error('poison'); }, { attempts: 3, sleep: async () => {} }),
+    /poison/,
+  );
+  assert.equal(doomed, 3);
+});
+
+test('a failed slice never masks sibling receipts; its rows count as failed', async () => {
+  const post = async (_moduleHint, slice) => {
+    if (slice[0].n % 4 === 3) throw new Error('slice down');
+    return { ingested_count: slice.length, replayed_count: 0, records_failed: 0 };
+  };
+  const signals = Array.from({ length: 40 }, (_, n) => ({ n }));
+  const totals = await postStateSignals({ moduleHint: 'x', signals, apiBaseUrl: 'x', concurrency: 4, post });
+  assert.equal(totals.slices_failed, 1);
+  assert.equal(totals.ingested_count, 30);
+  assert.equal(totals.records_failed, 10);
+});
