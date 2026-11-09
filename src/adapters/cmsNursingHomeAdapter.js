@@ -307,6 +307,12 @@ async function ingestStream({ datasetId, moduleHint, normalize, sortProperties, 
     moduleHint,
     signals,
     apiBaseUrl,
+    // The governed ingest answers per-signal work synchronously and
+    // the client's default batch (500) is too big for wide rows: the
+    // first live provider post — one 193-signal, 604 KB batch —
+    // exceeded the 60 s timeout on 2026-11-08 (ECONNABORTED, zero
+    // records landed). 25 is the WHD backfill's proven shape.
+    batchSize: 25,
   });
 }
 
