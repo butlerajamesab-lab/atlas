@@ -233,16 +233,37 @@ async function downloadWithHash(url, destPath) {
   return { bytes, sha256: hash.digest('hex') };
 }
 
+// Bounded retry for transient ingest failures. The governed door
+// intermittently answers a batch with a Cloudflare 500/520 while
+// sibling batches succeed (seen in the WA first load and again on
+// the first national leg: 78 of 104 rows landed, one slice's first
+// batch 500'd). Re-posting is safe — dedupe absorbs any partial
+// progress inside the slice — so a slice retries whole, with
+// backoff, before it is allowed to fail. A deterministic failure
+// (a poisoned record) still fails after the attempts, unchanged.
+export async function withRetry(fn, { attempts = 5, baseDelayMs = 2000, sleep = (ms) => new Promise((r) => setTimeout(r, ms)) } = {}) {
+  let lastError;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      if (attempt < attempts) await sleep(Math.min(30000, baseDelayMs * 2 ** (attempt - 1)));
+    }
+  }
+  throw lastError;
+}
+
 async function postSlice(moduleHint, signals, apiBaseUrl) {
   if (!signals.length) return { ingested_count: 0, replayed_count: 0, records_failed: 0 };
-  const result = await postSignalsToAtlas({
+  const result = await withRetry(() => postSignalsToAtlas({
     sourceId: 'cms_nh',
     jurisdictionId: NATIONAL_JURISDICTION_ID,
     moduleHint,
     signals,
     apiBaseUrl,
     batchSize: 25,
-  });
+  }));
   return {
     ingested_count: result.ingested_count ?? 0,
     replayed_count: result.replayed_count ?? 0,
@@ -253,19 +274,26 @@ async function postSlice(moduleHint, signals, apiBaseUrl) {
 // Post one state's signals with a small worker pool: the signals
 // are cut into `concurrency` disjoint slices and each slice posts
 // sequentially through the governed door. Same door, same
-// receipts — just more than one queue at it.
+// receipts — just more than one queue at it. Slices settle
+// independently: one slice's failure never masks the others'
+// receipts; it is counted as failed rows and reported.
 export async function postStateSignals({ moduleHint, signals, apiBaseUrl, concurrency = 4, post = postSlice }) {
-  const totals = { ingested_count: 0, replayed_count: 0, records_failed: 0 };
+  const totals = { ingested_count: 0, replayed_count: 0, records_failed: 0, slices_failed: 0 };
   if (!signals.length) return totals;
   const workers = Math.max(1, Math.min(concurrency, signals.length));
   const slices = Array.from({ length: workers }, () => []);
   signals.forEach((signal, index) => slices[index % workers].push(signal));
-  const results = await Promise.all(slices.map((slice) => post(moduleHint, slice, apiBaseUrl)));
-  for (const r of results) {
-    totals.ingested_count += r.ingested_count ?? 0;
-    totals.replayed_count += r.replayed_count ?? 0;
-    totals.records_failed += r.records_failed ?? 0;
-  }
+  const settled = await Promise.allSettled(slices.map((slice) => post(moduleHint, slice, apiBaseUrl)));
+  settled.forEach((outcome, index) => {
+    if (outcome.status === 'fulfilled') {
+      totals.ingested_count += outcome.value.ingested_count ?? 0;
+      totals.replayed_count += outcome.value.replayed_count ?? 0;
+      totals.records_failed += outcome.value.records_failed ?? 0;
+    } else {
+      totals.slices_failed += 1;
+      totals.records_failed += slices[index].length;
+    }
+  });
   return totals;
 }
 
@@ -299,6 +327,9 @@ export async function loadBulkKind(kind, { apiBaseUrl, states = null, concurrenc
         records_failed: prior.records_failed + totals.records_failed,
       });
       log(`[cms-bulk] ${kind} ${state}: ${signals.length} rows -> ingested=${totals.ingested_count} replayed=${totals.replayed_count} failed=${totals.records_failed}`);
+      if (totals.slices_failed > 0) {
+        failures.push({ state, partial: true, slices_failed: totals.slices_failed, error: `${totals.slices_failed} slice(s) exhausted retries; ${totals.records_failed} rows unlanded — re-run --states ${state}` });
+      }
     } catch (error) {
       failures.push({ state, error: String(error?.message ?? error).slice(0, 300) });
       log(`[cms-bulk] ${kind} ${state} FAILED: ${String(error?.message ?? error).slice(0, 300)}`);
