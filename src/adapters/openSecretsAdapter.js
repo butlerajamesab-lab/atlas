@@ -1,6 +1,7 @@
 import axios from 'axios';
 import dotenv from 'dotenv';
 import { postSignalsToAtlas, toIsoTimestamp } from './ingestClient.js';
+import { SourceFetchError } from './sourceFetchError.js';
 dotenv.config();
 
 const OPENSECRETS_API_BASE = 'https://www.opensecrets.org/api/';
@@ -136,8 +137,10 @@ export async function fetchLobbyingFilings({ limit = 100 } = {}) {
     const results = response.data?.results || response.data || [];
     return (Array.isArray(results) ? results : []).map(normalizeLobbyingFiling);
   } catch (e) {
-    console.warn(`Senate LDA fetch failed: ${e.message}`);
-    return [];
+    // Finding 1 (rulebook audit 2026-11-09): a failed fetch must
+    // surface as a failed run, not an empty result — this swallow
+    // is what hid the Senate LDA outage for two days.
+    throw new SourceFetchError('senate_lda', e);
   }
 }
 
@@ -154,8 +157,7 @@ export async function fetchTopDonors(cycle = '2024') {
     const orgs = response.data?.response?.organizations?.organization || [];
     return (Array.isArray(orgs) ? orgs : [orgs]).map((o) => normalizeTopDonor(o, cycle));
   } catch (e) {
-    console.warn(`OpenSecrets fetch failed: ${e.message}`);
-    return [];
+    throw new SourceFetchError('opensecrets_donors', e);
   }
 }
 

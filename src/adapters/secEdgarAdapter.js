@@ -1,6 +1,7 @@
 import axios from 'axios';
 import dotenv from 'dotenv';
 import { postSignalsToAtlas, toIsoTimestamp } from './ingestClient.js';
+import { SourceFetchError } from './sourceFetchError.js';
 dotenv.config();
 
 const SEC_EDGAR_BASE = 'https://efts.sec.gov/LATEST/search-index';
@@ -111,8 +112,10 @@ async function fetchEdgarRss(formType = '4', limit = 40) {
       });
     });
   } catch (e) {
-    console.warn(`SEC RSS fallback also failed: ${e.message}`);
-    return [];
+    // Finding 1 (rulebook audit 2026-11-09): the RSS feed is the
+    // fallback for the search API; when BOTH doors fail that is a
+    // source failure, not an empty result.
+    throw new SourceFetchError('sec_edgar_rss', e);
   }
 }
 
