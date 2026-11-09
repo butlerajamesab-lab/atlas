@@ -174,3 +174,74 @@ test('limit and offset parsing are clamped and total', () => {
   assert.equal(parseNonNegativeInt(''), null);
   assert.equal(parseNonNegativeInt(undefined), null);
 });
+
+
+// --- Census resilience (2026-11-09) -------------------------------------
+// The production unlock failure: the census fired every stream's
+// count + latest queries at once with no retry, so one transient
+// door 500 failed the whole census. These tests pin the fix:
+// per-stream retry with backoff, bounded batches, exact results.
+
+const noSleep = async () => {};
+
+test('census: a stream whose count fails transiently is retried and the census still lands exact', async () => {
+  let betaCountAttempts = 0;
+  const flaky = (spec) => {
+    if (spec.table === 'signal_events' && spec.head && spec.filters.stream_id === 'beta_stream') {
+      betaCountAttempts += 1;
+      if (betaCountAttempts < 3) throw new Error('transient door 500');
+    }
+    return handler(spec);
+  };
+  const census = await listReservoirStreams(fakeClient(flaky), { sleep: noSleep, baseDelayMs: 1 });
+  assert.equal(betaCountAttempts, 3);
+  assert.equal(census.stream_count, 2);
+  assert.equal(census.total_records, 3);
+  const beta = census.streams.find((s) => s.stream_id === 'beta_stream');
+  assert.equal(beta.record_count, 0);
+});
+
+test('census: a permanently failing stream exhausts the declared attempts and the census fails loudly', async () => {
+  let betaCountAttempts = 0;
+  const broken = (spec) => {
+    if (spec.table === 'signal_events' && spec.head && spec.filters.stream_id === 'beta_stream') {
+      betaCountAttempts += 1;
+      throw new Error('door down');
+    }
+    return handler(spec);
+  };
+  await assert.rejects(
+    () => listReservoirStreams(fakeClient(broken), { sleep: noSleep, baseDelayMs: 1, maxAttempts: 3 }),
+    /door down/,
+  );
+  assert.equal(betaCountAttempts, 3);
+});
+
+test('census: batching preserves order and exactness across more streams than the batch size', async () => {
+  const manyStreams = Array.from({ length: 13 }, (_, i) => ({
+    stream_id: `s${String(i).padStart(2, '0')}`,
+    source_id: 'src',
+    jurisdiction_id: 'us',
+    module_hint: 'm',
+    status: 'active',
+  }));
+  const manyEvents = {};
+  for (const s of manyStreams) {
+    manyEvents[s.stream_id] = [
+      { stream_id: s.stream_id, offset: 2, timestamp: '2026-11-09T00:00:02Z', ingested_at: '2026-11-09T01:00:02Z' },
+      { stream_id: s.stream_id, offset: 1, timestamp: '2026-11-09T00:00:01Z', ingested_at: '2026-11-09T01:00:01Z' },
+    ];
+  }
+  const manyHandler = (spec) => {
+    if (spec.table === 'streams') return { rows: manyStreams };
+    const rows = manyEvents[spec.filters.stream_id] ?? [];
+    if (spec.head) return { count: rows.length };
+    const out = [...rows].sort((a, b) => b.offset - a.offset);
+    return { rows: spec.limit ? out.slice(0, spec.limit) : out };
+  };
+  const census = await listReservoirStreams(fakeClient(manyHandler), { sleep: noSleep, batchSize: 5 });
+  assert.equal(census.stream_count, 13);
+  assert.equal(census.total_records, 26);
+  assert.deepEqual(census.streams.map((s) => s.stream_id), manyStreams.map((s) => s.stream_id));
+  assert.ok(census.streams.every((s) => s.record_count === 2 && s.latest_offset === 2));
+});

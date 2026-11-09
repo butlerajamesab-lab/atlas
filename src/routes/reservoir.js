@@ -16,15 +16,23 @@ export function reservoirRouter({ apiError }) {
   let censusCachedAt = 0;
 
   router.get('/reservoir-api/streams', async (_req, res) => {
+    const now = Date.now();
+    if (censusCache && now - censusCachedAt <= RESERVOIR_CENSUS_CACHE_TTL_MS) {
+      return res.json({ ...censusCache, stale: false, census_at: new Date(censusCachedAt).toISOString() });
+    }
     try {
-      const now = Date.now();
-      if (!censusCache || now - censusCachedAt > RESERVOIR_CENSUS_CACHE_TTL_MS) {
-        censusCache = await listReservoirStreams();
-        censusCachedAt = now;
-      }
-      return res.json(censusCache);
+      censusCache = await listReservoirStreams();
+      censusCachedAt = Date.now();
+      return res.json({ ...censusCache, stale: false, census_at: new Date(censusCachedAt).toISOString() });
     } catch (error) {
       console.error('[reservoir] census failed:', error?.message ?? error);
+      // A busy door must not lock the operator out when a previous
+      // census exists: serve it, labeled stale with its timestamp,
+      // rather than a bare 500 (2026-11-09 unlock failure). With no
+      // cached census there is nothing honest to show — 500 stands.
+      if (censusCache) {
+        return res.json({ ...censusCache, stale: true, census_at: new Date(censusCachedAt).toISOString() });
+      }
       return apiError(res, 500, error.message);
     }
   });

@@ -59,7 +59,7 @@ async function loadCensus() {
     )
     .join('');
   $('rvCensus').innerHTML = `
-    <div class="rv-total">TOTAL RECORDS IN POOL: ${census.total_records.toLocaleString('en-US')} across ${census.stream_count} streams</div>
+    <div class="rv-total">TOTAL RECORDS IN POOL: ${census.total_records.toLocaleString('en-US')} across ${census.stream_count} streams${census.stale ? ` — CACHED CENSUS FROM ${esc(census.census_at ?? '')} (door busy; refresh for a live count)` : ''}</div>
     <table class="rv-table">
       <thead><tr><th>Stream</th><th>Status</th><th>Source</th><th>Jurisdiction</th><th class="rv-num">Records</th><th class="rv-num">Latest offset</th><th>Latest ingested</th></tr></thead>
       <tbody>${rows}</tbody>
