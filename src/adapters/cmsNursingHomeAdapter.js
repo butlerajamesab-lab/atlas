@@ -40,6 +40,28 @@ dotenv.config();
 // penalties are few) and replay dedupe absorbs the overlap. The
 // datastore is paged with a stable sort (CCN, then survey date,
 // then tag) so offset paging inside one run is deterministic.
+// National expansion (Alexander's direction, 2026-11-08, "we want
+// the whole country"): four more streams carry every other state
+// under the federal tuple (source_id 'cms_nh', jurisdiction
+// 'us_federal' — the WHD pattern), one stream per dataset:
+//   cms_nh_provider_info_national
+//   cms_nh_health_deficiencies_national
+//   cms_nh_fire_safety_deficiencies_national
+//   cms_nh_penalties_national
+// Washington is deliberately NOT re-posted into them: WA already
+// lives in the four us_state_WA streams above, and the whole
+// country is the union of the two families with zero double-count.
+// Every record still carries its own state's spacetime jurisdiction
+// (us_state_<XX> derived from the row) and the same
+// cms_provider:<ccn> canonical identity — CCNs are nationally
+// unique, so a facility joins across both families. National
+// volumes (live API counts, 2026-11-08): 14,686 providers,
+// 418,682 health citations, 200,387 fire-safety citations, 15,007
+// penalties. The national streams are job-driven through
+// scripts/backfillCmsNational.mjs (state-legged, resumable), not
+// scheduler-driven: the source is monthly and a full national
+// cycle is ~632k posts beyond WA.
+
 const CMS_PDC_BASE = 'https://data.cms.gov/provider-data/api/1';
 
 export const CMS_DATASETS = Object.freeze({
@@ -51,6 +73,16 @@ export const CMS_DATASETS = Object.freeze({
 
 const STATE = 'WA';
 const JURISDICTION_ID = 'us_state_WA';
+
+// The federal tuple the national streams post under (the WHD
+// pattern: one stream per dataset, the record's own state carried
+// per signal).
+export const NATIONAL_JURISDICTION_ID = 'us_federal';
+
+export function jurisdictionIdForState(state) {
+  const value = text(state);
+  return value ? `us_state_${value}` : JURISDICTION_ID;
+}
 
 function asNumber(value) {
   if (value === null || value === undefined || value === '') return null;
@@ -71,9 +103,13 @@ export function cmsProviderEntityId(ccn) {
 }
 
 function baseSpacetime(record) {
+  // The spacetime jurisdiction is the record's own state, WA rows
+  // included (us_state_WA) — so a signal reads identically in the
+  // WA family and the national family.
+  const jurisdiction = jurisdictionIdForState(record.state);
   return {
-    region: JURISDICTION_ID,
-    jurisdiction: JURISDICTION_ID,
+    region: jurisdiction,
+    jurisdiction,
     city: text(record.citytown),
     state: text(record.state) || STATE,
     zip: text(record.zip_code),
@@ -295,15 +331,15 @@ export async function fetchCmsDataset(datasetId, { state = STATE, pageSize = 500
 
 const DEFICIENCY_SORT = ['cms_certification_number_ccn', 'survey_date', 'deficiency_tag_number'];
 
-async function ingestStream({ datasetId, moduleHint, normalize, sortProperties, httpGet, apiBaseUrl }) {
-  const records = await fetchCmsDataset(datasetId, { httpGet, ...(sortProperties ? { sortProperties } : {}) });
+async function ingestStream({ datasetId, moduleHint, normalize, sortProperties, httpGet, apiBaseUrl, state = STATE, jurisdictionId = JURISDICTION_ID, maxPages }) {
+  const records = await fetchCmsDataset(datasetId, { state, httpGet, ...(sortProperties ? { sortProperties } : {}), ...(maxPages ? { maxPages } : {}) });
   const signals = records.map(normalize);
   if (!signals.length) {
     return { accepted: true, ingested_count: 0, note: `No CMS nursing-home records returned for dataset ${datasetId}` };
   }
   return postSignalsToAtlas({
     sourceId: 'cms_nh',
-    jurisdictionId: JURISDICTION_ID,
+    jurisdictionId,
     moduleHint,
     signals,
     apiBaseUrl,
@@ -316,17 +352,20 @@ async function ingestStream({ datasetId, moduleHint, normalize, sortProperties, 
   });
 }
 
-export async function ingestCmsProviderInfoSignals({ httpGet, apiBaseUrl } = {}) {
+export async function ingestCmsProviderInfoSignals({ httpGet, apiBaseUrl, state, jurisdictionId, maxPages } = {}) {
   return ingestStream({
     datasetId: CMS_DATASETS.provider_info,
     moduleHint: 'nursing_home_provider',
     normalize: normalizeCmsProvider,
     httpGet,
     apiBaseUrl,
+    ...(state ? { state } : {}),
+    ...(jurisdictionId ? { jurisdictionId } : {}),
+    ...(maxPages ? { maxPages } : {}),
   });
 }
 
-export async function ingestCmsHealthDeficiencySignals({ httpGet, apiBaseUrl } = {}) {
+export async function ingestCmsHealthDeficiencySignals({ httpGet, apiBaseUrl, state, jurisdictionId, maxPages } = {}) {
   return ingestStream({
     datasetId: CMS_DATASETS.health_deficiencies,
     moduleHint: 'nursing_home_deficiency',
@@ -334,10 +373,13 @@ export async function ingestCmsHealthDeficiencySignals({ httpGet, apiBaseUrl } =
     sortProperties: DEFICIENCY_SORT,
     httpGet,
     apiBaseUrl,
+    ...(state ? { state } : {}),
+    ...(jurisdictionId ? { jurisdictionId } : {}),
+    ...(maxPages ? { maxPages } : {}),
   });
 }
 
-export async function ingestCmsFireSafetySignals({ httpGet, apiBaseUrl } = {}) {
+export async function ingestCmsFireSafetySignals({ httpGet, apiBaseUrl, state, jurisdictionId, maxPages } = {}) {
   return ingestStream({
     datasetId: CMS_DATASETS.fire_safety_deficiencies,
     moduleHint: 'nursing_home_fire_safety',
@@ -345,10 +387,13 @@ export async function ingestCmsFireSafetySignals({ httpGet, apiBaseUrl } = {}) {
     sortProperties: DEFICIENCY_SORT,
     httpGet,
     apiBaseUrl,
+    ...(state ? { state } : {}),
+    ...(jurisdictionId ? { jurisdictionId } : {}),
+    ...(maxPages ? { maxPages } : {}),
   });
 }
 
-export async function ingestCmsPenaltySignals({ httpGet, apiBaseUrl } = {}) {
+export async function ingestCmsPenaltySignals({ httpGet, apiBaseUrl, state, jurisdictionId, maxPages } = {}) {
   return ingestStream({
     datasetId: CMS_DATASETS.penalties,
     moduleHint: 'nursing_home_penalty',
@@ -356,7 +401,24 @@ export async function ingestCmsPenaltySignals({ httpGet, apiBaseUrl } = {}) {
     sortProperties: ['cms_certification_number_ccn', 'penalty_date'],
     httpGet,
     apiBaseUrl,
+    ...(state ? { state } : {}),
+    ...(jurisdictionId ? { jurisdictionId } : {}),
+    ...(maxPages ? { maxPages } : {}),
   });
+}
+
+// One state's full draw (all four datasets) under the national
+// tuple. Used by scripts/backfillCmsNational.mjs, which legs the
+// country state by state. maxPages 200 (100k rows) clears the
+// largest state's deficiency files with headroom.
+export async function ingestCmsStateSignals(state, { httpGet, apiBaseUrl } = {}) {
+  const options = { httpGet, apiBaseUrl, state, jurisdictionId: NATIONAL_JURISDICTION_ID, maxPages: 200 };
+  const results = {};
+  results.providers = await ingestCmsProviderInfoSignals(options);
+  results.health_deficiencies = await ingestCmsHealthDeficiencySignals(options);
+  results.fire_safety = await ingestCmsFireSafetySignals(options);
+  results.penalties = await ingestCmsPenaltySignals(options);
+  return results;
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

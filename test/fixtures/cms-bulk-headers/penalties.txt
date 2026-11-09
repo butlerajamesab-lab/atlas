@@ -1,0 +1,1 @@
+"CMS Certification Number (CCN)","Provider Name","Provider Address","City/Town","State","ZIP Code","Penalty Date","Penalty Type","Fine ID","Fine Amount","Payment Denial Start Date","Payment Denial Length in Days","Location","Processing Date"
