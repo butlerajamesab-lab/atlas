@@ -15,6 +15,7 @@ import {
   resolveGeography,
   toRuntimeRegistry,
 } from '../substrate/geography.js';
+import { isTransientObservationReadError } from './domain3PopulationReplayService.js';
 
 const SOURCE_PAGE_SIZE = 1000;
 const EQUATION_ID = 'poisson_z_score';
@@ -447,15 +448,46 @@ function persistenceBundle(computation) {
   };
 }
 
-async function persistComputation(supabase, computation) {
-  const { data, error } = await supabase.rpc('atlas_convergence_persist_run_v1', {
-    p_bundle: persistenceBundle(computation),
-  });
-  if (error) throw new Error(`Failed to persist convergence run atomically: ${error.message}`);
-  if (!data || !['created', 'idempotent'].includes(data.status)) {
-    throw new Error('Convergence persistence returned no governed receipt');
+const persistenceSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Finding 3 (rulebook audit 2026-11-09): the persist RPC had no
+// retry — one transient Cloudflare 520 from the database host
+// (observed live 2026-11-09 10:21:25 UTC) discarded a completed
+// run's acceptance. The RPC is idempotent by contract (it answers
+// 'created' or 'idempotent' for the same bundle), so re-sending
+// the identical bundle is safe. Retry only transient transport
+// failures — the shared classifier from the Domain 3 read path —
+// with bounded backoff; a governance failure (bad receipt status,
+// missing function, auth) fails fast, exactly as before. When the
+// attempts are exhausted the error names the attempt count, so a
+// lost persistence is a labeled event, never a silent one.
+export async function persistComputation(supabase, computation, {
+  attempts = 4,
+  baseDelayMs = 1_000,
+  maxDelayMs = 15_000,
+  sleepFn = persistenceSleep,
+} = {}) {
+  const bundle = persistenceBundle(computation);
+  let lastError = null;
+  let attemptsMade = 0;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    attemptsMade = attempt;
+    const { data, error } = await supabase.rpc('atlas_convergence_persist_run_v1', {
+      p_bundle: bundle,
+    });
+    if (!error) {
+      if (!data || !['created', 'idempotent'].includes(data.status)) {
+        throw new Error('Convergence persistence returned no governed receipt');
+      }
+      return data;
+    }
+    lastError = error;
+    if (!isTransientObservationReadError(error) || attempt === attempts) break;
+    await sleepFn(Math.min(baseDelayMs * 2 ** (attempt - 1), maxDelayMs));
   }
-  return data;
+  throw new Error(
+    `Failed to persist convergence run atomically after ${attemptsMade} attempt(s): ${lastError?.message || lastError}`,
+  );
 }
 
 export async function executeConvergenceRun({
