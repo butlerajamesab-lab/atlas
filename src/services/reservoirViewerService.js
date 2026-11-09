@@ -16,7 +16,34 @@ async function defaultClient() {
   return supabase;
 }
 
-export const RESERVOIR_CENSUS_CACHE_TTL_MS = 15_000;
+export const RESERVOIR_CENSUS_CACHE_TTL_MS = 60_000;
+// Census fan-out discipline (2026-11-09): the original census fired
+// every stream's count + latest-row queries at once (76 requests for
+// 38 streams) with no retry — one transient door failure (the 500
+// bursts the ingest door throws under load) failed the whole census
+// and locked the operator out of the viewer. Counts now run in
+// bounded batches and each stream's pair of queries retries with
+// backoff, the same treatment the bulk loader got in PR #113.
+export const RESERVOIR_CENSUS_BATCH_SIZE = 6;
+export const RESERVOIR_CENSUS_MAX_ATTEMPTS = 4;
+export const RESERVOIR_CENSUS_BASE_DELAY_MS = 400;
+
+const censusSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function withCensusRetry(work, { maxAttempts, baseDelayMs, sleep }) {
+  let lastError;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await work();
+    } catch (error) {
+      lastError = error;
+      if (attempt < maxAttempts) {
+        await sleep(baseDelayMs * 2 ** (attempt - 1));
+      }
+    }
+  }
+  throw lastError;
+}
 export const RESERVOIR_DEFAULT_LIMIT = 50;
 export const RESERVOIR_MAX_LIMIT = 100;
 
@@ -92,33 +119,51 @@ async function streamExists(client, streamId) {
   return Boolean(data);
 }
 
-export async function listReservoirStreams(injectedClient) {
+async function censusOneStream(client, stream) {
+  const { count, error: countError } = await client
+    .from('signal_events')
+    .select('offset', { count: 'exact', head: true })
+    .eq('stream_id', stream.stream_id);
+  if (countError) throw countError;
+
+  const { data: latestRows, error: latestError } = await client
+    .from('signal_events')
+    .select('offset, timestamp, ingested_at')
+    .eq('stream_id', stream.stream_id)
+    .order('offset', { ascending: false })
+    .limit(1);
+  if (latestError) throw latestError;
+
+  return shapeStreamCensus(stream, count ?? 0, latestRows?.[0] ?? null);
+}
+
+export async function listReservoirStreams(injectedClient, options = {}) {
   const client = injectedClient ?? (await defaultClient());
-  const { data: streams, error } = await client
-    .from('streams')
-    .select('stream_id, source_id, jurisdiction_id, module_hint, status')
-    .order('stream_id', { ascending: true });
-  if (error) throw error;
+  const retry = {
+    maxAttempts: options.maxAttempts ?? RESERVOIR_CENSUS_MAX_ATTEMPTS,
+    baseDelayMs: options.baseDelayMs ?? RESERVOIR_CENSUS_BASE_DELAY_MS,
+    sleep: options.sleep ?? censusSleep,
+  };
+  const batchSize = options.batchSize ?? RESERVOIR_CENSUS_BATCH_SIZE;
 
-  const census = await Promise.all(
-    (streams ?? []).map(async (stream) => {
-      const { count, error: countError } = await client
-        .from('signal_events')
-        .select('offset', { count: 'exact', head: true })
-        .eq('stream_id', stream.stream_id);
-      if (countError) throw countError;
+  const { data: streams, error } = await withCensusRetry(async () => {
+    const result = await client
+      .from('streams')
+      .select('stream_id, source_id, jurisdiction_id, module_hint, status')
+      .order('stream_id', { ascending: true });
+    if (result.error) throw result.error;
+    return result;
+  }, retry);
+  const streamList = streams ?? [];
 
-      const { data: latestRows, error: latestError } = await client
-        .from('signal_events')
-        .select('offset, timestamp, ingested_at')
-        .eq('stream_id', stream.stream_id)
-        .order('offset', { ascending: false })
-        .limit(1);
-      if (latestError) throw latestError;
-
-      return shapeStreamCensus(stream, count ?? 0, latestRows?.[0] ?? null);
-    }),
-  );
+  const census = [];
+  for (let start = 0; start < streamList.length; start += batchSize) {
+    const batch = streamList.slice(start, start + batchSize);
+    const rows = await Promise.all(
+      batch.map((stream) => withCensusRetry(() => censusOneStream(client, stream), retry)),
+    );
+    census.push(...rows);
+  }
 
   const totalRecords = census.reduce((sum, row) => sum + row.record_count, 0);
   return { streams: census, total_records: totalRecords, stream_count: census.length };
