@@ -45,13 +45,16 @@ __setStreamDbOpsForTests({
   },
 });
 
-test.beforeEach(() => {
+// NOTE: no test.beforeEach hook — test.beforeEach does not exist on the
+// Node 18 leg of the CI matrix. Each test resets explicitly instead.
+function resetState() {
   calls.fullLoad = 0; calls.byId = 0; calls.bySource = 0;
   extraById = new Map();
   invalidateStreamRegistryCache();
-});
+}
 
 test('a whole ingest batch resolves from one registry load, not per-record queries', async () => {
+  resetState();
   const signals = Array.from({ length: 50 }, () => ({}));
   const rows = await buildRowsForIngest({
     source_id: 'alpha', jurisdiction_id: 'us_state_wa', module_hint: 'consumer_protection', signals,
@@ -66,6 +69,7 @@ test('a whole ingest batch resolves from one registry load, not per-record queri
 });
 
 test('warm-cache hits cost zero queries; a source resolution costs at most one bounded probe', async () => {
+  resetState();
   await loadStreamRegistry();
   assert.equal(calls.fullLoad, 1);
   const byId = await requireStream('beta_stream_or');
@@ -84,6 +88,7 @@ test('warm-cache hits cost zero queries; a source resolution costs at most one b
 });
 
 test('resolution semantics are preserved: exact tuple wins, ambiguity fails closed', async () => {
+  resetState();
   const exact = await findStream({ source_id: 'beta', jurisdiction_id: 'us_state_wa', module_hint: 'municipal_services' });
   assert.equal(exact.stream_id, 'beta_stream_wa');
   const ambiguous = await findStream({ source_id: 'beta', jurisdiction_id: 'us_federal', module_hint: 'unknown_module' });
@@ -93,11 +98,13 @@ test('resolution semantics are preserved: exact tuple wins, ambiguity fails clos
 });
 
 test('source_id that is itself a stream_id resolves by id first', async () => {
+  resetState();
   const resolved = await findStream({ source_id: 'alpha_stream', jurisdiction_id: 'anything', module_hint: 'anything' });
   assert.equal(resolved.stream_id, 'alpha_stream');
 });
 
 test('warm-cache miss for a just-registered stream falls back to one direct query', async () => {
+  resetState();
   await loadStreamRegistry();
   assert.equal(calls.fullLoad, 1);
   extraById.set('new_stream', { stream_id: 'new_stream', source_id: 'new', jurisdiction_id: 'us_state_wa', module_hint: 'm', governance_contract_id: 'gov-new', status: 'active' });
@@ -111,6 +118,7 @@ test('warm-cache miss for a just-registered stream falls back to one direct quer
 });
 
 test('invalidation forces a reload on the next lookup', async () => {
+  resetState();
   await loadStreamRegistry();
   await loadStreamRegistry();
   assert.equal(calls.fullLoad, 1);
