@@ -11,6 +11,18 @@ import assert from 'node:assert/strict';
 // values, then substitute the registry reads through its test seam.
 process.env.SUPABASE_URL = process.env.SUPABASE_URL || 'http://localhost:54321';
 process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'test-key';
+// @supabase/supabase-js >= 2.86 refuses to construct a client on Node < 22
+// without a WebSocket global. No realtime connection is ever opened here
+// (every registry read goes through the test seam), so an inert stand-in
+// is enough to let the import succeed on the 18/20 CI legs.
+if (typeof globalThis.WebSocket === 'undefined') {
+  globalThis.WebSocket = class InertWebSocket {
+    addEventListener() {}
+    removeEventListener() {}
+    send() {}
+    close() {}
+  };
+}
 
 const {
   buildRowsForIngest,
