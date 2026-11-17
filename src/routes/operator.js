@@ -9,6 +9,7 @@ import {
   triggerLiveDataSignalBridgeNow,
 } from '../services/scheduler.js';
 import { reconcileIngestJobSourceHealth } from '../services/sourceHealthReceiptService.js';
+import { invalidateStreamRegistryCache } from '../services/streamStore.js';
 
 const STREAM_STATUSES = new Set(['active', 'degraded', 'quarantined', 'paused']);
 const THROUGHPUT_PROFILES = new Set(['low', 'medium', 'high', 'ultra']);
@@ -186,6 +187,7 @@ export function atlasOperatorRouter({ apiError }) {
       };
       const { data, error } = await supabase.from('streams').upsert(row, { onConflict: 'stream_id' }).select('*').single();
       if (error) throw error;
+      invalidateStreamRegistryCache();
       const completedAt = new Date().toISOString();
       const receipt = await recordActionReceipt({
         actionType: 'stream_register',
@@ -214,6 +216,7 @@ export function atlasOperatorRouter({ apiError }) {
       if (!before) return apiError(res, 404, 'Stream not found');
       const { data, error } = await supabase.from('streams').update({ status, updated_at: new Date().toISOString() }).eq('stream_id', streamId).select('*').single();
       if (error) throw error;
+      invalidateStreamRegistryCache();
       const completedAt = new Date().toISOString();
       const receipt = await recordActionReceipt({
         actionType: 'stream_status_change',

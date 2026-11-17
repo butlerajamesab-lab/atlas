@@ -7,7 +7,7 @@ const projection = readFileSync(new URL('../src/services/streamRuntimeProjection
 const migration = readFileSync(new URL('../src/schema/20260811_atlas_stream_runtime_projection_bridge.sql', import.meta.url), 'utf8');
 
 test('Atlas periodically projects authoritative stream/runtime state downstream', () => {
-  assert.match(scheduler, /stream runtime projection scheduled every 15m/);
+  assert.match(scheduler, /stream runtime projection scheduled every 60m/);
   assert.match(scheduler, /projectStreamRuntimeSnapshot/);
   assert.match(scheduler, /stream_runtime_projection: streamProjectionState/);
   assert.match(projection, /v_atlas_stream_runtime_summary_v1/);

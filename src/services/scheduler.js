@@ -22,7 +22,7 @@ const ADAPTER_REGISTRY = [
     module: '../adapters/courtListenerAdapter.js',
     fn: 'runIngestCourtListener',
     args: {},
-    intervalMs: 6 * HOUR,
+    intervalMs: 24 * HOUR,
     priority: 'high',
   },
   {
@@ -30,7 +30,7 @@ const ADAPTER_REGISTRY = [
     module: '../adapters/openStatesAdapter.js',
     fn: 'ingestOpenStatesSignals',
     args: { jurisdiction: STATE.toLowerCase() },
-    intervalMs: 6 * HOUR,
+    intervalMs: 24 * HOUR,
     priority: 'high',
   },
   {
@@ -38,7 +38,7 @@ const ADAPTER_REGISTRY = [
     module: '../adapters/proPublicaAdapter.js',
     fn: 'runIngestProPublica',
     args: {},
-    intervalMs: 6 * HOUR,
+    intervalMs: 24 * HOUR,
     priority: 'high',
   },
   {
@@ -46,7 +46,7 @@ const ADAPTER_REGISTRY = [
     module: '../adapters/cfpbComplaintsAdapter.js',
     fn: 'ingestCfpbSignals',
     args: { state: null, limit: 1000 },
-    intervalMs: 6 * HOUR,
+    intervalMs: 24 * HOUR,
     priority: 'high',
   },
   {
@@ -54,7 +54,7 @@ const ADAPTER_REGISTRY = [
     module: '../adapters/waAgConsumerComplaintsAdapter.js',
     fn: 'ingestWaAgComplaints',
     args: { limit: 5000 },
-    intervalMs: 12 * HOUR,
+    intervalMs: 24 * HOUR,
     priority: 'high',
   },
   {
@@ -62,7 +62,7 @@ const ADAPTER_REGISTRY = [
     module: '../adapters/oregonConsumerComplaintsAdapter.js',
     fn: 'ingestOregonConsumerComplaints',
     args: { limit: 5000 },
-    intervalMs: 12 * HOUR,
+    intervalMs: 24 * HOUR,
     priority: 'high',
   },
   {
@@ -70,7 +70,7 @@ const ADAPTER_REGISTRY = [
     module: '../adapters/nyc311ServiceRequestsAdapter.js',
     fn: 'ingestNyc311ServiceRequests',
     args: { limit: 5000 },
-    intervalMs: 6 * HOUR,
+    intervalMs: 24 * HOUR,
     priority: 'medium',
   },
   {
@@ -78,18 +78,18 @@ const ADAPTER_REGISTRY = [
     module: '../adapters/chicago311ServiceRequestsAdapter.js',
     fn: 'ingestChicago311ServiceRequests',
     args: { limit: 5000 },
-    intervalMs: 6 * HOUR,
+    intervalMs: 24 * HOUR,
     priority: 'medium',
   },
-  { name: 'regulations_gov', module: '../adapters/regulationsGovAdapter.js', fn: 'ingestRegulationsSignals', args: {}, intervalMs: 12 * HOUR, priority: 'medium' },
-  { name: 'grants_gov', module: '../adapters/grantsGovAdapter.js', fn: 'ingestGrantsGovSignals', args: {}, intervalMs: 12 * HOUR, priority: 'medium' },
-  { name: 'osha_inspections', module: '../adapters/oshaInspectionsAdapter.js', fn: 'ingestOshaSignals', args: { state: STATE }, intervalMs: 12 * HOUR, priority: 'medium' },
-  { name: 'dol_whd_violations', module: '../adapters/dolWhdAdapter.js', fn: 'ingestWhdSignals', args: {}, intervalMs: 12 * HOUR, priority: 'medium' },
+  { name: 'regulations_gov', module: '../adapters/regulationsGovAdapter.js', fn: 'ingestRegulationsSignals', args: {}, intervalMs: 24 * HOUR, priority: 'medium' },
+  { name: 'grants_gov', module: '../adapters/grantsGovAdapter.js', fn: 'ingestGrantsGovSignals', args: {}, intervalMs: 24 * HOUR, priority: 'medium' },
+  { name: 'osha_inspections', module: '../adapters/oshaInspectionsAdapter.js', fn: 'ingestOshaSignals', args: { state: STATE }, intervalMs: 24 * HOUR, priority: 'medium' },
+  { name: 'dol_whd_violations', module: '../adapters/dolWhdAdapter.js', fn: 'ingestWhdSignals', args: {}, intervalMs: 24 * HOUR, priority: 'medium' },
   { name: 'cms_nh_provider_info', module: '../adapters/cmsNursingHomeAdapter.js', fn: 'ingestCmsProviderInfoSignals', args: {}, intervalMs: 24 * HOUR, priority: 'low' },
   { name: 'cms_nh_health_deficiencies', module: '../adapters/cmsNursingHomeAdapter.js', fn: 'ingestCmsHealthDeficiencySignals', args: {}, intervalMs: 24 * HOUR, priority: 'low' },
   { name: 'cms_nh_fire_safety_deficiencies', module: '../adapters/cmsNursingHomeAdapter.js', fn: 'ingestCmsFireSafetySignals', args: {}, intervalMs: 24 * HOUR, priority: 'low' },
   { name: 'cms_nh_penalties', module: '../adapters/cmsNursingHomeAdapter.js', fn: 'ingestCmsPenaltySignals', args: {}, intervalMs: 24 * HOUR, priority: 'low' },
-  { name: 'epa_echo', module: '../adapters/epaEchoAdapter.js', fn: 'ingestEpaSignals', args: { state: STATE }, intervalMs: 12 * HOUR, priority: 'medium' },
+  { name: 'epa_echo', module: '../adapters/epaEchoAdapter.js', fn: 'ingestEpaSignals', args: { state: STATE }, intervalMs: 24 * HOUR, priority: 'medium' },
   { name: 'census_acs', module: '../adapters/censusAcsAdapter.js', fn: 'ingestCensusSignals', args: { state: STATE_FIPS }, intervalMs: 24 * HOUR, priority: 'low' },
   { name: 'usda_snap', module: '../adapters/usdaSnapAdapter.js', fn: 'ingestSnapSignals', args: { state: STATE }, intervalMs: 24 * HOUR, priority: 'low' },
   { name: 'hud_fmr', module: '../adapters/hudHousingAdapter.js', fn: 'ingestHudSignals', args: { stateCode: STATE_FIPS }, intervalMs: 24 * HOUR, priority: 'low' },
@@ -422,25 +422,28 @@ export function startScheduler() {
     scheduleAdapter(adapter, tierIndex);
   }
 
-  const observationSummaryIntervalMs = 15 * 60 * 1000;
+  // Daily (2026-11-17): the refresh rebuilds the 161-row summary by scanning
+  // all of signal_events (~6.5s); at every-15m it ran 96x/day for data that
+  // only changes when an adapter ingests, and adapters are daily now too.
+  const observationSummaryIntervalMs = 24 * HOUR;
   const observationSummaryInitialDelayMs = 45_000;
-  console.log('[scheduler] Observation summary refresh scheduled every 15m');
+  console.log('[scheduler] Observation summary refresh scheduled every 24h');
   setTimeout(async () => {
     await runObservationSummaryRefresh();
     setInterval(() => runObservationSummaryRefresh(), observationSummaryIntervalMs);
   }, observationSummaryInitialDelayMs);
 
-  const streamProjectionIntervalMs = 15 * 60 * 1000;
+  const streamProjectionIntervalMs = 60 * 60 * 1000;
   const streamProjectionInitialDelayMs = 75_000;
-  console.log('[scheduler] Atlas→Lighthouse stream runtime projection scheduled every 15m');
+  console.log('[scheduler] Atlas→Lighthouse stream runtime projection scheduled every 60m');
   setTimeout(async () => {
     await runStreamRuntimeProjection();
     setInterval(() => runStreamRuntimeProjection(), streamProjectionIntervalMs);
   }, streamProjectionInitialDelayMs);
 
-  const domain3IntervalMs = 6 * HOUR;
+  const domain3IntervalMs = 24 * HOUR;
   const domain3InitialDelayMs = 12 * 60 * 1000;
-  console.log('[scheduler] Domain 3 detection/bridge scheduled every 6h');
+  console.log('[scheduler] Domain 3 detection/bridge scheduled every 24h');
   setTimeout(async () => {
     await runDomain3Bridge();
     setInterval(() => runDomain3Bridge(), domain3IntervalMs);

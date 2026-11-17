@@ -30,7 +30,7 @@ test('adapter first runs keep the tier bases and spread within each tier', () =>
 test('scheduler wires the observation summary refresh ahead of the projection', () => {
   assert.match(schedulerSource, /supabase\.rpc\('refresh_atlas_observation_type_summary_v1'\)/);
   assert.match(schedulerSource, /observationSummaryInitialDelayMs = 45_000/);
-  assert.match(schedulerSource, /observationSummaryIntervalMs = 15 \* 60 \* 1000/);
+  assert.match(schedulerSource, /observationSummaryIntervalMs = 24 \* HOUR/);
   assert.match(schedulerSource, /streamProjectionInitialDelayMs = 75_000/);
 });
 

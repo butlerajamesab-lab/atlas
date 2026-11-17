@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabaseClient.js';
 import { selectPublicStreamCatalogRows } from './publicStreamSelection.js';
+import { invalidateStreamRegistryCache } from './streamStore.js';
 
 export const PUBLIC_STREAM_CATALOG = [
   { stream_id:'cfpb_complaints', source_id:'cfpb', jurisdiction_id:'us_federal', module_hint:'consumer_protection', throughput_profile:'high', safety_profile:'restricted', governance_contract_id:'atlas-cfpb-complaints-v2', status:'active', source_url:'https://www.consumerfinance.gov/data-research/consumer-complaints/', api_url:'https://api.consumerfinance.gov/data-research/consumer-complaints/search.json', update_frequency:'daily', description:'Nationwide consumer finance complaints published by the Consumer Financial Protection Bureau.', tags:['federal','complaints','finance','consumer_protection','entity_patterns'] },
@@ -17,5 +18,6 @@ export async function populatePublicStreams({stream_ids=undefined}={}){
   const selected=selectPublicStreamCatalogRows(PUBLIC_STREAM_CATALOG, stream_ids);
   const created_stream_ids=[];const skipped_stream_ids=[];const upserted_stream_ids=[];const now=new Date().toISOString();
   for(const stream of selected){const{data:existing,error:existingError}=await supabase.from('streams').select('stream_id,status').eq('stream_id',stream.stream_id).maybeSingle();if(existingError)throw existingError;if(existing){skipped_stream_ids.push(stream.stream_id);continue;}const{error:upsertError}=await supabase.from('streams').upsert(toStreamRow(stream,now),{onConflict:'stream_id'});if(upsertError)throw upsertError;created_stream_ids.push(stream.stream_id);upserted_stream_ids.push(stream.stream_id);}
+  if(created_stream_ids.length>0)invalidateStreamRegistryCache();
   return{total_selected:selected.length,created:created_stream_ids.length,skipped:skipped_stream_ids.length,created_stream_ids,skipped_stream_ids,upserted_stream_ids};
 }
