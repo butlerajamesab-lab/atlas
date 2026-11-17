@@ -1,4 +1,4 @@
-import test, { mock } from 'node:test';
+import test from 'node:test';
 import assert from 'node:assert/strict';
 
 // The streams registry is a few dozen effectively-static rows, but ingest
@@ -6,6 +6,20 @@ import assert from 'node:assert/strict';
 // pin the cached behavior: one full registry load serves a whole batch, warm
 // lookups cost zero queries, resolution semantics are unchanged, and a
 // warm-cache miss still falls back to the previous direct query.
+//
+// streamStore builds its Supabase client at import time; give it inert
+// values, then substitute the registry reads through its test seam.
+process.env.SUPABASE_URL = process.env.SUPABASE_URL || 'http://localhost:54321';
+process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'test-key';
+
+const {
+  buildRowsForIngest,
+  findStream,
+  requireStream,
+  loadStreamRegistry,
+  invalidateStreamRegistryCache,
+  __setStreamDbOpsForTests,
+} = await import('../src/services/streamStore.js');
 
 const REGISTRY = [
   { stream_id: 'alpha_stream', source_id: 'alpha', jurisdiction_id: 'us_state_wa', module_hint: 'consumer_protection', governance_contract_id: 'gov-alpha', status: 'active' },
@@ -14,53 +28,25 @@ const REGISTRY = [
 ];
 
 const calls = { fullLoad: 0, byId: 0, bySource: 0 };
-let registryRows = [...REGISTRY];
 let extraById = new Map();
 
-function makeQuery(table) {
-  const state = { eqField: null, eqValue: null, single: false };
-  const builder = {
-    select() { return builder; },
-    order() { return builder; },
-    eq(field, value) { state.eqField = field; state.eqValue = value; return builder; },
-    maybeSingle() { state.single = true; return builder; },
-    then(resolve) {
-      if (table !== 'streams') return resolve({ data: null, error: null });
-      if (state.eqField === 'stream_id' && state.single) {
-        calls.byId += 1;
-        const row = registryRows.find((r) => r.stream_id === state.eqValue)
-          ?? extraById.get(state.eqValue) ?? null;
-        return resolve({ data: row, error: null });
-      }
-      if (state.eqField === 'source_id') {
-        calls.bySource += 1;
-        return resolve({ data: registryRows.filter((r) => r.source_id === state.eqValue), error: null });
-      }
-      calls.fullLoad += 1;
-      return resolve({ data: [...registryRows].sort((a, b) => a.stream_id.localeCompare(b.stream_id)), error: null });
-    },
-  };
-  return builder;
-}
-
-const fakeSupabase = { from: (table) => makeQuery(table), rpc: async () => ({ data: null, error: null }) };
-
-mock.module(new URL('../src/lib/supabaseClient.js', import.meta.url).href, {
-  cache: false,
-  exports: { supabase: fakeSupabase, atlasProjectRef: 'test-ref' },
+__setStreamDbOpsForTests({
+  async fetchRegistry() {
+    calls.fullLoad += 1;
+    return [...REGISTRY].sort((a, b) => a.stream_id.localeCompare(b.stream_id));
+  },
+  async fetchStreamById(streamId) {
+    calls.byId += 1;
+    return REGISTRY.find((row) => row.stream_id === streamId) ?? extraById.get(streamId) ?? null;
+  },
+  async fetchStreamsBySource(sourceId) {
+    calls.bySource += 1;
+    return REGISTRY.filter((row) => row.source_id === sourceId);
+  },
 });
-
-const {
-  buildRowsForIngest,
-  findStream,
-  requireStream,
-  loadStreamRegistry,
-  invalidateStreamRegistryCache,
-} = await import('../src/services/streamStore.js');
 
 test.beforeEach(() => {
   calls.fullLoad = 0; calls.byId = 0; calls.bySource = 0;
-  registryRows = [...REGISTRY];
   extraById = new Map();
   invalidateStreamRegistryCache();
 });

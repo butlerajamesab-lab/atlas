@@ -53,6 +53,37 @@ export function invalidateStreamRegistryCache() {
   registryMissChecks.clear();
 }
 
+// The three registry reads, behind one seam so tests can substitute a fake
+// without a live Supabase (the CI matrix includes Node versions without
+// node:test module mocking). Production behavior is the Supabase queries.
+const streamDbOps = {
+  async fetchRegistry() {
+    const { data, error } = await supabase.from('streams').select('*').order('stream_id');
+    if (error) throw error;
+    return data ?? [];
+  },
+  async fetchStreamById(streamId) {
+    const { data, error } = await supabase.from('streams').select('*').eq('stream_id', streamId).maybeSingle();
+    if (error) throw error;
+    return data;
+  },
+  async fetchStreamsBySource(sourceId) {
+    const { data, error } = await supabase
+      .from('streams')
+      .select('*')
+      .eq('source_id', sourceId)
+      .order('stream_id');
+    if (error) throw error;
+    return data ?? [];
+  },
+};
+
+const defaultStreamDbOps = { ...streamDbOps };
+
+export function __setStreamDbOpsForTests(overrides) {
+  Object.assign(streamDbOps, overrides ?? defaultStreamDbOps);
+}
+
 export async function loadStreamRegistry({ force = false } = {}) {
   const now = Date.now();
   if (!force && registryCache.rows && now - registryCache.loadedAt < REGISTRY_CACHE_TTL_MS) {
@@ -60,9 +91,7 @@ export async function loadStreamRegistry({ force = false } = {}) {
   }
   if (registryCache.loading) return registryCache.loading;
   registryCache.loading = (async () => {
-    const { data, error } = await supabase.from('streams').select('*').order('stream_id');
-    if (error) throw error;
-    registryCache.rows = data ?? [];
+    registryCache.rows = await streamDbOps.fetchRegistry();
     registryCache.loadedAt = Date.now();
     registryCache.loading = null;
     return registryCache.rows;
@@ -76,9 +105,7 @@ export async function loadStreamRegistry({ force = false } = {}) {
 }
 
 async function directStreamById(streamId) {
-  const { data, error } = await supabase.from('streams').select('*').eq('stream_id', streamId).maybeSingle();
-  if (error) throw error;
-  return data;
+  return streamDbOps.fetchStreamById(streamId);
 }
 
 export async function requireStream(streamId) {
@@ -141,13 +168,7 @@ export async function findStream({ stream_id, source_id, jurisdiction_id, module
     candidates = null; // Registry load failed: use the previous direct query below.
   }
   if ((!candidates || candidates.length === 0) && !missRecentlyChecked('source_id', source_id)) {
-    const { data, error } = await supabase
-      .from('streams')
-      .select('*')
-      .eq('source_id', source_id)
-      .order('stream_id');
-    if (error) throw error;
-    candidates = data ?? [];
+    candidates = await streamDbOps.fetchStreamsBySource(source_id);
     if (candidates.length === 0) noteMiss('source_id', source_id);
   }
   if (!candidates) candidates = [];
