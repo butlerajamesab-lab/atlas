@@ -29,8 +29,12 @@ test('adapter first runs keep the tier bases and spread within each tier', () =>
 
 test('scheduler wires the observation summary refresh ahead of the projection', () => {
   assert.match(schedulerSource, /supabase\.rpc\('refresh_atlas_observation_type_summary_v1'\)/);
-  assert.match(schedulerSource, /observationSummaryInitialDelayMs = 45_000/);
+  // Daily refresh, coordinated to start after every adapter's first run,
+  // with a one-hour fallback if an adapter hangs (PR #121 Codex review).
   assert.match(schedulerSource, /observationSummaryIntervalMs = 24 \* HOUR/);
+  assert.match(schedulerSource, /observationSummaryFallbackDelayMs = 60 \* 60 \* 1000/);
+  assert.match(schedulerSource, /noteAdapterFirstRunComplete/);
+  assert.match(schedulerSource, /adaptersAwaitingFirstRun\.size === 0\) startObservationSummaryCycle\(\)/);
   assert.match(schedulerSource, /streamProjectionInitialDelayMs = 75_000/);
 });
 

@@ -41,10 +41,12 @@ const REGISTRY = [
 
 const calls = { fullLoad: 0, byId: 0, bySource: 0 };
 let extraById = new Map();
+let fetchRegistryImpl = null;
 
 __setStreamDbOpsForTests({
   async fetchRegistry() {
     calls.fullLoad += 1;
+    if (fetchRegistryImpl) return fetchRegistryImpl();
     return [...REGISTRY].sort((a, b) => a.stream_id.localeCompare(b.stream_id));
   },
   async fetchStreamById(streamId) {
@@ -62,6 +64,7 @@ __setStreamDbOpsForTests({
 function resetState() {
   calls.fullLoad = 0; calls.byId = 0; calls.bySource = 0;
   extraById = new Map();
+  fetchRegistryImpl = null;
   invalidateStreamRegistryCache();
 }
 
@@ -127,6 +130,32 @@ test('warm-cache miss for a just-registered stream falls back to one direct quer
   const again = await requireStream('new_stream');
   assert.equal(again.stream_id, 'new_stream');
   assert.equal(calls.byId, 1);
+});
+
+test('a load in flight during invalidation cannot publish its stale snapshot', async () => {
+  resetState();
+  let releaseFirstLoad;
+  const firstLoadGate = new Promise((resolve) => { releaseFirstLoad = resolve; });
+  let implCalls = 0;
+  fetchRegistryImpl = async () => {
+    implCalls += 1;
+    if (implCalls === 1) {
+      await firstLoadGate;
+      // The pre-update snapshot: alpha_stream not yet present.
+      return REGISTRY.filter((row) => row.stream_id !== 'alpha_stream');
+    }
+    return [...REGISTRY].sort((a, b) => a.stream_id.localeCompare(b.stream_id));
+  };
+  const pending = loadStreamRegistry();
+  // Operator writes a stream and invalidates while the first load is out.
+  invalidateStreamRegistryCache();
+  releaseFirstLoad();
+  const rows = await pending;
+  // The stale snapshot was discarded and a fresh load served the caller.
+  assert.equal(implCalls, 2);
+  assert.ok(rows.some((row) => row.stream_id === 'alpha_stream'));
+  const cached = await requireStream('alpha_stream');
+  assert.equal(cached.stream_id, 'alpha_stream');
 });
 
 test('invalidation forces a reload on the next lookup', async () => {

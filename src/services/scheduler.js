@@ -402,10 +402,36 @@ export function adapterInitialDelayMs(priority, tierIndex = 0) {
   return base + index * 20_000;
 }
 
+// The daily observation summary refresh is coordinated with ingestion
+// (Codex review, PR #121): it starts once every adapter has completed its
+// first run of this process, so the day's new observations are summarized
+// the same day instead of waiting for the next daily tick. A fallback
+// timer starts the cycle anyway if an adapter hangs.
+let adaptersAwaitingFirstRun = new Set();
+let observationSummaryCycleStarted = false;
+
+function startObservationSummaryCycle() {
+  if (observationSummaryCycleStarted) return;
+  observationSummaryCycleStarted = true;
+  const observationSummaryIntervalMs = 24 * HOUR;
+  console.log('[scheduler] Observation summary refresh scheduled every 24h');
+  runObservationSummaryRefresh();
+  setInterval(() => runObservationSummaryRefresh(), observationSummaryIntervalMs);
+}
+
+function noteAdapterFirstRunComplete(adapterName) {
+  if (!adaptersAwaitingFirstRun.delete(adapterName)) return;
+  if (adaptersAwaitingFirstRun.size === 0) startObservationSummaryCycle();
+}
+
 function scheduleAdapter(adapter, tierIndex = 0) {
   const initialDelay = adapterInitialDelayMs(adapter.priority, tierIndex);
   setTimeout(async () => {
-    await runAdapter(adapter);
+    try {
+      await runAdapter(adapter);
+    } finally {
+      noteAdapterFirstRunComplete(adapter.name);
+    }
     setInterval(() => runAdapter(adapter), adapter.intervalMs);
   }, initialDelay);
   console.log(`[scheduler] Scheduled ${adapter.name} (${adapter.priority})`);
@@ -415,6 +441,8 @@ export function startScheduler() {
   if (schedulerRunning) return;
   schedulerRunning = true;
   schedulerStartedAt = new Date().toISOString();
+  adaptersAwaitingFirstRun = new Set(ADAPTER_REGISTRY.map((adapter) => adapter.name));
+  observationSummaryCycleStarted = false;
   const tierCounters = {};
   for (const adapter of ADAPTER_REGISTRY) {
     const tierIndex = tierCounters[adapter.priority] ?? 0;
@@ -425,13 +453,10 @@ export function startScheduler() {
   // Daily (2026-11-17): the refresh rebuilds the 161-row summary by scanning
   // all of signal_events (~6.5s); at every-15m it ran 96x/day for data that
   // only changes when an adapter ingests, and adapters are daily now too.
-  const observationSummaryIntervalMs = 24 * HOUR;
-  const observationSummaryInitialDelayMs = 45_000;
-  console.log('[scheduler] Observation summary refresh scheduled every 24h');
-  setTimeout(async () => {
-    await runObservationSummaryRefresh();
-    setInterval(() => runObservationSummaryRefresh(), observationSummaryIntervalMs);
-  }, observationSummaryInitialDelayMs);
+  // The cycle starts when the last adapter finishes its first run (see
+  // startObservationSummaryCycle); this fallback only fires if one hangs.
+  const observationSummaryFallbackDelayMs = 60 * 60 * 1000;
+  setTimeout(() => startObservationSummaryCycle(), observationSummaryFallbackDelayMs);
 
   const streamProjectionIntervalMs = 60 * 60 * 1000;
   const streamProjectionInitialDelayMs = 75_000;

@@ -32,6 +32,12 @@ const REGISTRY_CACHE_TTL_MS = (() => {
 
 let registryCache = { rows: null, loadedAt: 0, loading: null };
 
+// Incremented on every invalidation. A load that started before an
+// invalidation must not publish its pre-update snapshot over the fresh
+// cache (Codex review, PR #121), so loads capture the generation at start
+// and only publish while it is still current.
+let registryGeneration = 0;
+
 // A warm-cache miss is confirmed by direct query at most once a minute per
 // key. Without this, resolving a batch by source_id would re-probe the
 // database for the same absent stream_id on every record and the cache
@@ -49,6 +55,7 @@ function noteMiss(kind, key) {
 }
 
 export function invalidateStreamRegistryCache() {
+  registryGeneration += 1;
   registryCache = { rows: null, loadedAt: 0, loading: null };
   registryMissChecks.clear();
 }
@@ -90,8 +97,16 @@ export async function loadStreamRegistry({ force = false } = {}) {
     return registryCache.rows;
   }
   if (registryCache.loading) return registryCache.loading;
+  const generation = registryGeneration;
   registryCache.loading = (async () => {
-    registryCache.rows = await streamDbOps.fetchRegistry();
+    const rows = await streamDbOps.fetchRegistry();
+    if (generation !== registryGeneration) {
+      // Invalidated while this load was in flight: the snapshot predates
+      // the write that invalidated, so discard it and load fresh.
+      registryCache.loading = null;
+      return loadStreamRegistry({ force: true });
+    }
+    registryCache.rows = rows;
     registryCache.loadedAt = Date.now();
     registryCache.loading = null;
     return registryCache.rows;
@@ -123,10 +138,11 @@ export async function requireStream(streamId) {
     // old behavior for new streams without re-probing per record.
     if (missRecentlyChecked('stream_id', streamId)) return null;
     const direct = await directStreamById(streamId);
-    if (direct) {
+    if (direct && registryCache.rows === rows) {
+      // Merge only into the same cache generation the lookup started from.
       registryCache.rows = [...rows.filter((row) => row.stream_id !== streamId), direct]
         .sort((a, b) => String(a.stream_id).localeCompare(String(b.stream_id)));
-    } else {
+    } else if (!direct) {
       noteMiss('stream_id', streamId);
     }
     return direct;
