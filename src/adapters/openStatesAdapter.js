@@ -1,6 +1,8 @@
 import axios from 'axios';
 import dotenv from 'dotenv';
 import { asArray, postSignalsToAtlas, sourceUrlFrom, toIsoTimestamp } from './ingestClient.js';
+import { heldSourceWindow } from './sourceWindow.js';
+import { evaluateAdapterCliReceipt } from '../services/adapterReceiptAcceptance.js';
 
 dotenv.config();
 
@@ -64,18 +66,29 @@ export async function fetchStatutes(jurisdiction = 'ca', apiKey = OPENSTATES_API
     timeout: 20000,
   });
 
+  const bills = response.data?.results ?? response.data?.bills;
+  const pagination = response.data?.pagination;
+  if (!Array.isArray(bills) || !pagination
+    || !Number.isSafeInteger(pagination.max_page) || !Number.isSafeInteger(pagination.page)
+    || pagination.max_page < pagination.page || pagination.page !== page) {
+    throw new Error('openstates_unverifiable_pagination_response');
+  }
   return {
-    results: response.data?.results || response.data?.bills || [],
-    bills: response.data?.results || response.data?.bills || [],
-    pagination: response.data?.pagination || null,
-    next: response.data?.pagination?.next || null,
+    results: bills, bills, pagination,
+    next: page < pagination.max_page ? page + 1 : null,
   };
 }
 
-export async function ingestOpenStatesSignals({ bills, jurisdiction = 'us_states', apiBaseUrl } = {}) {
-  const sourceBills = bills || (await fetchStatutes(jurisdiction)).results;
+export async function ingestOpenStatesSignals({ bills, jurisdiction = 'us_states', apiBaseUrl, apiKey = OPENSTATES_API_KEY, fetchPage = fetchStatutes, postSignals = postSignalsToAtlas } = {}) {
+  let sourceBills = bills;
+  if (sourceBills === undefined) {
+    const page = await fetchPage(jurisdiction, apiKey);
+    if (!Array.isArray(page?.results) || page.next === undefined) throw new Error('openstates_unverifiable_pagination_response');
+    if (page.next !== null) return heldSourceWindow('open_states', page.results.length);
+    sourceBills = page.results;
+  }
   const signals = sourceBills.map((bill) => normalizeOpenStatesBill(bill, { jurisdiction }));
-  return postSignalsToAtlas({
+  return postSignals({
     sourceId: 'open_states',
     jurisdictionId: 'us_states',
     moduleHint: 'legislative',
@@ -84,9 +97,8 @@ export async function ingestOpenStatesSignals({ bills, jurisdiction = 'us_states
   });
 }
 
-export async function runIngestOpenStatesWA(_supabase = null, apiKey = OPENSTATES_API_KEY) {
-  const { results } = await fetchStatutes('wa', apiKey);
-  return ingestOpenStatesSignals({ bills: results, jurisdiction: 'wa' });
+export async function runIngestOpenStatesWA(_supabase = null, apiKey = OPENSTATES_API_KEY, fetchPage = fetchStatutes, postSignals = postSignalsToAtlas) {
+  return ingestOpenStatesSignals({ jurisdiction: 'wa', apiKey, fetchPage, postSignals });
 }
 
 function sampleBills() {
@@ -110,7 +122,10 @@ function sampleBills() {
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const useSample = process.argv.includes('--sample');
-  const bills = useSample ? sampleBills() : (await fetchStatutes('wa')).results;
-  const result = await ingestOpenStatesSignals({ bills, jurisdiction: 'wa' });
-  console.log(JSON.stringify({ ok: true, source: 'open_states', mode: useSample ? 'sample' : 'live', result }, null, 2));
+  const result = useSample
+    ? await ingestOpenStatesSignals({ bills: sampleBills(), jurisdiction: 'wa' })
+    : await runIngestOpenStatesWA();
+  const cli = evaluateAdapterCliReceipt(result);
+  if (!cli.ok) process.exitCode = cli.exit_code;
+  console.log(JSON.stringify({ ok: cli.ok, source: 'open_states', mode: useSample ? 'sample' : 'live', result, error: cli.reason }, null, 2));
 }

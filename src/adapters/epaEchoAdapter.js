@@ -342,18 +342,25 @@ export async function fetchViolators({ state = 'WA', minViolations = 1, limit = 
     const programs = await queryTable(dmapQuery, buildCwaProgramsQuery(idChunk), 'icis__xref_activity_program');
     for (const row of programs) cwaActivityIds.add(row.activity_id);
   }
-  const facilityByActivity = new Map();
+  // Each CWA activity may belong to multiple facilities; preserve every association.
+  const facilityIdsByActivity = new Map();
   for (const [facilityId, ids] of activityIdsByFacility) {
-    for (const id of ids) if (cwaActivityIds.has(id)) facilityByActivity.set(id, facilityId);
+    for (const id of ids) {
+      if (!cwaActivityIds.has(id)) continue;
+      if (!facilityIdsByActivity.has(id)) facilityIdsByActivity.set(id, new Set());
+      facilityIdsByActivity.get(id).add(facilityId);
+    }
   }
-  const cwaIds = [...facilityByActivity.keys()];
+  const cwaIds = [...facilityIdsByActivity.keys()];
   const aggById = new Map(selected.map((f) => [f.icis_facility_interest_id, f]));
   for (const idChunk of chunk(cwaIds, IN_LIST_CHUNK)) {
     if (!idChunk.length) continue;
     const conclusions = await queryTable(dmapQuery, buildEnfConclusionQuery(idChunk), 'icis__icis_enf_conclusion');
     for (const row of conclusions) {
-      const agg = aggById.get(facilityByActivity.get(row.activity_id));
-      if (agg) agg.federal_penalty += Number(row.fed_penalty_assessed_amt) || 0;
+      for (const facilityId of facilityIdsByActivity.get(row.activity_id) || []) {
+        const agg = aggById.get(facilityId);
+        if (agg) agg.federal_penalty += Number(row.fed_penalty_assessed_amt) || 0;
+      }
     }
     const monitors = await queryTable(dmapQuery, buildCompMonitorQuery(idChunk), 'icis__icis_comp_monitor');
     const monitorIds = [...new Set(monitors.map((m) => m.activity_id))];
@@ -361,8 +368,10 @@ export async function fetchViolators({ state = 'WA', minViolations = 1, limit = 
       if (!monitorChunk.length) continue;
       const activities = await queryTable(dmapQuery, buildActivityDatesQuery(monitorChunk), 'icis__icis_activity');
       for (const activity of activities) {
-        const agg = aggById.get(facilityByActivity.get(activity.activity_id));
-        if (agg) agg.last_inspection_date = maxDate([agg.last_inspection_date, activity.actual_end_date, activity.actual_begin_date]);
+        for (const facilityId of facilityIdsByActivity.get(activity.activity_id) || []) {
+          const agg = aggById.get(facilityId);
+          if (agg) agg.last_inspection_date = maxDate([agg.last_inspection_date, activity.actual_end_date, activity.actual_begin_date]);
+        }
       }
     }
   }

@@ -55,8 +55,7 @@ export function normalizeDocument(doc) {
 
 export async function fetchRecentDocuments({ agency = null, documentType = 'Rule', limit = 100, page = 1 } = {}) {
   if (!REGULATIONS_API_KEY) {
-    console.warn('REGULATIONS_GOV_API_KEY not set. Get one free at https://api.data.gov/signup/');
-    return [];
+    throw new Error('regulations_gov_credentials_missing: REGULATIONS_GOV_API_KEY is required');
   }
 
   const params = {
@@ -79,7 +78,7 @@ export async function fetchRecentDocuments({ agency = null, documentType = 'Rule
 export async function ingestRegulationsSignals({ agency = null, documentType = 'Rule', limit = 100, apiBaseUrl } = {}) {
   const signals = await fetchRecentDocuments({ agency, documentType, limit });
   if (!signals.length) {
-    return { accepted: true, ingested_count: 0, note: 'No documents returned (API key required)' };
+    return { accepted: true, status: 'source_empty', ingested_count: 0, note: 'Regulations.gov API returned an empty documents array' };
   }
   return postSignalsToAtlas({
     sourceId: 'regulations_gov',

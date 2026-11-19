@@ -1,6 +1,8 @@
 import axios from 'axios';
 import dotenv from 'dotenv';
 import { postSignalsToAtlas, sourceUrlFrom, toIsoTimestamp } from './ingestClient.js';
+import { heldSourceWindow } from './sourceWindow.js';
+import { evaluateAdapterCliReceipt } from '../services/adapterReceiptAcceptance.js';
 
 dotenv.config();
 
@@ -121,9 +123,12 @@ export async function fetchOpinions(jurisdiction = 'us_federal', token = COURTLI
     throw courtListenerError(e, 'opinions');
   }
 
+  if (!Array.isArray(response.data?.results) || !Object.hasOwn(response.data, 'next')) {
+    throw new Error('courtlistener_unverifiable_pagination_response');
+  }
   return {
-    results: response.data?.results || [],
-    next: response.data?.next || null,
+    results: response.data.results,
+    next: response.data.next,
   };
 }
 
@@ -148,10 +153,11 @@ export async function fetchClusters(jurisdiction = 'us_federal', token = COURTLI
   };
 }
 
-export async function ingestCourtListenerSignals({ opinions, jurisdiction = 'us_federal', signalType = 'new_court_opinion', apiBaseUrl } = {}) {
-  const sourceOpinions = opinions || (await fetchOpinions(jurisdiction)).results;
+export async function ingestCourtListenerSignals({ opinions, jurisdiction = 'us_federal', signalType = 'new_court_opinion', apiBaseUrl, token = COURTLISTENER_API_KEY, fetchPage = fetchOpinions, postSignals = postSignalsToAtlas } = {}) {
+  if (opinions === undefined) return runIngestCourtListener(null, token, jurisdiction, fetchPage, postSignals);
+  const sourceOpinions = opinions;
   const signals = sourceOpinions.map((opinion) => normalizeCourtListenerOpinion(opinion, { jurisdiction, signalType }));
-  return postSignalsToAtlas({
+  return postSignals({
     sourceId: 'court_listener',
     jurisdictionId: 'us_federal',
     moduleHint: 'judicial',
@@ -160,9 +166,12 @@ export async function ingestCourtListenerSignals({ opinions, jurisdiction = 'us_
   });
 }
 
-export async function runIngestCourtListener(_supabase = null, token = COURTLISTENER_API_KEY, jurisdiction = 'us_federal') {
-  const { results } = await fetchOpinions(jurisdiction, token);
-  return ingestCourtListenerSignals({ opinions: results, jurisdiction });
+export async function runIngestCourtListener(_supabase = null, token = COURTLISTENER_API_KEY, jurisdiction = 'us_federal', fetchPage = fetchOpinions, postSignals = postSignalsToAtlas) {
+  const { results, next } = await fetchPage(jurisdiction, token);
+  if (!Array.isArray(results) || next === undefined) throw new Error('courtlistener_unverifiable_pagination_response');
+  // No second API call or publication from an incomplete first-page window.
+  if (next !== null) return heldSourceWindow('court_listener', results.length);
+  return ingestCourtListenerSignals({ opinions: results, jurisdiction, postSignals });
 }
 
 function sampleOpinions() {
@@ -184,7 +193,10 @@ function sampleOpinions() {
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const useSample = process.argv.includes('--sample');
-  const opinions = useSample ? sampleOpinions() : (await fetchOpinions()).results;
-  const result = await ingestCourtListenerSignals({ opinions });
-  console.log(JSON.stringify({ ok: true, source: 'court_listener', mode: useSample ? 'sample' : 'live', result }, null, 2));
+  const result = useSample
+    ? await ingestCourtListenerSignals({ opinions: sampleOpinions() })
+    : await runIngestCourtListener();
+  const cli = evaluateAdapterCliReceipt(result);
+  if (!cli.ok) process.exitCode = cli.exit_code;
+  console.log(JSON.stringify({ ok: cli.ok, source: 'court_listener', mode: useSample ? 'sample' : 'live', result, error: cli.reason }, null, 2));
 }

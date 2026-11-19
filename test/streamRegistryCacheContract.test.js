@@ -70,7 +70,9 @@ function resetState() {
 
 test('a whole ingest batch resolves from one registry load, not per-record queries', async () => {
   resetState();
-  const signals = Array.from({ length: 50 }, () => ({}));
+  // Signals carry a source timestamp: since PR #87's revival the ingest
+  // boundary refuses to fabricate one (atlas_source_timestamp_missing_or_invalid).
+  const signals = Array.from({ length: 50 }, () => ({ timestamp: '2026-11-17T00:00:00.000Z' }));
   const rows = await buildRowsForIngest({
     source_id: 'alpha', jurisdiction_id: 'us_state_wa', module_hint: 'consumer_protection', signals,
   });
