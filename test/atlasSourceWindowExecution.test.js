@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { runIngestCourtListener } from '../src/adapters/courtListenerAdapter.js';
+import { runIngestCourtListener, ingestCourtListenerSignals } from '../src/adapters/courtListenerAdapter.js';
 import { runIngestOpenStatesWA } from '../src/adapters/openStatesAdapter.js';
 import { assertCompleteAdapterReceipt } from '../src/services/adapterReceiptAcceptance.js';
 
@@ -41,6 +41,22 @@ test('CourtListener preserves dated opinion fields when provider declares end of
   assert.equal(emitted.signals[0].payload.external_id, 10203);
   assert.equal(emitted.signals[0].timestamp, '2026-10-28T12:30:00.000Z');
   assert.equal(emitted.signals[0].provenance.source_url, 'https://www.courtlistener.com/opinion/20304/example-v-example/');
+});
+
+test('CourtListener live-fetch path preserves caller signal type and Atlas endpoint', async () => {
+  // Codex P2 on PR #122: when opinions are omitted, the delegation used
+  // to drop apiBaseUrl and signalType, silently reverting both to
+  // defaults after the pagination check.
+  let emitted;
+  const result = await ingestCourtListenerSignals({
+    jurisdiction: 'us_federal', signalType: 'custom_opinion_type', apiBaseUrl: 'https://atlas.example.test',
+    token: 'fixture-token',
+    fetchPage: async () => ({ results: [courtOpinion], next: null }),
+    postSignals: async (input) => { emitted = input; return { accepted: true, status: 'completed', ingested_count: 1, records_failed: 0 }; },
+  });
+  assert.equal(result.status, 'completed');
+  assert.equal(emitted.apiBaseUrl, 'https://atlas.example.test');
+  assert.equal(emitted.signals[0].signal_type, 'custom_opinion_type');
 });
 
 test('OpenStates refuses page 1 when declared pagination continues', async () => {

@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { assertCompleteAdapterReceipt, evaluateAdapterCliReceipt, formatAdapterRunFailure } from '../src/services/adapterReceiptAcceptance.js';
 import { toIsoTimestamp } from '../src/adapters/ingestClient.js';
+import { normalizeSnapRetailer } from '../src/adapters/usdaSnapAdapter.js';
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
 const scheduler = read('../src/services/scheduler.js');
@@ -57,6 +58,18 @@ test('source event time must come from the provider, never current ingest time',
   assert.throws(() => toIsoTimestamp('not-a-timestamp'), /atlas_source_timestamp_invalid/);
   assert.doesNotMatch(read('../src/services/streamStore.js'), /incoming\.timestamp \?\? new Date\(\)/);
   assert.match(read('../src/services/streamStore.js'), /atlas_source_timestamp_missing_or_invalid/);
+});
+
+test('SNAP directory rows stamp the explicit retrieval time and refuse a fabricated one', () => {
+  // Codex P2 on PR #122: normalizeSnapRetailer was the one remaining
+  // no-argument toIsoTimestamp caller; under the strict contract every
+  // nonempty SNAP ingestion would have thrown. Directory pattern: the
+  // fetcher supplies retrievedAt, the normalizer never invents a time.
+  const feature = { attributes: { Store_Name: 'Example Market', City: 'Seattle', State: 'WA', Zip5: '98101', ObjectId: 7 }, geometry: { x: -122.3, y: 47.6 } };
+  const signal = normalizeSnapRetailer(feature, { retrievedAt: '2026-11-19T10:00:00.000Z' });
+  assert.equal(signal.timestamp, '2026-11-19T10:00:00.000Z');
+  assert.throws(() => normalizeSnapRetailer(feature), /atlas_source_timestamp_missing/);
+  assert.throws(() => normalizeSnapRetailer(feature, {}), /atlas_source_timestamp_missing/);
 });
 
 test('provider unavailability cannot be reported as an empty successful source response', () => {

@@ -154,7 +154,7 @@ export async function fetchClusters(jurisdiction = 'us_federal', token = COURTLI
 }
 
 export async function ingestCourtListenerSignals({ opinions, jurisdiction = 'us_federal', signalType = 'new_court_opinion', apiBaseUrl, token = COURTLISTENER_API_KEY, fetchPage = fetchOpinions, postSignals = postSignalsToAtlas } = {}) {
-  if (opinions === undefined) return runIngestCourtListener(null, token, jurisdiction, fetchPage, postSignals);
+  if (opinions === undefined) return runIngestCourtListener(null, token, jurisdiction, fetchPage, postSignals, { signalType, apiBaseUrl });
   const sourceOpinions = opinions;
   const signals = sourceOpinions.map((opinion) => normalizeCourtListenerOpinion(opinion, { jurisdiction, signalType }));
   return postSignals({
@@ -166,12 +166,14 @@ export async function ingestCourtListenerSignals({ opinions, jurisdiction = 'us_
   });
 }
 
-export async function runIngestCourtListener(_supabase = null, token = COURTLISTENER_API_KEY, jurisdiction = 'us_federal', fetchPage = fetchOpinions, postSignals = postSignalsToAtlas) {
+export async function runIngestCourtListener(_supabase = null, token = COURTLISTENER_API_KEY, jurisdiction = 'us_federal', fetchPage = fetchOpinions, postSignals = postSignalsToAtlas, { signalType = 'new_court_opinion', apiBaseUrl } = {}) {
   const { results, next } = await fetchPage(jurisdiction, token);
   if (!Array.isArray(results) || next === undefined) throw new Error('courtlistener_unverifiable_pagination_response');
   // No second API call or publication from an incomplete first-page window.
   if (next !== null) return heldSourceWindow('court_listener', results.length);
-  return ingestCourtListenerSignals({ opinions: results, jurisdiction, postSignals });
+  // Forward the caller's options: a custom Atlas endpoint or signal type
+  // must survive the live-fetch path (Codex P2 on PR #122).
+  return ingestCourtListenerSignals({ opinions: results, jurisdiction, signalType, apiBaseUrl, postSignals });
 }
 
 function sampleOpinions() {
