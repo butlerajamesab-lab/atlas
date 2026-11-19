@@ -14,9 +14,12 @@ export function sourceUrlFrom(...values) {
 }
 
 export function toIsoTimestamp(...values) {
+  // Source event time and ingestion time are different facts. Inventing "now"
+  // makes unchanged source records acquire new event identities every pull.
   const value = values.find((candidate) => candidate !== undefined && candidate !== null && candidate !== '');
-  const date = value ? new Date(value) : new Date();
-  if (Number.isNaN(date.getTime())) return new Date().toISOString();
+  if (value === undefined) throw new Error('atlas_source_timestamp_missing: no source event timestamp was supplied');
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) throw new Error('atlas_source_timestamp_invalid: source event timestamp cannot be parsed');
   return date.toISOString();
 }
 
