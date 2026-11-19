@@ -1,6 +1,9 @@
 import axios from 'axios';
 import dotenv from 'dotenv';
-import { asArray, postSignalsToAtlas, sourceUrlFrom, toIsoTimestamp } from './ingestClient.js';
+import { postSignalsToAtlas, sourceUrlFrom, toIsoTimestamp } from './ingestClient.js';
+import { heldSourceWindow } from './sourceWindow.js';
+import { evaluateAdapterCliReceipt } from '../services/adapterReceiptAcceptance.js';
+import { sha256 } from '../substrate/canonical.js';
 
 dotenv.config();
 
@@ -26,7 +29,7 @@ export function normalizeProPublicaOrganization(org, { jurisdiction = 'us_federa
 
   return {
     signal_type: 'nonprofit_registry_record',
-    timestamp: toIsoTimestamp(org.updated, org.ruling_date, org.created_at),
+    timestamp: toIsoTimestamp(org.updated, org.updated_at, org.created_at),
     spacetime: {
       region,
       jurisdiction: region,
@@ -58,14 +61,20 @@ export function normalizeProPublicaFiling(filing, { organization = {}, jurisdict
   const record = { ...filing, organization };
   const region = stateFromRecord(record, jurisdiction);
   const sourceUrl = nonprofitSourceUrl(record);
+  // tax_prd is the official ProPublica tax-period field (YYYYMM).
+  // This period is NOT a source update timestamp.
+  const taxPeriod = filing.tax_prd ?? filing.tax_period ?? null;
+  const ein = filing.ein ?? organization.ein ?? null;
+  const externalId = filing.sub_id ?? (ein && taxPeriod ? `${ein}:${taxPeriod}` : null);
+  if (!externalId) throw new Error('propublica_filing_identity_missing: EIN+tax_prd or sub_id required');
 
   return {
     signal_type: 'nonprofit_990_filing',
-    timestamp: toIsoTimestamp(filing.updated, filing.tax_period),
+    timestamp: toIsoTimestamp(filing.updated, filing.updated_at),
     spacetime: {
       region,
       jurisdiction: region,
-      tax_period: filing.tax_period || null,
+      tax_period: taxPeriod,
     },
     provenance: {
       channel: 'pro_publica',
@@ -74,11 +83,11 @@ export function normalizeProPublicaFiling(filing, { organization = {}, jurisdict
       source_url: sourceUrl,
     },
     payload: {
-      external_id: filing.sub_id || `${organization.ein || 'unknown'}-${filing.tax_period || 'unknown'}`,
-      ein: organization.ein || filing.ein || null,
+      external_id: String(externalId),
+      ein,
       organization_name: organization.name || null,
-      tax_period: filing.tax_period || null,
-      form_type: filing.formtype || filing.form_type || null,
+      tax_period: taxPeriod,
+      form_type: filing.formtype ?? filing.form_type ?? null,
       total_revenue: filing.totrevenue ?? null,
       total_assets: filing.totassetsend ?? null,
       pdf_url: filing.pdf_url || null,
@@ -96,56 +105,112 @@ export function normalizeToFiling(filing, organization = {}, jurisdiction = 'us_
   return normalizeProPublicaFiling(filing, { organization, jurisdiction });
 }
 
-export async function searchNonprofits(state = 'WA', page = 0, query = '') {
+export async function searchNonprofits(state = 'WA', page = 0, query = '', httpGet = axios.get) {
   const params = { 'state[id]': state.toUpperCase(), page };
   if (query) params.q = query;
 
-  const response = await axios.get(`${PROPUBLICA_NONPROFIT_API_BASE_URL}/search.json`, {
+  const response = await httpGet(`${PROPUBLICA_NONPROFIT_API_BASE_URL}/search.json`, {
     params,
     timeout: 20000,
   });
 
-  return {
-    organizations: response.data?.organizations || [],
-    num_pages: response.data?.num_pages || 1,
-  };
+  const organizations = response.data?.organizations;
+  const numPages = Number(response.data?.num_pages);
+  if (!Array.isArray(organizations) || !Number.isInteger(numPages) || numPages < 1) {
+    throw new Error('propublica_search_unexpected_shape: organizations[] and num_pages required');
+  }
+  return { organizations, num_pages: numPages };
 }
 
-export async function fetchOrgDetail(ein) {
+export async function fetchOrgDetail(ein, httpGet = axios.get) {
   const cleanEin = String(ein).replace(/-/g, '');
-  const response = await axios.get(`${PROPUBLICA_NONPROFIT_API_BASE_URL}/organizations/${cleanEin}.json`, { timeout: 20000 });
-  return {
-    organization: response.data?.organization || {},
-    filings_with_data: response.data?.filings_with_data || [],
-  };
+  const response = await httpGet(`${PROPUBLICA_NONPROFIT_API_BASE_URL}/organizations/${cleanEin}.json`, { timeout: 20000 });
+  if (!response.data?.organization || typeof response.data.organization !== 'object' ||
+      !Array.isArray(response.data.filings_with_data)) {
+    throw new Error('propublica_detail_unexpected_shape: organization and filings_with_data[] required');
+  }
+  return { organization: response.data.organization, filings_with_data: response.data.filings_with_data };
 }
 
-export async function ingestProPublicaSignals({ organizations = [], filings = [], jurisdiction = 'us_federal', apiBaseUrl } = {}) {
-  const orgSignals = organizations.map((organization) => normalizeProPublicaOrganization(organization, { jurisdiction }));
-  const filingSignals = filings.flatMap((entry) => {
-    if (entry?.filings_with_data) {
-      return entry.filings_with_data.map((filing) => normalizeProPublicaFiling(filing, { organization: entry.organization || {}, jurisdiction }));
+/**
+ * Dated filings may be transported; undated search hits remain held.
+ * Neither a hold nor an accepted transport receipt certifies source truth.
+ */
+export function prepareProPublicaSignals({ organizations = [], filings = [], jurisdiction = 'us_federal' } = {}) {
+  const signals = [];
+  const held = [];
+  function acceptOrHold(kind, record, normalize) {
+    try {
+      signals.push(normalize());
+    } catch (e) {
+      const reason = String(e?.message ?? e);
+      if (!reason.startsWith('atlas_source_timestamp_') && !reason.startsWith('propublica_filing_identity_missing')) throw e;
+      held.push({
+        kind,
+        source_record_id: String(record?.sub_id ?? record?.ein ?? record?.strein ?? 'unidentified'),
+        reason: reason.split(':')[0],
+        source_record_json_sha256: sha256(record),
+      });
     }
-    return normalizeProPublicaFiling(entry, { organization: entry.organization || {}, jurisdiction });
-  });
+  }
+  for (const organization of organizations) {
+    acceptOrHold('organization', organization, () => normalizeProPublicaOrganization(organization, { jurisdiction }));
+  }
+  for (const entry of filings) {
+    if (entry?.filings_with_data) {
+      for (const filing of entry.filings_with_data) {
+        acceptOrHold('filing', filing, () => normalizeProPublicaFiling(filing, { organization: entry.organization || {}, jurisdiction }));
+      }
+    } else {
+      acceptOrHold('filing', entry, () => normalizeProPublicaFiling(entry, { organization: entry.organization || {}, jurisdiction }));
+    }
+  }
+  return { signals, held };
+}
 
-  return postSignalsToAtlas({
+export async function ingestProPublicaSignals({
+  organizations = [], filings = [], jurisdiction = 'us_federal', apiBaseUrl,
+  postSignals = postSignalsToAtlas,
+} = {}) {
+  const { signals, held } = prepareProPublicaSignals({ organizations, filings, jurisdiction });
+  // An incomplete source window must never become a partial candidate input.
+  if (held.length) {
+    return { accepted: false, status: 'held_source_metadata', ingested_count: 0,
+      records_seen: signals.length + held.length, records_failed: held.length,
+      source_hold_count: held.length, source_holds: held.slice(0, 25),
+      source_hold: {
+        source: 'pro_publica', reason: 'source_metadata_unverified',
+        held_count: held.length, inspected_count: signals.length + held.length,
+        held_refs: held.slice(0, 25), held_refs_truncated: held.length > 25,
+      } };
+  }
+  const persisted = await postSignals({
     sourceId: 'pro_publica',
     jurisdictionId: 'us_federal',
     moduleHint: 'congressional',
-    signals: [...orgSignals, ...filingSignals],
+    signals,
     apiBaseUrl,
   });
+  return persisted;
 }
 
-export async function runIngestProPublica(_supabase = null, state = 'WA') {
-  const { organizations } = await searchNonprofits(state);
+export async function runIngestProPublica(_supabase = null, state = 'WA', { search = searchNonprofits, getDetail = fetchOrgDetail, postSignals = postSignalsToAtlas } = {}) {
+  const { organizations, num_pages: sourcePagesTotal } = await search(state);
+  if (!Number.isSafeInteger(sourcePagesTotal) || sourcePagesTotal < 1) throw new Error('propublica_unverifiable_pagination_response');
+  if (sourcePagesTotal > 1) return heldSourceWindow('pro_publica', organizations.length);
+  if (organizations.length > 10) return heldSourceWindow('pro_publica', organizations.length, 'source_detail_window_incomplete');
   const details = [];
   for (const organization of organizations.slice(0, 10)) {
     const ein = organization.ein;
-    if (ein) details.push(await fetchOrgDetail(ein));
+    if (ein) details.push(await getDetail(ein));
   }
-  return ingestProPublicaSignals({ organizations, filings: details, jurisdiction: state.toUpperCase() });
+  const detailedOrgs = new Map(details.filter((d) => d.organization?.ein).map((d) => [String(d.organization.ein), d.organization]));
+  const sourceOrganizations = organizations.map((org) => detailedOrgs.get(String(org.ein)) || org);
+  return ingestProPublicaSignals({
+    organizations: sourceOrganizations, filings: details,
+    jurisdiction: state.toUpperCase(), postSignals,
+  });
+
 }
 
 function sampleRecords() {
@@ -176,5 +241,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const result = useSample
     ? await ingestProPublicaSignals({ organizations: [organization], filings: [filing], jurisdiction: 'WA' })
     : await runIngestProPublica(null, 'WA');
-  console.log(JSON.stringify({ ok: true, source: 'pro_publica', mode: useSample ? 'sample' : 'live', result }, null, 2));
+  const cli = evaluateAdapterCliReceipt(result);
+  if (!cli.ok) process.exitCode = cli.exit_code;
+  console.log(JSON.stringify({ ok: cli.ok, source: 'pro_publica', mode: useSample ? 'sample' : 'live', result, error: cli.reason }, null, 2));
 }

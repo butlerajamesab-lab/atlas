@@ -6,7 +6,7 @@ dotenv.config();
 const USDA_FNS_API = 'https://usda-fns-snap-retailer-locator.hub.arcgis.com/api/v3/datasets';
 const SNAP_RETAILER_URL = 'https://services1.arcgis.com/RLQu0rK7h4kbsBq5/arcgis/rest/services/Store_Locations/FeatureServer/0/query';
 
-export function normalizeSnapRetailer(feature) {
+export function normalizeSnapRetailer(feature, { retrievedAt } = {}) {
   const attrs = feature.attributes || feature;
   const geo = feature.geometry || {};
   const name = attrs.Store_Name || attrs.store_name || 'Unknown Retailer';
@@ -19,7 +19,12 @@ export function normalizeSnapRetailer(feature) {
 
   return {
     signal_type: 'snap_retailer_location',
-    timestamp: toIsoTimestamp(),
+    // Directory snapshot: the retailer feature carries no source event
+    // date, so the signal's time is the observation (retrieval) time,
+    // supplied explicitly by the fetcher — the WA DSHS / CMS 2567
+    // pattern. Omitting it throws atlas_source_timestamp_missing
+    // rather than fabricating a time (PR #87 contract, Codex P2 on #122).
+    timestamp: toIsoTimestamp(retrievedAt),
     spacetime: {
       region: `us_state_${state}`,
       jurisdiction: `us_state_${state}`,
@@ -59,7 +64,8 @@ export async function fetchSnapRetailers(state = 'WA', limit = 500) {
   };
   const response = await axios.get(SNAP_RETAILER_URL, { params, timeout: 30000 });
   const features = response.data?.features || [];
-  return features.map(normalizeSnapRetailer);
+  const retrievedAt = new Date().toISOString();
+  return features.map((feature) => normalizeSnapRetailer(feature, { retrievedAt }));
 }
 
 export async function ingestSnapSignals({ state = 'WA', limit = 500, apiBaseUrl } = {}) {

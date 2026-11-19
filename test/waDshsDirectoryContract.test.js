@@ -124,8 +124,12 @@ test('normalizer parses a real expiration date and never fabricates one', () => 
   const signal = normalizeWaDshsDirectoryRow('afh', record, { retrievedAt: '2026-11-09T11:16:00.000Z' });
   assert.equal(signal.payload.license_expiration_date, '4/30/2027 12:00:00 AM');
   assert.equal(signal.payload.license_expiration_at, new Date('4/30/2027 12:00:00 AM').toISOString());
-  const bad = normalizeWaDshsDirectoryRow('afh', { ...AFH_RECORD, LicenseExpirationDate: 'not a date' }, {});
+  const bad = normalizeWaDshsDirectoryRow('afh', { ...AFH_RECORD, LicenseExpirationDate: 'not a date' }, { retrievedAt: '2026-11-09T11:16:00.000Z' });
   assert.equal(bad.payload.license_expiration_at, null);
+  // Revival note (2026-11-19): a directory snapshot must name its
+  // observation time. Since PR #87's strict toIsoTimestamp landed, the
+  // normalizer refuses to fabricate one when retrievedAt is omitted.
+  assert.throws(() => normalizeWaDshsDirectoryRow('afh', AFH_RECORD, {}), /atlas_source_timestamp_missing/);
 });
 
 test('county extraction reads the live form shape; the form body posts every county for CSV', () => {

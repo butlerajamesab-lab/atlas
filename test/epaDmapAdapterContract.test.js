@@ -143,6 +143,7 @@ function makeStubDmap() {
   const xrefByFacility = [
     ...xrefByActivity,
     { activity_id: 777, icis_facility_interest_id: 9001 },
+    { activity_id: 777, icis_facility_interest_id: 9002 }, // one CWA activity belongs to both facilities
     { activity_id: 888, icis_facility_interest_id: 9002 },
   ];
 
@@ -226,8 +227,8 @@ test('fetchViolators aggregates DMAP rows into the preserved signal shape', asyn
 
   assert.equal(second.payload.facility_name, 'SMALL DISCHARGER LLC');
   assert.equal(second.payload.violation_count, 1);
-  assert.equal(second.payload.federal_penalty, 0);
-  assert.equal(second.payload.last_inspection, '2022-01-15 00:00:00'); // begin date used when end date is null
+  assert.equal(second.payload.federal_penalty, 1500.5); // shared enforcement activity 777
+  assert.equal(second.payload.last_inspection, '2024-06-01 00:00:00'); // shared inspection 777 is newer than 888
   assert.equal(second.payload.in_significant_noncompliance, false);
   assert.equal(second.payload.is_repeat_offender, false);
   assert.equal(second.signal_type, 'environmental_violation');
